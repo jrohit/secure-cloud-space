@@ -82,3 +82,10 @@ export interface FileViewProps {
   hasNext?: boolean;
   hasPrevious?: boolean;
 }
+
+export interface FolderItemProps {
+  folder: Folder;
+  onClick: () => void;
+  onDelete: () => void;
+  viewMode?: 'grid' | 'list'; // Add viewMode property to FolderItemProps
+}

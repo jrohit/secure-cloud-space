@@ -7,6 +7,9 @@ import { filesApi } from "@/services/api";
 import { FileViewProps } from "@/types";
 import { useState } from "react";
 
+// Define API_URL as a constant
+const API_URL = "http://localhost:5000/api";
+
 const FilePreviewDialog: React.FC<FileViewProps> = ({
   file,
   onClose,

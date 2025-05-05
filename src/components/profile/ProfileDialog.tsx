@@ -61,6 +61,7 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ open, onOpenChange }) => 
 
     setIsUploading(true);
     try {
+      // Pass the native web File object directly to uploadAvatar
       const result = await usersApi.uploadAvatar(token, file);
       updateUser(result.user);
       toast({

@@ -278,7 +278,7 @@ export const usersApi = {
     return handleResponse<User>(response);
   },
 
-  uploadAvatar: async (token: string, avatarFile: File): Promise<{ user: User }> => {
+  uploadAvatar: async (token: string, avatarFile: Blob): Promise<{ user: User }> => {
     const formData = new FormData();
     formData.append('avatar', avatarFile);
 

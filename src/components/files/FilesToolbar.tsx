@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +23,7 @@ interface FilesToolbarProps {
   isUploading: boolean;
   uploadProgress: number;
   reloadFilesAndFolders: (resetCached: boolean) => void;
+  isTrashView?: boolean; // Add isTrashView prop with optional flag
 }
 
 const FilesToolbar: React.FC<FilesToolbarProps> = ({
