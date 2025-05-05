@@ -1,13 +1,12 @@
-
-import { useEffect, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/components/ui/use-toast";
-import { File, Folder } from "@/types";
-import { filesApi, foldersApi } from "@/services/api";
-import { Spinner } from "@/components/ui/Spinner";
 import FileGrid from "@/components/files/FileGrid";
 import FilesEmptyState from "@/components/files/FilesEmptyState";
 import FilesToolbar from "@/components/files/FilesToolbar";
+import { Spinner } from "@/components/ui/Spinner";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { filesApi, foldersApi } from "@/services/api";
+import { File, Folder } from "@/types";
+import { useEffect, useState } from "react";
 
 const Dashboard = () => {
   const { user, token } = useAuth();
@@ -25,16 +24,20 @@ const Dashboard = () => {
     }
   }, [token, currentFolder]);
 
-  const loadFilesAndFolders = async () => {
+  const loadFilesAndFolders = async ({
+    resetCache = false,
+  }: { resetCache?: boolean } = {}) => {
     setLoading(true);
     try {
       if (token) {
+        console.log(currentFolder);
         const [filesData, foldersData] = await Promise.all([
-          filesApi.getFiles(token, currentFolder?.id || null),
-          foldersApi.getFolders(token, currentFolder?.id || null)
+          filesApi.getFiles(token, currentFolder?._id || null, resetCache),
+          foldersApi.getFolders(token, currentFolder?._id || null, resetCache),
         ]);
-        setFiles(filesData);
-        setFolders(foldersData);
+
+        setFiles(filesData?.files);
+        setFolders(foldersData?.folders);
       }
     } catch (error) {
       console.error("Error loading files and folders:", error);
@@ -50,13 +53,18 @@ const Dashboard = () => {
 
   const handleCreateFolder = async (name: string) => {
     if (!token) return;
-    
+
     try {
-      const newFolder = await foldersApi.createFolder(token, name, currentFolder?.id || null);
-      setFolders(prev => [...prev, newFolder]);
-      toast({
-        title: "Success",
-        description: `Folder "${name}" created successfully`,
+      const newFolder = await foldersApi.createFolder(
+        token,
+        name,
+        currentFolder?._id || null
+      );
+      loadFilesAndFolders({ resetCache: true }).then(() => {
+        toast({
+          title: "Success",
+          description: `Folder "${name}" created successfully`,
+        });
       });
     } catch (error) {
       console.error("Error creating folder:", error);
@@ -70,30 +78,39 @@ const Dashboard = () => {
 
   const handleUploadFiles = async (files: FileList) => {
     if (!token) return;
-    
+    if (!files || files.length === 0) return;
+
     setIsUploading(true);
     setUploadProgress(0);
-    
+
+    const formData = new FormData();
+    Array.from(files).forEach((file) => {
+      formData.append("files", file);
+    });
+
+    if (currentFolder?._id) {
+      formData.append("folderId", currentFolder._id);
+    }
+
     const totalFiles = files.length;
     let completedFiles = 0;
-    
+
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const formData = new FormData();
-        formData.append("file", file);
-        
-        await filesApi.uploadFile(token, formData, currentFolder?.id || null);
-        
-        completedFiles++;
-        setUploadProgress(Math.round((completedFiles / totalFiles) * 100));
-      }
-      
-      loadFilesAndFolders();
-      
-      toast({
-        title: "Success",
-        description: `${totalFiles} ${totalFiles === 1 ? "file" : "files"} uploaded successfully`,
+      await filesApi.multipleFileUpload({
+        token,
+        formData,
+        folderId: currentFolder?._id,
+        setUploadProgress,
+        setIsUploading,
+      });
+
+      loadFilesAndFolders().then(() => {
+        toast({
+          title: "Success",
+          description: `${totalFiles} ${
+            totalFiles === 1 ? "file" : "files"
+          } uploaded successfully`,
+        });
       });
     } catch (error) {
       console.error("Error uploading files:", error);
@@ -109,10 +126,10 @@ const Dashboard = () => {
 
   const handleDeleteFile = async (fileId: string) => {
     if (!token) return;
-    
+
     try {
       await filesApi.deleteFile(token, fileId);
-      setFiles(prev => prev.filter(file => file.id !== fileId));
+      setFiles((prev) => prev.filter((file) => file._id !== fileId));
       toast({
         title: "Success",
         description: "File deleted successfully",
@@ -129,10 +146,11 @@ const Dashboard = () => {
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!token) return;
-    
+
     try {
       await foldersApi.deleteFolder(token, folderId);
-      setFolders(prev => prev.filter(folder => folder.id !== folderId));
+      loadFilesAndFolders();
+      // setFolders((prev) => prev.filter((folder) => folder._id !== folderId));
       toast({
         title: "Success",
         description: "Folder deleted successfully",
@@ -156,10 +174,12 @@ const Dashboard = () => {
       setCurrentFolder(null);
       return;
     }
-    
+
     try {
       const parentFolders = await foldersApi.getFolders(token);
-      const parentFolder = parentFolders.find(f => f.id === currentFolder.parentId);
+      const parentFolder = parentFolders.folders?.find(
+        (f) => f._id === currentFolder.parentId
+      );
       setCurrentFolder(parentFolder || null);
     } catch (error) {
       console.error("Error navigating up:", error);
@@ -175,13 +195,16 @@ const Dashboard = () => {
         </h2>
       </div>
 
-      <FilesToolbar 
-        currentFolder={currentFolder} 
+      <FilesToolbar
+        currentFolder={currentFolder}
         onNavigateUp={handleNavigateUp}
         onCreateFolder={handleCreateFolder}
         onUploadFiles={handleUploadFiles}
         isUploading={isUploading}
         uploadProgress={uploadProgress}
+        reloadFilesAndFolders={() => {
+          loadFilesAndFolders({ resetCache: true });
+        }}
       />
 
       {loading ? (
@@ -191,9 +214,9 @@ const Dashboard = () => {
       ) : folders.length === 0 && files.length === 0 ? (
         <FilesEmptyState />
       ) : (
-        <FileGrid 
-          folders={folders} 
-          files={files} 
+        <FileGrid
+          folders={folders}
+          files={files}
           onFolderClick={handleNavigateToFolder}
           onFileDelete={handleDeleteFile}
           onFolderDelete={handleDeleteFolder}

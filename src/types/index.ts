@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   name: string;
@@ -7,8 +6,18 @@ export interface User {
   updatedAt: string;
 }
 
+export interface CachedFilesData {
+  files: File[];
+  source: string | null;
+}
+
+export interface CachedFoldersData {
+  folders: Folder[];
+  source: string | null;
+}
+
 export interface File {
-  id: string;
+  _id: string;
   name: string;
   type: string;
   size: number;
@@ -20,7 +29,7 @@ export interface File {
 }
 
 export interface Folder {
-  id: string;
+  _id: string;
   name: string;
   parentId: string | null;
   userId: string;

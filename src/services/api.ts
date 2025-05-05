@@ -1,5 +1,12 @@
-
-import { ApiError, AuthResponse, File, Folder, User } from "@/types";
+import {
+  ApiError,
+  AuthResponse,
+  CachedFilesData,
+  CachedFoldersData,
+  File,
+  Folder,
+  User,
+} from "@/types";
 
 const API_URL = "http://localhost:5000/api";
 
@@ -28,7 +35,11 @@ export const authApi = {
     return handleResponse<AuthResponse>(response);
   },
 
-  register: async (name: string, email: string, password: string): Promise<AuthResponse> => {
+  register: async (
+    name: string,
+    email: string,
+    password: string
+  ): Promise<AuthResponse> => {
     const response = await fetch(`${API_URL}/auth/register`, {
       method: "POST",
       headers: {
@@ -51,24 +62,74 @@ export const authApi = {
 
 // Files API
 export const filesApi = {
-  getFiles: async (token: string, folderId: string | null = null): Promise<File[]> => {
-    const url = folderId ? 
-      `${API_URL}/files?folderId=${folderId}` : 
-      `${API_URL}/files`;
-    
-    const response = await fetch(url, {
+  getFiles: async (
+    token: string,
+    folderId: string | null = null,
+    resetCache: boolean | false = false
+  ): Promise<CachedFilesData> => {
+    let url = new URL(`${API_URL}/files`);
+
+    if (folderId) {
+      url.searchParams.set("folderId", folderId.toString());
+    }
+
+    if (resetCache) {
+      url.searchParams.set("resetCache", "true");
+    }
+
+    const response = await fetch(url.toString(), {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
-    return handleResponse<File[]>(response);
+    return handleResponse<CachedFilesData>(response);
   },
 
-  uploadFile: async (token: string, file: FormData, folderId: string | null = null): Promise<File> => {
+  multipleFileUpload: async ({
+    token,
+    formData,
+    folderId,
+    setUploadProgress,
+    setIsUploading,
+  }: {
+    token: any;
+    formData: XMLHttpRequestBodyInit | Document;
+    folderId: string | null;
+    setUploadProgress: (arg0: number) => void;
+    setIsUploading: (arg0: boolean) => any;
+  }) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}/files/upload`);
+
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(percent);
+      }
+    };
+
+    xhr.onloadstart = () => setIsUploading(true);
+    xhr.onloadend = () => setIsUploading(false);
+
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === 4 && xhr.status === 200) {
+        console.log("Upload complete:", xhr.responseText);
+      }
+    };
+
+    xhr.send(formData);
+  },
+
+  uploadFile: async (
+    token: string,
+    file: FormData,
+    folderId: string | null = null
+  ): Promise<File> => {
     if (folderId) {
       file.append("folderId", folderId);
     }
-    
+
     const response = await fetch(`${API_URL}/files/upload`, {
       method: "POST",
       headers: {
@@ -96,25 +157,39 @@ export const filesApi = {
       },
     });
     return response.blob();
-  }
+  },
 };
 
 // Folders API
 export const foldersApi = {
-  getFolders: async (token: string, parentId: string | null = null): Promise<Folder[]> => {
-    const url = parentId ? 
-      `${API_URL}/folders?parentId=${parentId}` : 
-      `${API_URL}/folders`;
-    
-    const response = await fetch(url, {
+  getFolders: async (
+    token: string,
+    parentId: string | null = null,
+    resetCache: boolean | false = false
+  ): Promise<CachedFoldersData> => {
+    let url = new URL(`${API_URL}/folders`);
+
+    if (parentId) {
+      url.searchParams.set("parentId", parentId.toString());
+    }
+
+    if (resetCache) {
+      url.searchParams.set("resetCache", "true");
+    }
+
+    const response = await fetch(url.toString(), {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
-    return handleResponse<Folder[]>(response);
+    return handleResponse<CachedFoldersData>(response);
   },
 
-  createFolder: async (token: string, name: string, parentId: string | null = null): Promise<Folder> => {
+  createFolder: async (
+    token: string,
+    name: string,
+    parentId: string | null = null
+  ): Promise<Folder> => {
     const response = await fetch(`${API_URL}/folders`, {
       method: "POST",
       headers: {

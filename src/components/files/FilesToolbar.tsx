@@ -1,8 +1,4 @@
-
-import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -12,8 +8,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Folder, ArrowUp, Upload, FolderPlus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Folder as FolderType } from "@/types";
+import { ArrowUp, FolderPlus, RefreshCcw, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 
 interface FilesToolbarProps {
   currentFolder: FolderType | null;
@@ -22,6 +21,7 @@ interface FilesToolbarProps {
   onUploadFiles: (files: FileList) => void;
   isUploading: boolean;
   uploadProgress: number;
+  reloadFilesAndFolders: (resetCached: boolean) => void;
 }
 
 const FilesToolbar: React.FC<FilesToolbarProps> = ({
@@ -31,6 +31,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
   onUploadFiles,
   isUploading,
   uploadProgress,
+  reloadFilesAndFolders,
 }) => {
   const [folderName, setFolderName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -55,16 +56,12 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         {currentFolder && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onNavigateUp}
-          >
+          <Button variant="outline" size="sm" onClick={onNavigateUp}>
             <ArrowUp className="h-4 w-4 mr-2" />
             Up
           </Button>
         )}
-        
+
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
@@ -94,7 +91,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        
+
         <input
           type="file"
           multiple
@@ -102,7 +99,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
           ref={fileInputRef}
           onChange={handleFileUpload}
         />
-        
+
         <Button
           variant="outline"
           size="sm"
@@ -112,8 +109,16 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
           <Upload className="h-4 w-4 mr-2" />
           Upload Files
         </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => reloadFilesAndFolders(true)}
+        >
+          <RefreshCcw className="h-4 w-4 mr-2" />
+        </Button>
       </div>
-      
+
       {isUploading && (
         <div className="space-y-1">
           <div className="text-sm flex justify-between">
