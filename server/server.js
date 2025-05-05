@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -9,8 +8,9 @@ const { createClient } = require('redis');
 
 // Import routes
 const authRoutes = require('./routes/auth');
-const fileRoutes = require('./routes/files');
-const folderRoutes = require('./routes/folders');
+const filesRoutes = require('./routes/files');
+const foldersRoutes = require('./routes/folders');
+const usersRoutes = require('./routes/users');
 
 // Create Express app
 const app = express();
@@ -47,10 +47,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
+// Add routes
 app.use('/api/auth', authRoutes);
-app.use('/api/files', fileRoutes);
-app.use('/api/folders', folderRoutes);
+app.use('/api/files', filesRoutes);
+app.use('/api/folders', foldersRoutes);
+app.use('/api/users', usersRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

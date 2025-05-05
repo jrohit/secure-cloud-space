@@ -28,6 +28,18 @@ const FileSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  isStarred: {
+    type: Boolean,
+    default: false
+  },
+  isTrash: {
+    type: Boolean,
+    default: false
+  },
+  thumbnailPath: {
+    type: String,
+    default: null
   }
 }, { timestamps: true });
 

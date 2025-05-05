@@ -5,6 +5,8 @@ import {
   CachedFoldersData,
   File,
   Folder,
+  StorageInfo,
+  StoragePlan,
   User,
 } from "@/types";
 
@@ -65,7 +67,9 @@ export const filesApi = {
   getFiles: async (
     token: string,
     folderId: string | null = null,
-    resetCache: boolean | false = false
+    resetCache: boolean | false = false,
+    type: string = 'all',
+    search: string | null = null
   ): Promise<CachedFilesData> => {
     let url = new URL(`${API_URL}/files`);
 
@@ -77,12 +81,63 @@ export const filesApi = {
       url.searchParams.set("resetCache", "true");
     }
 
+    if (type !== 'all') {
+      url.searchParams.set("type", type);
+    }
+
+    if (search) {
+      url.searchParams.set("search", search);
+    }
+
     const response = await fetch(url.toString(), {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
     return handleResponse<CachedFilesData>(response);
+  },
+
+  starFile: async (token: string, fileId: string): Promise<{ isStarred: boolean }> => {
+    const response = await fetch(`${API_URL}/files/${fileId}/star`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse<{ isStarred: boolean }>(response);
+  },
+
+  trashFile: async (token: string, fileId: string): Promise<void> => {
+    const response = await fetch(`${API_URL}/files/${fileId}/trash`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse<void>(response);
+  },
+
+  restoreFile: async (token: string, fileId: string): Promise<void> => {
+    const response = await fetch(`${API_URL}/files/${fileId}/restore`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse<void>(response);
+  },
+
+  getStorageInfo: async (token: string): Promise<StorageInfo> => {
+    const response = await fetch(`${API_URL}/files/storage-info`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse<StorageInfo>(response);
+  },
+
+  getFilePreviewUrl: (token: string, fileId: string): string => {
+    return `${API_URL}/files/${fileId}/preview?token=${token}`;
   },
 
   multipleFileUpload: async ({
@@ -209,5 +264,62 @@ export const foldersApi = {
       },
     });
     return handleResponse<void>(response);
+  },
+};
+
+// Users API
+export const usersApi = {
+  getProfile: async (token: string): Promise<User> => {
+    const response = await fetch(`${API_URL}/users/profile`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse<User>(response);
+  },
+
+  uploadAvatar: async (token: string, avatarFile: File): Promise<{ user: User }> => {
+    const formData = new FormData();
+    formData.append('avatar', avatarFile);
+
+    const response = await fetch(`${API_URL}/users/avatar`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    return handleResponse<{ user: User }>(response);
+  },
+
+  deleteAvatar: async (token: string): Promise<void> => {
+    const response = await fetch(`${API_URL}/users/avatar`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse<void>(response);
+  },
+
+  getStoragePlans: async (token: string): Promise<StoragePlan[]> => {
+    const response = await fetch(`${API_URL}/users/storage-plans`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse<StoragePlan[]>(response);
+  },
+
+  upgradeStorage: async (token: string, planId: string): Promise<{ storageLimit: number, storageType: string }> => {
+    const response = await fetch(`${API_URL}/users/upgrade-storage`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ planId }),
+    });
+    return handleResponse<{ storageLimit: number, storageType: string }>(response);
   },
 };

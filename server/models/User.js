@@ -23,6 +23,23 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true
+  },
+  storageUsed: {
+    type: Number,
+    default: 0
+  },
+  storageLimit: {
+    type: Number,
+    default: 5 * 1024 * 1024 * 1024 // 5GB in bytes
+  },
+  storageType: {
+    type: String,
+    enum: ['free', '20gb', '30gb', '50gb', '80gb', '100gb'],
+    default: 'free'
+  },
+  avatar: {
+    type: String,
+    default: null
   }
 }, { timestamps: true });
 

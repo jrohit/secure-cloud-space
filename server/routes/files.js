@@ -1,10 +1,13 @@
+
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs-extra");
 const File = require("../models/File");
+const User = require("../models/User");
 const auth = require("../middleware/auth");
+const sharp = require("sharp");
 
 // Configure multer for file storage
 const storage = multer.diskStorage({
@@ -39,12 +42,78 @@ const MB_1 = 1024 * 1024;
 
 const upload = multer({
   storage,
-  // 1024 * 1024 * 1 = 1MB
   limits: { fileSize: 1024 * MB_1 }, // 1024 MB limit
 });
 
+// Check storage quota middleware
+const checkStorageQuota = async (req, res, next) => {
+  try {
+    // Get current user storage usage
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Calculate total file size of uploads
+    let totalUploadSize = 0;
+    if (req.files && req.files.length > 0) {
+      totalUploadSize = req.files.reduce((sum, file) => sum + file.size, 0);
+    } else if (req.file) {
+      totalUploadSize = req.file.size;
+    }
+
+    // Check if upload exceeds remaining quota
+    if (user.storageUsed + totalUploadSize > user.storageLimit) {
+      return res.status(400).json({ 
+        message: "Storage quota exceeded",
+        storageUsed: user.storageUsed,
+        storageLimit: user.storageLimit,
+        needed: totalUploadSize,
+        remaining: user.storageLimit - user.storageUsed
+      });
+    }
+
+    // Add upload size to request for later use
+    req.totalUploadSize = totalUploadSize;
+    next();
+  } catch (error) {
+    console.error("Storage quota check error:", error);
+    res.status(500).json({ message: "Server error checking storage quota" });
+  }
+};
+
+// Helper function to generate thumbnails
+const generateThumbnail = async (filePath, fileName, fileType) => {
+  try {
+    const thumbnailDir = path.join(path.dirname(filePath), '.thumbnails');
+    await fs.ensureDir(thumbnailDir);
+    const thumbnailPath = path.join(thumbnailDir, fileName);
+    
+    if (fileType.startsWith('image/')) {
+      // Generate image thumbnail
+      await sharp(filePath)
+        .resize(200, 200, { fit: 'inside' })
+        .toFile(thumbnailPath);
+      return thumbnailPath;
+    } else if (fileType.startsWith('video/')) {
+      // For video thumbnails, we'd typically use ffmpeg
+      // This is a placeholder implementation
+      return null;
+    } else if (fileType === 'application/pdf') {
+      // For PDF thumbnails, we'd typically use pdf.js or similar
+      // This is a placeholder implementation
+      return null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error generating thumbnail:", error);
+    return null;
+  }
+};
+
 // Upload file
-router.post("/upload", auth, upload.array("files"), async (req, res) => {
+router.post("/upload", auth, upload.array("files"), checkStorageQuota, async (req, res) => {
   try {
     if (req.files && req.files?.length < 1) {
       return res.status(400).json({ message: "No file uploaded" });
@@ -54,6 +123,13 @@ router.post("/upload", auth, upload.array("files"), async (req, res) => {
     if (req.files.length > 0) {
       // Create file record in database
       for (let i = 0; i < req.files.length; i++) {
+        // Generate thumbnail if supported file type
+        const thumbnailPath = await generateThumbnail(
+          req.files[i].path,
+          req.files[i].filename,
+          req.files[i].mimetype
+        );
+
         const newFile = new File({
           name: req.files[i].originalname,
           type: req.files[i].mimetype,
@@ -61,6 +137,7 @@ router.post("/upload", auth, upload.array("files"), async (req, res) => {
           path: req.files[i].path,
           folderId: req.body.folderId || null,
           userId: req.user._id,
+          thumbnailPath: thumbnailPath
         });
 
         await newFile.save();
@@ -74,8 +151,16 @@ router.post("/upload", auth, upload.array("files"), async (req, res) => {
           userId: newFile.userId,
           createdAt: newFile.createdAt,
           updatedAt: newFile.updatedAt,
+          thumbnailPath: newFile.thumbnailPath,
+          isStarred: newFile.isStarred,
+          isTrash: newFile.isTrash
         });
       }
+
+      // Update user's storage usage
+      await User.findByIdAndUpdate(req.user._id, {
+        $inc: { storageUsed: req.totalUploadSize }
+      });
     }
 
     // Invalidate cache for file listing
@@ -94,15 +179,38 @@ router.post("/upload", auth, upload.array("files"), async (req, res) => {
 // Get all files
 router.get("/", auth, async (req, res) => {
   try {
-    // await req.redisClient.FLUSHDB("ASYNC");
-    // await req.redisClient.FLUSHALL("ASYNC");
-    // await req.redisClient.flushAll("ASYNC");
-    // await req.redisClient.flushDb("ASYNC");
     const folderId = req.query.folderId || null;
     const resetCache = req.query.resetCache || "false";
+    const type = req.query.type || "all"; // 'all', 'starred', 'trash'
+    const search = req.query.search || null;
 
-    // Try to get files from cache
-    const cacheKey = `files:${req.user._id}:${folderId || "root"}`;
+    // Prepare query object
+    let query = { userId: req.user._id };
+    
+    // Handle different types of requests
+    if (type === 'all') {
+      query.isTrash = false;
+      if (folderId) {
+        query.folderId = folderId;
+      } else {
+        query.folderId = null;
+      }
+    } else if (type === 'starred') {
+      query.isStarred = true;
+      query.isTrash = false;
+    } else if (type === 'trash') {
+      query.isTrash = true;
+    }
+
+    // Handle search
+    if (search) {
+      query.name = { $regex: search, $options: 'i' };
+      // Don't use cache for search queries
+      resetCache = "true";
+    }
+
+    // Generate cache key based on query parameters
+    const cacheKey = `files:${req.user._id}:${type}:${folderId || "root"}:${search || ""}`;
     const cachedFiles = await req.redisClient.get(cacheKey);
 
     if (cachedFiles && resetCache === "false") {
@@ -110,10 +218,7 @@ router.get("/", auth, async (req, res) => {
     }
 
     // If not in cache, get from database
-    const files = await File.find({
-      userId: req.user._id,
-      folderId: folderId,
-    });
+    const files = await File.find(query);
 
     // Cache files data
     if (files && files.length > 0) {
@@ -129,7 +234,86 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-// Delete file
+// Star/unstar a file
+router.patch("/:id/star", auth, async (req, res) => {
+  try {
+    const file = await File.findOne({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+
+    if (!file) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    file.isStarred = !file.isStarred;
+    await file.save();
+
+    // Invalidate cache
+    await req.redisClient.flushAll("ASYNC");
+
+    res.json({ 
+      message: file.isStarred ? "File starred" : "File unstarred",
+      isStarred: file.isStarred
+    });
+  } catch (error) {
+    console.error("Star/unstar file error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Move file to trash
+router.patch("/:id/trash", auth, async (req, res) => {
+  try {
+    const file = await File.findOne({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+
+    if (!file) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    file.isTrash = true;
+    await file.save();
+
+    // Invalidate cache
+    await req.redisClient.flushAll("ASYNC");
+
+    res.json({ message: "File moved to trash" });
+  } catch (error) {
+    console.error("Trash file error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Restore file from trash
+router.patch("/:id/restore", auth, async (req, res) => {
+  try {
+    const file = await File.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+      isTrash: true
+    });
+
+    if (!file) {
+      return res.status(404).json({ message: "File not found in trash" });
+    }
+
+    file.isTrash = false;
+    await file.save();
+
+    // Invalidate cache
+    await req.redisClient.flushAll("ASYNC");
+
+    res.json({ message: "File restored from trash" });
+  } catch (error) {
+    console.error("Restore file error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Delete file (permanent delete)
 router.delete("/:id", auth, async (req, res) => {
   try {
     const file = await File.findOne({
@@ -143,13 +327,22 @@ router.delete("/:id", auth, async (req, res) => {
 
     // Delete the file from storage
     await fs.remove(file.path);
+    
+    // Delete thumbnail if exists
+    if (file.thumbnailPath) {
+      await fs.remove(file.thumbnailPath).catch(err => console.error("Error deleting thumbnail:", err));
+    }
+
+    // Update user's storage usage
+    await User.findByIdAndUpdate(req.user._id, {
+      $inc: { storageUsed: -file.size }
+    });
 
     // Delete the file document
     await File.deleteOne({ _id: file._id });
 
     // Invalidate cache
-    const cacheKey = `files:${req.user._id}:${file.folderId || "root"}`;
-    await req.redisClient.del(cacheKey);
+    await req.redisClient.flushAll("ASYNC");
 
     res.json({ message: "File deleted" });
   } catch (error) {
@@ -186,6 +379,60 @@ router.get("/:id/download", auth, async (req, res) => {
     fileStream.pipe(res);
   } catch (error) {
     console.error("File download error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get file thumbnail or preview
+router.get("/:id/preview", auth, async (req, res) => {
+  try {
+    const file = await File.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+
+    if (!file) {
+      return res.status(404).json({ message: "File not found" });
+    }
+
+    // If it's an image or has a thumbnail, serve it
+    if (file.thumbnailPath && await fs.pathExists(file.thumbnailPath)) {
+      // Thumbnail exists, serve it
+      res.setHeader("Content-Type", "image/jpeg");
+      const thumbnailStream = fs.createReadStream(file.thumbnailPath);
+      thumbnailStream.pipe(res);
+    } else if (file.type.startsWith('image/') && await fs.pathExists(file.path)) {
+      // It's an image and no thumbnail, serve the original
+      res.setHeader("Content-Type", file.type);
+      const fileStream = fs.createReadStream(file.path);
+      fileStream.pipe(res);
+    } else {
+      // No preview available
+      res.status(404).json({ message: "No preview available" });
+    }
+  } catch (error) {
+    console.error("File preview error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get user storage info
+router.get("/storage-info", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('storageUsed storageLimit storageType');
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      storageUsed: user.storageUsed,
+      storageLimit: user.storageLimit,
+      storageType: user.storageType,
+      usagePercentage: (user.storageUsed / user.storageLimit) * 100
+    });
+  } catch (error) {
+    console.error("Storage info error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });

@@ -1,9 +1,14 @@
+
 export interface User {
   id: string;
   name: string;
   email: string;
   createdAt: string;
   updatedAt: string;
+  avatar: string | null;
+  storageUsed: number;
+  storageLimit: number;
+  storageType: string;
 }
 
 export interface CachedFilesData {
@@ -26,6 +31,9 @@ export interface File {
   userId: string;
   createdAt: string;
   updatedAt: string;
+  isStarred: boolean;
+  isTrash: boolean;
+  thumbnailPath: string | null;
 }
 
 export interface Folder {
@@ -45,4 +53,32 @@ export interface AuthResponse {
 export interface ApiError {
   message: string;
   status: number;
+}
+
+export interface StorageInfo {
+  storageUsed: number;
+  storageLimit: number;
+  storageType: string;
+  usagePercentage: number;
+}
+
+export interface StoragePlan {
+  id: string;
+  name: string;
+  size: number;
+  unit: string;
+  price: number;
+}
+
+export interface ViewMode {
+  mode: 'grid' | 'list';
+}
+
+export interface FileViewProps {
+  file: File;
+  onClose: () => void;
+  onNext?: () => void;
+  onPrevious?: () => void;
+  hasNext?: boolean;
+  hasPrevious?: boolean;
 }
