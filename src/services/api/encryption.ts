@@ -8,7 +8,6 @@ export const encryptionService = {
    */
   generateUserEncryptionKey: (userId: string, token: string): string => {
     // Create a deterministic key based on user ID and auth token
-    // In a real-world scenario, this might use a more sophisticated key derivation function
     return CryptoJS.SHA256(userId + token).toString();
   },
   
@@ -28,33 +27,135 @@ export const encryptionService = {
   },
   
   /**
-   * Encrypt file content - this is a simplified version for demonstration
-   * For larger files, chunking and streaming would be required
+   * Encrypt file content using a web worker
+   * This function processes files in chunks to avoid memory issues
    */
   encryptFile: async (file: Blob, encryptionKey: string): Promise<Blob> => {
-    // Convert file to array buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer);
+    // Create a worker
+    const worker = new Worker(new URL('../../workers/encryption.worker.ts', import.meta.url), { type: 'module' });
     
-    // Encrypt the word array
-    const encrypted = CryptoJS.AES.encrypt(wordArray, encryptionKey).toString();
+    // Define chunk size (1MB)
+    const CHUNK_SIZE = 1024 * 1024;
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    let encryptedChunks: string[] = new Array(totalChunks);
+    let completedChunks = 0;
     
-    // Convert encrypted string back to Blob
-    return new Blob([encrypted], { type: 'application/encrypted' });
+    return new Promise((resolve, reject) => {
+      // Process worker responses
+      worker.onmessage = (e) => {
+        const { encrypted, error, chunkIndex, totalChunks } = e.data;
+        
+        if (error) {
+          worker.terminate();
+          reject(new Error(`Worker error: ${error}`));
+          return;
+        }
+        
+        // Store the encrypted chunk
+        encryptedChunks[chunkIndex] = encrypted;
+        completedChunks++;
+        
+        // Check if all chunks are processed
+        if (completedChunks === totalChunks) {
+          // Combine all encrypted chunks
+          const combinedEncrypted = encryptedChunks.join('|||CHUNK|||');
+          
+          // Terminate the worker
+          worker.terminate();
+          
+          // Return the encrypted data as a blob
+          resolve(new Blob([combinedEncrypted], { type: 'application/encrypted' }));
+        }
+      };
+      
+      // Handle worker errors
+      worker.onerror = (error) => {
+        worker.terminate();
+        reject(new Error(`Worker error: ${error.message}`));
+      };
+      
+      // Send chunks to the worker for processing
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        
+        worker.postMessage({
+          action: 'encrypt',
+          data: {
+            fileChunk: chunk,
+            encryptionKey,
+            chunkIndex: i,
+            totalChunks
+          }
+        });
+      }
+    });
   },
   
   /**
-   * Decrypt file content - simplified version
+   * Decrypt file content using a web worker
    */
   decryptFile: async (encryptedBlob: Blob, encryptionKey: string, originalType: string): Promise<Blob> => {
-    // Convert encrypted blob to text
+    // Create a worker
+    const worker = new Worker(new URL('../../workers/encryption.worker.ts', import.meta.url), { type: 'module' });
+    
+    // Get the encrypted text
     const encryptedText = await encryptedBlob.text();
     
-    // Decrypt the text
-    const decrypted = CryptoJS.AES.decrypt(encryptedText, encryptionKey);
-    const wordArray = decrypted.toString(CryptoJS.enc.Utf8);
+    // Split into chunks if it was chunked during encryption
+    const encryptedChunks = encryptedText.split('|||CHUNK|||');
+    const totalChunks = encryptedChunks.length;
+    let decryptedChunks: string[] = new Array(totalChunks);
+    let completedChunks = 0;
     
-    // Convert decrypted string back to Blob with original type
-    return new Blob([wordArray], { type: originalType });
+    return new Promise((resolve, reject) => {
+      // Process worker responses
+      worker.onmessage = (e) => {
+        const { decrypted, error, chunkIndex, totalChunks } = e.data;
+        
+        if (error) {
+          worker.terminate();
+          reject(new Error(`Worker error: ${error}`));
+          return;
+        }
+        
+        // Store the decrypted chunk
+        decryptedChunks[chunkIndex] = decrypted;
+        completedChunks++;
+        
+        // Check if all chunks are processed
+        if (completedChunks === totalChunks) {
+          // Combine all decrypted chunks
+          const combinedDecrypted = decryptedChunks.join('');
+          
+          // Terminate the worker
+          worker.terminate();
+          
+          // Return the decrypted data as a blob with the original type
+          resolve(new Blob([combinedDecrypted], { type: originalType }));
+        }
+      };
+      
+      // Handle worker errors
+      worker.onerror = (error) => {
+        worker.terminate();
+        reject(new Error(`Worker error: ${error.message}`));
+      };
+      
+      // Send chunks to the worker for processing
+      for (let i = 0; i < totalChunks; i++) {
+        worker.postMessage({
+          action: 'decrypt',
+          data: {
+            encryptedText: encryptedChunks[i],
+            encryptionKey,
+            originalType,
+            chunkIndex: i,
+            totalChunks
+          }
+        });
+      }
+    });
   }
 };

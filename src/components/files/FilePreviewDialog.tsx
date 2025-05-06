@@ -1,4 +1,3 @@
-
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
@@ -6,9 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { filesApi } from "@/services/api";
 import { FileViewProps } from "@/types";
 import { useState } from "react";
-
-// Define API_URL as a constant
-const API_URL = "http://localhost:5000/api";
+import { API_URL } from "@/services/api/utils";
 
 const FilePreviewDialog: React.FC<FileViewProps> = ({
   file,
@@ -18,10 +15,10 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
   hasNext = false,
   hasPrevious = false,
 }) => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [isDownloading, setIsDownloading] = useState(false);
   
-  if (!token) return null;
+  if (!token || !user) return null;
 
   const previewUrl = filesApi.getFilePreviewUrl(token, file._id);
   
@@ -30,7 +27,7 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
 
     setIsDownloading(true);
     try {
-      const blob = await filesApi.downloadFile(token, file._id);
+      const blob = await filesApi.downloadFile(token, file._id, user.id);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

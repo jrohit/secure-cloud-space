@@ -23,7 +23,7 @@ interface FilesToolbarProps {
   isUploading: boolean;
   uploadProgress: number;
   reloadFilesAndFolders: (resetCached: boolean) => void;
-  isTrashView?: boolean; // Add isTrashView prop with optional flag
+  isTrashView?: boolean;
 }
 
 const FilesToolbar: React.FC<FilesToolbarProps> = ({
@@ -34,6 +34,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
   isUploading,
   uploadProgress,
   reloadFilesAndFolders,
+  isTrashView = false,
 }) => {
   const [folderName, setFolderName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -64,53 +65,57 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
           </Button>
         )}
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <FolderPlus className="h-4 w-4 mr-2" />
-              New Folder
+        {!isTrashView && (
+          <>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  New Folder
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Create New Folder</DialogTitle>
+                  <DialogDescription>
+                    Enter a name for your new folder.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <Input
+                    placeholder="Folder name"
+                    value={folderName}
+                    onChange={(e) => setFolderName(e.target.value)}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreateFolder}>Create</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+            />
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Files
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Create New Folder</DialogTitle>
-              <DialogDescription>
-                Enter a name for your new folder.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <Input
-                placeholder="Folder name"
-                value={folderName}
-                onChange={(e) => setFolderName(e.target.value)}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleCreateFolder}>Create</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <input
-          type="file"
-          multiple
-          className="hidden"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-        />
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-        >
-          <Upload className="h-4 w-4 mr-2" />
-          Upload Files
-        </Button>
+          </>
+        )}
 
         <Button
           variant="outline"
