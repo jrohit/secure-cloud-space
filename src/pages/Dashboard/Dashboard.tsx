@@ -1,4 +1,3 @@
-
 import FileGrid from "@/components/files/FileGrid";
 import FilesEmptyState from "@/components/files/FilesEmptyState";
 import FilesToolbar from "@/components/files/FilesToolbar";
@@ -60,7 +59,7 @@ const Dashboard = () => {
   }: { resetCache?: boolean } = {}) => {
     setLoading(true);
     try {
-      if (token) {
+      if (token && user) {
         if (isSearchView) {
           // Only load files for search, no folders
           const filesData = await filesApi.getFiles(token, null, true, 'all', searchQuery);
@@ -69,7 +68,7 @@ const Dashboard = () => {
         } else {
           const [filesData, foldersData] = await Promise.all([
             filesApi.getFiles(token, currentFolder?._id || null, resetCache, fileType),
-            !isTrashView && !isSearchView ? foldersApi.getFolders(token, currentFolder?._id || null, resetCache) : { folders: [] },
+            !isTrashView && !isSearchView ? foldersApi.getFolders(token, currentFolder?._id || null, resetCache, user.id) : { folders: [] },
           ]);
 
           setFiles(filesData?.files || []);
@@ -89,13 +88,14 @@ const Dashboard = () => {
   };
 
   const handleCreateFolder = async (name: string) => {
-    if (!token) return;
+    if (!token || !user) return;
 
     try {
       await foldersApi.createFolder(
         token,
         name,
-        currentFolder?._id || null
+        currentFolder?._id || null,
+        user.id
       );
       loadFilesAndFolders({ resetCache: true }).then(() => {
         toast({
@@ -114,7 +114,7 @@ const Dashboard = () => {
   };
 
   const handleUploadFiles = async (files: FileList) => {
-    if (!token) return;
+    if (!token || !user) return;
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
@@ -138,6 +138,7 @@ const Dashboard = () => {
         folderId: currentFolder?._id,
         setUploadProgress,
         setIsUploading,
+        userId: user.id,
       });
 
       loadFilesAndFolders({ resetCache: true }).then(() => {
