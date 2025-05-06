@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Folder as FolderType } from "@/types";
 import { ArrowUp, FolderPlus, RefreshCcw, Upload } from "lucide-react";
 import { useRef, useState } from "react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface FilesToolbarProps {
   currentFolder: FolderType | null;
@@ -38,7 +39,9 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
 }) => {
   const [folderName, setFolderName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const handleCreateFolder = () => {
     if (folderName.trim()) {
@@ -54,9 +57,44 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
       e.target.value = "";
     }
   };
+  
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isTrashView) {
+      setIsDragging(true);
+    }
+  };
+  
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+  
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (isTrashView) return;
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      onUploadFiles(e.dataTransfer.files);
+      toast({
+        title: "Files added",
+        description: `${e.dataTransfer.files.length} files added to upload queue`,
+      });
+    }
+  };
 
   return (
-    <div className="space-y-2">
+    <div 
+      className={`space-y-2 ${isDragging ? 'bg-secondary/50 border-2 border-dashed border-primary p-4 rounded-lg' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="flex flex-wrap gap-2">
         {currentFolder && (
           <Button variant="outline" size="sm" onClick={onNavigateUp}>
@@ -123,6 +161,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
           onClick={() => reloadFilesAndFolders(true)}
         >
           <RefreshCcw className="h-4 w-4 mr-2" />
+          Refresh
         </Button>
       </div>
 
@@ -133,6 +172,12 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
             <span>{uploadProgress}%</span>
           </div>
           <Progress value={uploadProgress} className="h-2" />
+        </div>
+      )}
+      
+      {isDragging && (
+        <div className="py-8 text-center">
+          <p className="text-lg font-medium">Drop files here to upload</p>
         </div>
       )}
     </div>

@@ -30,12 +30,12 @@ export const encryptionService = {
    * Encrypt file content using a web worker
    * This function processes files in chunks to avoid memory issues
    */
-  encryptFile: async (file: Blob, encryptionKey: string): Promise<Blob> => {
+  encryptFile: async (file: Blob, encryptionKey: string, onProgress?: (progress: number) => void): Promise<Blob> => {
     // Create a worker
     const worker = new Worker(new URL('../../workers/encryption.worker.ts', import.meta.url), { type: 'module' });
     
-    // Define chunk size (1MB)
-    const CHUNK_SIZE = 1024 * 1024;
+    // Define chunk size (5MB for large files, smaller for small files)
+    const CHUNK_SIZE = file.size > 100 * 1024 * 1024 ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     let encryptedChunks: string[] = new Array(totalChunks);
     let completedChunks = 0;
@@ -43,28 +43,42 @@ export const encryptionService = {
     return new Promise((resolve, reject) => {
       // Process worker responses
       worker.onmessage = (e) => {
-        const { encrypted, error, chunkIndex, totalChunks } = e.data;
+        const { encrypted, error, chunkIndex, totalChunks, type, progress } = e.data;
         
-        if (error) {
+        if (type === 'error' || error) {
           worker.terminate();
           reject(new Error(`Worker error: ${error}`));
           return;
         }
         
-        // Store the encrypted chunk
-        encryptedChunks[chunkIndex] = encrypted;
-        completedChunks++;
+        if (type === 'progress' && onProgress) {
+          // Calculate overall progress based on chunk progress
+          const chunkProgress = progress / 100;
+          const overallProgress = ((chunkIndex / totalChunks) + (chunkProgress / totalChunks)) * 100;
+          onProgress(Math.round(overallProgress));
+          return;
+        }
         
-        // Check if all chunks are processed
-        if (completedChunks === totalChunks) {
-          // Combine all encrypted chunks
-          const combinedEncrypted = encryptedChunks.join('|||CHUNK|||');
+        if (type === 'result') {
+          // Store the encrypted chunk
+          encryptedChunks[chunkIndex] = encrypted;
+          completedChunks++;
           
-          // Terminate the worker
-          worker.terminate();
+          if (onProgress) {
+            onProgress(Math.round((completedChunks / totalChunks) * 100));
+          }
           
-          // Return the encrypted data as a blob
-          resolve(new Blob([combinedEncrypted], { type: 'application/encrypted' }));
+          // Check if all chunks are processed
+          if (completedChunks === totalChunks) {
+            // Combine all encrypted chunks
+            const combinedEncrypted = encryptedChunks.join('|||CHUNK|||');
+            
+            // Terminate the worker
+            worker.terminate();
+            
+            // Return the encrypted data as a blob
+            resolve(new Blob([combinedEncrypted], { type: 'application/encrypted' }));
+          }
         }
       };
       
@@ -96,7 +110,7 @@ export const encryptionService = {
   /**
    * Decrypt file content using a web worker
    */
-  decryptFile: async (encryptedBlob: Blob, encryptionKey: string, originalType: string): Promise<Blob> => {
+  decryptFile: async (encryptedBlob: Blob, encryptionKey: string, originalType: string, onProgress?: (progress: number) => void): Promise<Blob> => {
     // Create a worker
     const worker = new Worker(new URL('../../workers/encryption.worker.ts', import.meta.url), { type: 'module' });
     
@@ -106,34 +120,55 @@ export const encryptionService = {
     // Split into chunks if it was chunked during encryption
     const encryptedChunks = encryptedText.split('|||CHUNK|||');
     const totalChunks = encryptedChunks.length;
-    let decryptedChunks: string[] = new Array(totalChunks);
+    let decryptedChunks: ArrayBuffer[] = new Array(totalChunks);
     let completedChunks = 0;
     
     return new Promise((resolve, reject) => {
       // Process worker responses
       worker.onmessage = (e) => {
-        const { decrypted, error, chunkIndex, totalChunks } = e.data;
+        const { decryptedData, error, chunkIndex, totalChunks, type, progress } = e.data;
         
-        if (error) {
+        if (type === 'error' || error) {
           worker.terminate();
           reject(new Error(`Worker error: ${error}`));
           return;
         }
         
-        // Store the decrypted chunk
-        decryptedChunks[chunkIndex] = decrypted;
-        completedChunks++;
+        if (type === 'progress' && onProgress) {
+          // Calculate overall progress based on chunk progress
+          const chunkProgress = progress / 100;
+          const overallProgress = ((chunkIndex / totalChunks) + (chunkProgress / totalChunks)) * 100;
+          onProgress(Math.round(overallProgress));
+          return;
+        }
         
-        // Check if all chunks are processed
-        if (completedChunks === totalChunks) {
-          // Combine all decrypted chunks
-          const combinedDecrypted = decryptedChunks.join('');
+        if (type === 'result') {
+          // Store the decrypted chunk
+          decryptedChunks[chunkIndex] = decryptedData;
+          completedChunks++;
           
-          // Terminate the worker
-          worker.terminate();
+          if (onProgress) {
+            onProgress(Math.round((completedChunks / totalChunks) * 100));
+          }
           
-          // Return the decrypted data as a blob with the original type
-          resolve(new Blob([combinedDecrypted], { type: originalType }));
+          // Check if all chunks are processed
+          if (completedChunks === totalChunks) {
+            // Combine all decrypted chunks
+            const combinedSize = decryptedChunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
+            const combinedArray = new Uint8Array(combinedSize);
+            
+            let offset = 0;
+            for (const chunk of decryptedChunks) {
+              combinedArray.set(new Uint8Array(chunk), offset);
+              offset += chunk.byteLength;
+            }
+            
+            // Terminate the worker
+            worker.terminate();
+            
+            // Return the decrypted data as a blob with the original type
+            resolve(new Blob([combinedArray], { type: originalType }));
+          }
         }
       };
       

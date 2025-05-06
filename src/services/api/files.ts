@@ -3,31 +3,6 @@ import { CachedFilesData, File, StorageInfo } from "@/types";
 import { API_URL, handleResponse } from "./utils";
 import { encryptionService } from "./encryption";
 
-// Create a custom TransformStream for encryption
-class EncryptionTransformStream extends TransformStream<Uint8Array, Uint8Array> {
-  constructor(encryptionKey: string) {
-    let buffer = new Uint8Array();
-    let processedChunks = 0;
-    
-    super({
-      transform: async (chunk, controller) => {
-        try {
-          // For simplicity, we'll process each chunk individually
-          // In a real implementation, you might want to combine chunks to a certain size
-          const blob = new Blob([chunk]);
-          const encrypted = await encryptionService.encryptFile(blob, encryptionKey);
-          const encryptedArray = new Uint8Array(await encrypted.arrayBuffer());
-          controller.enqueue(encryptedArray);
-          processedChunks++;
-        } catch (error) {
-          console.error('Error in transform stream:', error);
-          controller.error(error);
-        }
-      }
-    });
-  }
-}
-
 export const filesApi = {
   getFiles: async (
     token: string,
@@ -124,14 +99,14 @@ export const filesApi = {
     
     // Extract files from formData
     const files = formData.getAll('files');
+    const totalFiles = files.length;
     
     try {
       setIsUploading(true);
-      let totalEncrypted = 0;
       
-      // Process each file
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i] as Blob;
+      // Process one file at a time to conserve memory
+      for (let i = 0; i < totalFiles; i++) {
+        const file = files[i] as File;
         
         // Store original file type and name in metadata
         const fileMetadata = JSON.stringify({
@@ -143,52 +118,70 @@ export const filesApi = {
         // Encrypt metadata
         const encryptedMetadata = encryptionService.encryptData(fileMetadata, encryptionKey);
         
-        // Encrypt the file using the web worker
-        const encryptedFile = await encryptionService.encryptFile(file, encryptionKey);
+        // Calculate progress for current file (each file gets an equal portion of progress up to 50%)
+        const fileProgressWeight = 50 / totalFiles;
+        const fileStartProgress = (i / totalFiles) * 50;
         
-        // Update progress
-        totalEncrypted++;
-        setUploadProgress(Math.round((totalEncrypted / files.length) * 50)); // First 50% for encryption
-        
-        // Add encrypted file to form data
-        encryptedFormData.append('files', encryptedFile, file.name || `file-${i}`);
-        encryptedFormData.append('encryptedMetadata', encryptedMetadata);
-      }
-      
-      if (folderId) {
-        encryptedFormData.append("folderId", folderId);
-      }
-      
-      // Upload the encrypted files
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", `${API_URL}/files/upload`);
-      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-      
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          // Second 50% for upload (first 50% was for encryption)
-          const uploadPercent = Math.round((event.loaded / event.total) * 50);
-          setUploadProgress(50 + uploadPercent);
-        }
-      };
-      
-      xhr.onloadend = () => setIsUploading(false);
-      
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200 || xhr.status === 201) {
-            console.log("Upload complete:", xhr.responseText);
-          } else {
-            console.error("Upload failed with status:", xhr.status);
+        // Encrypt the file using the web worker with progress reporting
+        const encryptedFile = await encryptionService.encryptFile(
+          file, 
+          encryptionKey,
+          (progress) => {
+            // Map the file's encryption progress (0-100) to its portion of the overall progress
+            const mappedProgress = fileStartProgress + (progress / 100 * fileProgressWeight);
+            setUploadProgress(Math.round(mappedProgress));
           }
+        );
+        
+        // Add encrypted file and metadata to form data for this batch
+        const batchFormData = new FormData();
+        batchFormData.append('files', encryptedFile, file.name || `file-${i}`);
+        batchFormData.append('encryptedMetadata', encryptedMetadata);
+        
+        if (folderId) {
+          batchFormData.append("folderId", folderId);
         }
-      };
+        
+        // Upload this file
+        const uploadStartProgress = 50 + (i / totalFiles) * 50;
+        const uploadEndProgress = 50 + ((i + 1) / totalFiles) * 50;
+        
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", `${API_URL}/files/upload`);
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              // Calculate progress for this file's upload
+              const fileUploadProgress = event.loaded / event.total;
+              const overallProgress = uploadStartProgress + (fileUploadProgress * (uploadEndProgress - uploadStartProgress));
+              setUploadProgress(Math.round(overallProgress));
+            }
+          };
+          
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setUploadProgress(uploadEndProgress);
+              resolve();
+            } else {
+              reject(new Error(`Upload failed with status: ${xhr.status}`));
+            }
+          };
+          
+          xhr.onerror = () => reject(new Error('Network error during upload'));
+          
+          xhr.send(batchFormData);
+        });
+      }
       
-      xhr.send(encryptedFormData);
+      setUploadProgress(100);
+      
     } catch (error) {
       console.error("Error in file encryption/upload:", error);
-      setIsUploading(false);
       throw error;
+    } finally {
+      setIsUploading(false);
     }
   },
 
@@ -202,8 +195,8 @@ export const filesApi = {
     const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
     
     // Get the file from the FormData
-    const fileEntry = fileData.get('file');
-    if (!fileEntry || !(fileEntry instanceof Blob)) {
+    const fileEntry = fileData.get('file') as File | null;
+    if (!fileEntry) {
       throw new Error('No valid file found in form data');
     }
     
@@ -213,7 +206,7 @@ export const filesApi = {
     // Store original file metadata
     const fileMetadata = JSON.stringify({
       originalType: fileEntry.type,
-      name: 'file' in fileEntry ? fileEntry.name : 'file'
+      name: fileEntry.name
     });
     
     // Encrypt metadata
@@ -221,7 +214,7 @@ export const filesApi = {
     
     // Create new FormData with encrypted file
     const encryptedFormData = new FormData();
-    encryptedFormData.append('file', encryptedFile, 'encrypted-file');
+    encryptedFormData.append('file', encryptedFile, fileEntry.name);
     encryptedFormData.append('encryptedMetadata', encryptedMetadata);
     
     // Add folder ID if provided
@@ -272,10 +265,61 @@ export const filesApi = {
     const encryptedBlob = await response.blob();
     
     // Decrypt the file with original type
-    return encryptionService.decryptFile(encryptedBlob, encryptionKey, fileMetadata?.type || 'application/octet-stream');
+    return encryptionService.decryptFile(
+      encryptedBlob, 
+      encryptionKey, 
+      fileMetadata?.type || 'application/octet-stream'
+    );
   },
 
   getFilePreviewUrl: (token: string, fileId: string): string => {
     return `${API_URL}/files/${fileId}/preview?token=${token}`;
   },
+  
+  // Create a cached URL for a file that's been fetched and decrypted
+  // This helps avoid re-downloading and decrypting the same file multiple times
+  cachedFileUrls: new Map<string, { url: string, timestamp: number }>(),
+  
+  // Cache expiry time in milliseconds (30 minutes)
+  cacheExpiryTime: 30 * 60 * 1000,
+  
+  // Get a cached file URL or create one if it doesn't exist
+  getCachedFileUrl: async (token: string, fileId: string, userId: string): Promise<string> => {
+    const cacheKey = `${fileId}-${userId}`;
+    const cached = filesApi.cachedFileUrls.get(cacheKey);
+    
+    // Check if we have a valid cached URL
+    if (cached && (Date.now() - cached.timestamp) < filesApi.cacheExpiryTime) {
+      return cached.url;
+    }
+    
+    // Download and decrypt the file
+    const blob = await filesApi.downloadFile(token, fileId, userId);
+    const url = URL.createObjectURL(blob);
+    
+    // Cache the URL
+    filesApi.cachedFileUrls.set(cacheKey, {
+      url,
+      timestamp: Date.now()
+    });
+    
+    // Set up cleanup of the URL after cache expires
+    setTimeout(() => {
+      const cachedItem = filesApi.cachedFileUrls.get(cacheKey);
+      if (cachedItem && cachedItem.url === url) {
+        URL.revokeObjectURL(url);
+        filesApi.cachedFileUrls.delete(cacheKey);
+      }
+    }, filesApi.cacheExpiryTime);
+    
+    return url;
+  },
+  
+  // Clean up all cached URLs
+  clearCachedFileUrls: () => {
+    for (const [key, { url }] of filesApi.cachedFileUrls.entries()) {
+      URL.revokeObjectURL(url);
+    }
+    filesApi.cachedFileUrls.clear();
+  }
 };

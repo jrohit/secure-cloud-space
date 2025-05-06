@@ -77,8 +77,8 @@ const FileGrid: React.FC<FileGridProps> = ({
           <FileItem
             key={file._id}
             file={file}
+            onClick={() => handlePreviewFile(file)}
             onDelete={() => onFileDelete(file._id)}
-            onPreview={() => handlePreviewFile(file)}
             onStar={() => onFileStar(file._id)}
             onTrash={() => onFileTrash(file._id)}
             onRestore={onFileRestore ? () => onFileRestore(file._id) : undefined}
@@ -117,11 +117,12 @@ const FileGrid: React.FC<FileGridProps> = ({
         <FileItem
           key={file._id}
           file={file}
+          onClick={() => handlePreviewFile(file)}
           onDelete={() => onFileDelete(file._id)}
-          onPreview={() => handlePreviewFile(file)}
           onStar={() => onFileStar(file._id)}
           onTrash={() => onFileTrash(file._id)}
           onRestore={onFileRestore ? () => onFileRestore(file._id) : undefined}
+          viewMode="grid"
         />
       ))}
 

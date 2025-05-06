@@ -1,11 +1,11 @@
+
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { filesApi } from "@/services/api";
 import { FileViewProps } from "@/types";
-import { useState } from "react";
-import { API_URL } from "@/services/api/utils";
+import { useState, useEffect } from "react";
 
 const FilePreviewDialog: React.FC<FileViewProps> = ({
   file,
@@ -17,11 +17,46 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
 }) => {
   const { token, user } = useAuth();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    let isMounted = true;
+    
+    const fetchAndDecryptFile = async () => {
+      if (!token || !user) return;
+      
+      setIsLoading(true);
+      try {
+        // For media files, fetch and decrypt on load
+        if (file.type.startsWith('image/') || file.type.startsWith('video/') || file.type.startsWith('audio/')) {
+          const blob = await filesApi.downloadFile(token, file._id, user.id);
+          if (isMounted) {
+            const url = window.URL.createObjectURL(blob);
+            setObjectUrl(url);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading file:", error);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    fetchAndDecryptFile();
+    
+    return () => {
+      isMounted = false;
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [file._id, token, user]);
   
   if (!token || !user) return null;
 
-  const previewUrl = filesApi.getFilePreviewUrl(token, file._id);
-  
   const handleDownload = async () => {
     if (!token) return;
 
@@ -42,25 +77,62 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
   };
 
   const renderPreview = () => {
+    if (isLoading) {
+      return (
+        <div className="flex h-[50vh] flex-col items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+          <p className="mt-4 text-sm text-muted-foreground">Loading file preview...</p>
+        </div>
+      );
+    }
+
     if (file.type.startsWith("image/")) {
       return (
         <img
-          src={previewUrl}
+          src={objectUrl || undefined}
           alt={file.name}
           className="max-h-[80vh] max-w-full object-contain"
         />
       );
     } else if (file.type.startsWith("video/")) {
       return (
-        <video controls className="max-h-[80vh] max-w-full">
-          <source src={`${API_URL}/files/${file._id}/download?token=${token}`} type={file.type} />
+        <video 
+          controls 
+          className="max-h-[80vh] max-w-full"
+          controlsList="nodownload"
+          autoPlay
+        >
+          <source src={objectUrl || undefined} type={file.type} />
           Your browser does not support the video tag.
         </video>
+      );
+    } else if (file.type.startsWith("audio/")) {
+      return (
+        <div className="flex flex-col items-center justify-center py-8">
+          <div className="w-64 h-64 bg-muted rounded-lg flex items-center justify-center mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 13a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path>
+              <path d="M14 13a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2h-3a2 2 0 0 0-2 2Z"></path>
+              <path d="M10 21v-6"></path>
+              <path d="M7 18h6"></path>
+              <path d="M19 21v-6"></path>
+            </svg>
+          </div>
+          <audio 
+            controls 
+            className="w-full max-w-md"
+            controlsList="nodownload"
+            autoPlay
+          >
+            <source src={objectUrl || undefined} type={file.type} />
+            Your browser does not support the audio tag.
+          </audio>
+        </div>
       );
     } else if (file.type === "application/pdf") {
       return (
         <iframe
-          src={`${API_URL}/files/${file._id}/download?token=${token}`}
+          src={objectUrl || undefined}
           title={file.name}
           className="h-[80vh] w-full"
         />

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { File } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { DotsHorizontalIcon, Download, Star, Trash2, RotateCcw } from "lucide-react"
+import { MoreHorizontal, Download, Star, Trash2, RotateCcw } from "lucide-react"
 import { useNavigate } from 'react-router-dom';
 
 interface FileItemProps {
@@ -79,6 +80,50 @@ const FileItem: React.FC<FileItemProps> = ({
     }
   };
 
+  // Get file icon based on file type
+  const getFileIcon = () => {
+    if (file.type.startsWith("image/")) {
+      return (
+        <img
+          src={filesApi.getFilePreviewUrl(token, file._id)}
+          alt={file.name}
+          className={viewMode === 'grid' ? "h-24 w-24 rounded-md object-cover object-center" : "h-8 w-8 rounded-md object-cover object-center"}
+        />
+      );
+    } else if (file.type.startsWith("video/")) {
+      return (
+        <div className={viewMode === 'grid' ? "mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted" : "flex h-8 w-8 items-center justify-center rounded-md bg-muted"}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={viewMode === 'grid' ? "h-12 w-12 text-muted-foreground" : "h-4 w-4 text-muted-foreground"}>
+            <path d="M18 7c0-1.1-.9-2-2-2H6L4 7h14Z"></path>
+            <path d="M18 9v9c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V9"></path>
+            <path d="m10 14-4-2v4l4-2Z"></path>
+            <path d="M10 14v-4"></path>
+            <path d="M13 12v-2"></path>
+            <path d="M13 15v-1"></path>
+          </svg>
+        </div>
+      );
+    } else if (file.type.startsWith("audio/")) {
+      return (
+        <div className={viewMode === 'grid' ? "mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted" : "flex h-8 w-8 items-center justify-center rounded-md bg-muted"}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={viewMode === 'grid' ? "h-12 w-12 text-muted-foreground" : "h-4 w-4 text-muted-foreground"}>
+            <path d="M2 13a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path>
+            <path d="M14 13a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2h-3a2 2 0 0 0-2 2Z"></path>
+            <path d="M10 21v-6"></path>
+            <path d="M7 18h6"></path>
+            <path d="M19 21v-6"></path>
+          </svg>
+        </div>
+      );
+    } else {
+      return (
+        <div className={viewMode === 'grid' ? "mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted" : "flex h-8 w-8 items-center justify-center rounded-md bg-muted"}>
+          <Download className={viewMode === 'grid' ? "h-12 w-12 text-muted-foreground" : "h-4 w-4 text-muted-foreground"} />
+        </div>
+      );
+    }
+  };
+
   const renderGridItem = () => (
     <div
       className="relative group flex aspect-square h-full w-full cursor-pointer flex-col items-center justify-center rounded-md border p-4 hover:bg-secondary"
@@ -89,7 +134,7 @@ const FileItem: React.FC<FileItemProps> = ({
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0">
               <span className="sr-only">Open menu</span>
-              <DotsHorizontalIcon className="h-4 w-4" />
+              <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[160px]">
@@ -124,17 +169,7 @@ const FileItem: React.FC<FileItemProps> = ({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {file.type.startsWith("image/") ? (
-        <img
-          src={filesApi.getFilePreviewUrl(token, file._id)}
-          alt={file.name}
-          className="h-24 w-24 rounded-md object-cover object-center"
-        />
-      ) : (
-        <div className="mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted">
-          <Download className="h-12 w-12 text-muted-foreground" />
-        </div>
-      )}
+      {getFileIcon()}
       <p className="text-sm font-medium line-clamp-1">{file.name}</p>
       <p className="text-xs text-muted-foreground">
         {formatFileSize(file.size)}
@@ -148,17 +183,7 @@ const FileItem: React.FC<FileItemProps> = ({
       onClick={handleFileClick}
     >
       <div className="flex items-center space-x-4">
-        {file.type.startsWith("image/") ? (
-          <img
-            src={filesApi.getFilePreviewUrl(token, file._id)}
-            alt={file.name}
-            className="h-8 w-8 rounded-md object-cover object-center"
-          />
-        ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
-            <Download className="h-4 w-4 text-muted-foreground" />
-          </div>
-        )}
+        {getFileIcon()}
         <div>
           <p className="text-sm font-medium line-clamp-1">{file.name}</p>
           <p className="text-xs text-muted-foreground">
@@ -171,7 +196,7 @@ const FileItem: React.FC<FileItemProps> = ({
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0">
               <span className="sr-only">Open menu</span>
-              <DotsHorizontalIcon className="h-4 w-4" />
+              <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[160px]">
