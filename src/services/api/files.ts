@@ -76,42 +76,60 @@ export const filesApi = {
     return handleResponse<StorageInfo>(response);
   },
 
+  // Check if user has enough storage before uploading
+  checkStorageQuota: async (token: string, totalSize: number): Promise<{hasSpace: boolean, storageInfo: StorageInfo}> => {
+    const storageInfo = await filesApi.getStorageInfo(token);
+    const hasSpace = (storageInfo.storageUsed + totalSize) <= storageInfo.storageLimit;
+    
+    return {
+      hasSpace,
+      storageInfo
+    };
+  },
+
   multipleFileUpload: async ({
     token,
-    formData,
+    files,
     folderId,
     setUploadProgress,
     setIsUploading,
     userId,
   }: {
     token: string;
-    formData: FormData;
+    files: File[];
     folderId: string | null;
     setUploadProgress: (arg0: number) => void;
     setIsUploading: (arg0: boolean) => any;
     userId: string;
   }) => {
-    // Generate encryption key
-    const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
-    
-    // Create a new FormData for the encrypted files
-    const encryptedFormData = new FormData();
-    
-    // Extract files from formData
-    const files = formData.getAll('files');
-    const totalFiles = files.length;
-    
     try {
       setIsUploading(true);
+      setUploadProgress(0);
+      
+      // Calculate total size for quota check
+      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+      
+      // Check storage quota before encrypting
+      const { hasSpace, storageInfo } = await filesApi.checkStorageQuota(token, totalSize);
+      
+      if (!hasSpace) {
+        const remainingSpace = storageInfo.storageLimit - storageInfo.storageUsed;
+        throw new Error(`Storage quota exceeded. You need ${(totalSize / (1024 * 1024)).toFixed(2)} MB but only have ${(remainingSpace / (1024 * 1024)).toFixed(2)} MB available.`);
+      }
+      
+      // Generate encryption key
+      const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
       
       // Process one file at a time to conserve memory
+      const totalFiles = files.length;
+      
       for (let i = 0; i < totalFiles; i++) {
-        const file = files[i] as File;
+        const file = files[i];
         
         // Store original file type and name in metadata
         const fileMetadata = JSON.stringify({
           originalType: file.type,
-          name: file.name || `file-${i}`,
+          name: file.name,
           size: file.size
         });
         
@@ -135,7 +153,7 @@ export const filesApi = {
         
         // Add encrypted file and metadata to form data for this batch
         const batchFormData = new FormData();
-        batchFormData.append('files', encryptedFile, file.name || `file-${i}`);
+        batchFormData.append('files', encryptedFile, file.name);
         batchFormData.append('encryptedMetadata', encryptedMetadata);
         
         if (folderId) {
@@ -187,26 +205,28 @@ export const filesApi = {
 
   uploadFile: async (
     token: string,
-    fileData: FormData,
+    file: Blob,
+    fileName: string,
+    fileType: string,
     folderId: string | null = null,
     userId: string
   ): Promise<File> => {
     // Generate encryption key
     const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
     
-    // Get the file from the FormData
-    const fileEntry = fileData.get('file') as File | null;
-    if (!fileEntry) {
-      throw new Error('No valid file found in form data');
+    // Check storage quota before encrypting
+    const { hasSpace } = await filesApi.checkStorageQuota(token, file.size);
+    if (!hasSpace) {
+      throw new Error('Storage quota exceeded');
     }
     
     // Encrypt the file
-    const encryptedFile = await encryptionService.encryptFile(fileEntry, encryptionKey);
+    const encryptedFile = await encryptionService.encryptFile(file, encryptionKey);
     
     // Store original file metadata
     const fileMetadata = JSON.stringify({
-      originalType: fileEntry.type,
-      name: fileEntry.name
+      originalType: fileType,
+      name: fileName
     });
     
     // Encrypt metadata
@@ -214,7 +234,7 @@ export const filesApi = {
     
     // Create new FormData with encrypted file
     const encryptedFormData = new FormData();
-    encryptedFormData.append('file', encryptedFile, fileEntry.name);
+    encryptedFormData.append('file', encryptedFile, fileName);
     encryptedFormData.append('encryptedMetadata', encryptedMetadata);
     
     // Add folder ID if provided
@@ -261,6 +281,10 @@ export const filesApi = {
       },
     });
     
+    if (!response.ok) {
+      throw new Error(`Failed to download file: ${response.statusText}`);
+    }
+    
     // Get encrypted blob
     const encryptedBlob = await response.blob();
     
@@ -293,26 +317,31 @@ export const filesApi = {
       return cached.url;
     }
     
-    // Download and decrypt the file
-    const blob = await filesApi.downloadFile(token, fileId, userId);
-    const url = URL.createObjectURL(blob);
-    
-    // Cache the URL
-    filesApi.cachedFileUrls.set(cacheKey, {
-      url,
-      timestamp: Date.now()
-    });
-    
-    // Set up cleanup of the URL after cache expires
-    setTimeout(() => {
-      const cachedItem = filesApi.cachedFileUrls.get(cacheKey);
-      if (cachedItem && cachedItem.url === url) {
-        URL.revokeObjectURL(url);
-        filesApi.cachedFileUrls.delete(cacheKey);
-      }
-    }, filesApi.cacheExpiryTime);
-    
-    return url;
+    try {
+      // Download and decrypt the file
+      const blob = await filesApi.downloadFile(token, fileId, userId);
+      const url = URL.createObjectURL(blob);
+      
+      // Cache the URL
+      filesApi.cachedFileUrls.set(cacheKey, {
+        url,
+        timestamp: Date.now()
+      });
+      
+      // Set up cleanup of the URL after cache expires
+      setTimeout(() => {
+        const cachedItem = filesApi.cachedFileUrls.get(cacheKey);
+        if (cachedItem && cachedItem.url === url) {
+          URL.revokeObjectURL(url);
+          filesApi.cachedFileUrls.delete(cacheKey);
+        }
+      }, filesApi.cacheExpiryTime);
+      
+      return url;
+    } catch (error) {
+      console.error("Error creating cached URL:", error);
+      throw error;
+    }
   },
   
   // Clean up all cached URLs

@@ -22,8 +22,13 @@ export const encryptionService = {
    * Decrypts data with the user's encryption key
    */
   decryptData: (encryptedData: string, encryptionKey: string): string => {
-    const bytes = CryptoJS.AES.decrypt(encryptedData, encryptionKey);
-    return bytes.toString(CryptoJS.enc.Utf8);
+    try {
+      const bytes = CryptoJS.AES.decrypt(encryptedData, encryptionKey);
+      return bytes.toString(CryptoJS.enc.Utf8);
+    } catch (error) {
+      console.error('Failed to decrypt data:', error);
+      return ''; // Return empty string on decryption failure
+    }
   },
   
   /**
@@ -34,8 +39,12 @@ export const encryptionService = {
     // Create a worker
     const worker = new Worker(new URL('../../workers/encryption.worker.ts', import.meta.url), { type: 'module' });
     
-    // Define chunk size (5MB for large files, smaller for small files)
-    const CHUNK_SIZE = file.size > 100 * 1024 * 1024 ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
+    // Define chunk size (10MB for large files, smaller for small files)
+    // Adjusting chunk sizes based on file size for optimal performance
+    const CHUNK_SIZE = file.size > 500 * 1024 * 1024 ? 20 * 1024 * 1024 : // 20MB chunks for very large files
+                       file.size > 100 * 1024 * 1024 ? 10 * 1024 * 1024 : // 10MB chunks for large files
+                       5 * 1024 * 1024; // 5MB chunks for smaller files
+                       
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     let encryptedChunks: string[] = new Array(totalChunks);
     let completedChunks = 0;
@@ -153,21 +162,25 @@ export const encryptionService = {
           
           // Check if all chunks are processed
           if (completedChunks === totalChunks) {
-            // Combine all decrypted chunks
-            const combinedSize = decryptedChunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
-            const combinedArray = new Uint8Array(combinedSize);
-            
-            let offset = 0;
-            for (const chunk of decryptedChunks) {
-              combinedArray.set(new Uint8Array(chunk), offset);
-              offset += chunk.byteLength;
+            try {
+              // Combine all decrypted chunks
+              const combinedSize = decryptedChunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
+              const combinedArray = new Uint8Array(combinedSize);
+              
+              let offset = 0;
+              for (const chunk of decryptedChunks) {
+                combinedArray.set(new Uint8Array(chunk), offset);
+                offset += chunk.byteLength;
+              }
+              
+              // Terminate the worker
+              worker.terminate();
+              
+              // Return the decrypted data as a blob with the original type
+              resolve(new Blob([combinedArray], { type: originalType }));
+            } catch (error) {
+              reject(new Error(`Error combining decrypted chunks: ${error}`));
             }
-            
-            // Terminate the worker
-            worker.terminate();
-            
-            // Return the decrypted data as a blob with the original type
-            resolve(new Blob([combinedArray], { type: originalType }));
           }
         }
       };

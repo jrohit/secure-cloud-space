@@ -1,3 +1,4 @@
+
 import FileGrid from "@/components/files/FileGrid";
 import FilesEmptyState from "@/components/files/FilesEmptyState";
 import FilesToolbar from "@/components/files/FilesToolbar";
@@ -5,7 +6,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { filesApi, foldersApi } from "@/services/api";
-import { File, Folder } from "@/types";
+import { File, Folder, StorageInfo } from "@/types";
 import { useEffect, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ const Dashboard = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
 
   // Determine what type of files to load based on the route
   const getFileType = (): string => {
@@ -41,6 +43,24 @@ const Dashboard = () => {
   const fileType = getFileType();
   const isTrashView = fileType === 'trash';
   const isSearchView = fileType === 'search';
+
+  // Load storage info
+  useEffect(() => {
+    if (token) {
+      loadStorageInfo();
+    }
+  }, [token]);
+
+  const loadStorageInfo = async () => {
+    if (!token) return;
+    
+    try {
+      const info = await filesApi.getStorageInfo(token);
+      setStorageInfo(info);
+    } catch (error) {
+      console.error("Error loading storage info:", error);
+    }
+  };
 
   useEffect(() => {
     if (token) {
@@ -113,47 +133,61 @@ const Dashboard = () => {
     }
   };
 
-  const handleUploadFiles = async (files: FileList) => {
+  const handleUploadFiles = async (fileList: FileList) => {
     if (!token || !user) return;
-    if (!files || files.length === 0) return;
+    if (!fileList || fileList.length === 0) return;
 
     setIsUploading(true);
     setUploadProgress(0);
 
-    const formData = new FormData();
-    Array.from(files).forEach((file) => {
-      formData.append("files", file);
-    });
-
-    if (currentFolder?._id) {
-      formData.append("folderId", currentFolder._id);
-    }
-
-    const totalFiles = files.length;
-
+    // Convert FileList to array for easier handling
+    const files = Array.from(fileList);
+    
+    // Calculate total size to check quota
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    
     try {
+      // Check storage quota before uploading
+      const { hasSpace, storageInfo: updatedStorage } = await filesApi.checkStorageQuota(token, totalSize);
+      
+      if (!hasSpace) {
+        const remainingSpace = updatedStorage.storageLimit - updatedStorage.storageUsed;
+        const requiredMB = (totalSize / (1024 * 1024)).toFixed(2);
+        const availableMB = (remainingSpace / (1024 * 1024)).toFixed(2);
+        
+        toast({
+          title: "Storage Quota Exceeded",
+          description: `You need ${requiredMB} MB but only have ${availableMB} MB available.`,
+          variant: "destructive",
+        });
+        
+        setIsUploading(false);
+        return;
+      }
+      
       await filesApi.multipleFileUpload({
         token,
-        formData,
-        folderId: currentFolder?._id,
+        files,
+        folderId: currentFolder?._id || null,
         setUploadProgress,
         setIsUploading,
         userId: user.id,
       });
 
+      // Update storage info after successful upload
+      await loadStorageInfo();
+      
       loadFilesAndFolders({ resetCache: true }).then(() => {
         toast({
           title: "Success",
-          description: `${totalFiles} ${
-            totalFiles === 1 ? "file" : "files"
-          } uploaded successfully`,
+          description: `${files.length} ${files.length === 1 ? "file" : "files"} uploaded successfully`,
         });
       });
     } catch (error) {
       console.error("Error uploading files:", error);
       toast({
         title: "Error",
-        description: "Failed to upload files",
+        description: error instanceof Error ? error.message : "Failed to upload files",
         variant: "destructive",
       });
     } finally {
@@ -167,6 +201,10 @@ const Dashboard = () => {
     try {
       await filesApi.deleteFile(token, fileId);
       setFiles((prev) => prev.filter((file) => file._id !== fileId));
+      
+      // Update storage info after deletion
+      await loadStorageInfo();
+      
       toast({
         title: "Success",
         description: "File deleted successfully",
@@ -206,13 +244,13 @@ const Dashboard = () => {
   };
 
   const handleNavigateUp = async () => {
-    if (!currentFolder || !currentFolder.parentId || !token) {
+    if (!currentFolder || !currentFolder.parentId || !token || !user) {
       setCurrentFolder(null);
       return;
     }
 
     try {
-      const parentFolders = await foldersApi.getFolders(token);
+      const parentFolders = await foldersApi.getFolders(token, null, false, user.id);
       const parentFolder = parentFolders.folders?.find(
         (f) => f._id === currentFolder.parentId
       );
@@ -364,6 +402,7 @@ const Dashboard = () => {
             loadFilesAndFolders({ resetCache: true });
           }}
           isTrashView={isTrashView}
+          storageInfo={storageInfo}
         />
       )}
 

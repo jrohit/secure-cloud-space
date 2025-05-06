@@ -138,6 +138,7 @@ self.addEventListener('message', async (event) => {
           decryptedData = wordArrayToUint8Array(decrypted).buffer;
         }
         
+        // Using structured clone to transfer the ArrayBuffer
         self.postMessage({
           decryptedData,
           originalType,

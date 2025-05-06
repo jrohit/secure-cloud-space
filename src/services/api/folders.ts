@@ -25,7 +25,31 @@ export const foldersApi = {
         Authorization: `Bearer ${token}`,
       },
     });
-    return handleResponse<CachedFoldersData>(response);
+    
+    const data = await handleResponse<CachedFoldersData>(response);
+    
+    // Decrypt folder names if userId is provided
+    if (userId && data.folders) {
+      const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
+      
+      // Try to decrypt each folder name
+      data.folders = data.folders.map(folder => {
+        if (folder.name && folder.name.length > 24) {
+          try {
+            const decryptedName = encryptionService.decryptData(folder.name, encryptionKey);
+            // If decryption was successful and returned a non-empty string
+            if (decryptedName) {
+              return { ...folder, name: decryptedName };
+            }
+          } catch (error) {
+            console.error(`Error decrypting folder name: ${error}`);
+          }
+        }
+        return folder;
+      });
+    }
+    
+    return data;
   },
 
   createFolder: async (
@@ -52,7 +76,11 @@ export const foldersApi = {
         isEncrypted: true 
       }),
     });
-    return handleResponse<Folder>(response);
+    
+    const folder = await handleResponse<Folder>(response);
+    
+    // Return the folder with the decrypted name for immediate use
+    return { ...folder, name };
   },
 
   deleteFolder: async (token: string, folderId: string): Promise<void> => {

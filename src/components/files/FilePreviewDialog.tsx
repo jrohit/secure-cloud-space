@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { filesApi } from "@/services/api";
 import { FileViewProps } from "@/types";
 import { useState, useEffect } from "react";
+import { Spinner } from "@/components/ui/Spinner";
 
 const FilePreviewDialog: React.FC<FileViewProps> = ({
   file,
@@ -19,6 +20,7 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
   
   useEffect(() => {
     let isMounted = true;
@@ -27,17 +29,27 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
       if (!token || !user) return;
       
       setIsLoading(true);
+      setLoadingError(null);
       try {
-        // For media files, fetch and decrypt on load
-        if (file.type.startsWith('image/') || file.type.startsWith('video/') || file.type.startsWith('audio/')) {
-          const blob = await filesApi.downloadFile(token, file._id, user.id);
+        // For all supported media types, fetch and decrypt on load
+        if (file.type.startsWith('image/') || 
+            file.type.startsWith('video/') || 
+            file.type.startsWith('audio/') ||
+            file.type === 'application/pdf') {
+          
+          console.log("Fetching and decrypting file:", file.name, file.type);
+          const url = await filesApi.getCachedFileUrl(token, file._id, user.id);
+          
           if (isMounted) {
-            const url = window.URL.createObjectURL(blob);
+            console.log("File loaded successfully, setting object URL");
             setObjectUrl(url);
           }
         }
       } catch (error) {
         console.error("Error loading file:", error);
+        if (isMounted) {
+          setLoadingError(`Failed to load file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -49,11 +61,8 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
     
     return () => {
       isMounted = false;
-      if (objectUrl) {
-        window.URL.revokeObjectURL(objectUrl);
-      }
     };
-  }, [file._id, token, user]);
+  }, [file._id, token, user, file.name, file.type]);
   
   if (!token || !user) return null;
 
@@ -80,31 +89,49 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
     if (isLoading) {
       return (
         <div className="flex h-[50vh] flex-col items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+          <Spinner className="h-12 w-12" />
           <p className="mt-4 text-sm text-muted-foreground">Loading file preview...</p>
+        </div>
+      );
+    }
+    
+    if (loadingError) {
+      return (
+        <div className="flex h-[50vh] flex-col items-center justify-center text-destructive">
+          <p className="text-center">{loadingError}</p>
+          <Button onClick={handleDownload} className="mt-4" disabled={isDownloading}>
+            <Download className="mr-2 h-4 w-4" />
+            Try downloading instead
+          </Button>
         </div>
       );
     }
 
     if (file.type.startsWith("image/")) {
       return (
-        <img
-          src={objectUrl || undefined}
-          alt={file.name}
-          className="max-h-[80vh] max-w-full object-contain"
-        />
+        <div className="flex items-center justify-center h-full max-h-[70vh] overflow-hidden">
+          <img
+            src={objectUrl || undefined}
+            alt={file.name}
+            className="max-h-full max-w-full object-contain"
+            onError={() => setLoadingError("Failed to load image")}
+          />
+        </div>
       );
     } else if (file.type.startsWith("video/")) {
       return (
-        <video 
-          controls 
-          className="max-h-[80vh] max-w-full"
-          controlsList="nodownload"
-          autoPlay
-        >
-          <source src={objectUrl || undefined} type={file.type} />
-          Your browser does not support the video tag.
-        </video>
+        <div className="flex items-center justify-center h-full max-h-[70vh]">
+          <video 
+            controls 
+            className="max-h-full max-w-full"
+            controlsList="nodownload"
+            autoPlay
+            onError={() => setLoadingError("Failed to load video")}
+          >
+            <source src={objectUrl || undefined} type={file.type} />
+            Your browser does not support the video tag.
+          </video>
+        </div>
       );
     } else if (file.type.startsWith("audio/")) {
       return (
@@ -123,6 +150,7 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
             className="w-full max-w-md"
             controlsList="nodownload"
             autoPlay
+            onError={() => setLoadingError("Failed to load audio")}
           >
             <source src={objectUrl || undefined} type={file.type} />
             Your browser does not support the audio tag.
@@ -134,7 +162,8 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
         <iframe
           src={objectUrl || undefined}
           title={file.name}
-          className="h-[80vh] w-full"
+          className="h-[70vh] w-full"
+          onError={() => setLoadingError("Failed to load PDF")}
         />
       );
     } else {
@@ -152,7 +181,7 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-6xl p-0 overflow-hidden">
+      <DialogContent className="max-w-6xl p-0 overflow-hidden flex flex-col max-h-[85vh]">
         <div className="absolute right-4 top-4 z-50 flex gap-2">
           <Button
             variant="ghost"
@@ -167,32 +196,34 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
           </Button>
         </div>
 
-        <div className="flex h-full items-center justify-center p-6">
-          {hasPrevious && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="mr-2"
-              onClick={onPrevious}
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </Button>
-          )}
+        <div className="flex-1 overflow-auto flex items-center justify-center p-4">
+          <div className="flex w-full justify-center items-center">
+            {hasPrevious && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mr-2 h-10 w-10 shrink-0"
+                onClick={onPrevious}
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </Button>
+            )}
 
-          <div className="flex-1 flex justify-center">
-            {renderPreview()}
+            <div className="flex-1 flex justify-center overflow-hidden">
+              {renderPreview()}
+            </div>
+
+            {hasNext && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-2 h-10 w-10 shrink-0"
+                onClick={onNext}
+              >
+                <ChevronRight className="h-6 w-6" />
+              </Button>
+            )}
           </div>
-
-          {hasNext && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-2"
-              onClick={onNext}
-            >
-              <ChevronRight className="h-6 w-6" />
-            </Button>
-          )}
         </div>
 
         <div className="p-4 bg-muted/50 border-t">

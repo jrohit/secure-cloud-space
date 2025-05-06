@@ -58,33 +58,78 @@ const FileGrid: React.FC<FileGridProps> = ({
     setPreviewIndex(-1);
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString(undefined, { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric'
+    });
+  };
+
   if (viewMode === 'list') {
     return (
-      <div className="space-y-1">
-        {/* Render folders first */}
-        {folders.map((folder, index) => (
-          <FolderItem
-            key={folder._id ?? index}
-            folder={folder}
-            onClick={() => onFolderClick(folder)}
-            onDelete={() => onFolderDelete(folder._id)}
-            viewMode="list"
-          />
-        ))}
+      <div className="rounded-md border">
+        {/* Header row */}
+        <div className="grid grid-cols-12 px-4 py-3 border-b bg-muted/50">
+          <div className="col-span-6 font-medium">Name</div>
+          <div className="col-span-3 font-medium">Last Modified</div>
+          <div className="col-span-2 font-medium">Size</div>
+          <div className="col-span-1"></div>
+        </div>
+        
+        <div className="divide-y">
+          {/* Render folders first */}
+          {folders.map((folder, index) => (
+            <div key={folder._id ?? index} className="grid grid-cols-12 items-center px-4 py-2 hover:bg-muted/30">
+              <div className="col-span-6">
+                <FolderItem
+                  folder={folder}
+                  onClick={() => onFolderClick(folder)}
+                  onDelete={() => onFolderDelete(folder._id)}
+                  viewMode="list"
+                />
+              </div>
+              <div className="col-span-3 text-sm text-muted-foreground">
+                {formatDate(folder.updatedAt)}
+              </div>
+              <div className="col-span-2 text-sm text-muted-foreground">
+                --
+              </div>
+              <div className="col-span-1"></div>
+            </div>
+          ))}
 
-        {/* Then render files */}
-        {files.map((file) => (
-          <FileItem
-            key={file._id}
-            file={file}
-            onClick={() => handlePreviewFile(file)}
-            onDelete={() => onFileDelete(file._id)}
-            onStar={() => onFileStar(file._id)}
-            onTrash={() => onFileTrash(file._id)}
-            onRestore={onFileRestore ? () => onFileRestore(file._id) : undefined}
-            viewMode="list"
-          />
-        ))}
+          {/* Then render files */}
+          {files.map((file) => (
+            <div key={file._id} className="grid grid-cols-12 items-center px-4 py-2 hover:bg-muted/30">
+              <div className="col-span-6">
+                <FileItem
+                  file={file}
+                  onClick={() => handlePreviewFile(file)}
+                  onDelete={() => onFileDelete(file._id)}
+                  onStar={() => onFileStar(file._id)}
+                  onTrash={() => onFileTrash(file._id)}
+                  onRestore={onFileRestore ? () => onFileRestore(file._id) : undefined}
+                  viewMode="list"
+                />
+              </div>
+              <div className="col-span-3 text-sm text-muted-foreground">
+                {formatDate(file.updatedAt)}
+              </div>
+              <div className="col-span-2 text-sm text-muted-foreground">
+                {formatFileSize(file.size)}
+              </div>
+              <div className="col-span-1"></div>
+            </div>
+          ))}
+
+          {folders.length === 0 && files.length === 0 && (
+            <div className="py-8 text-center text-muted-foreground">
+              No items to display
+            </div>
+          )}
+        </div>
 
         {previewFile && (
           <FilePreviewDialog
@@ -138,6 +183,13 @@ const FileGrid: React.FC<FileGridProps> = ({
       )}
     </div>
   );
+};
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return bytes + " B";
+  else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+  else if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " MB";
+  else return (bytes / 1073741824).toFixed(1) + " GB";
 };
 
 export default FileGrid;

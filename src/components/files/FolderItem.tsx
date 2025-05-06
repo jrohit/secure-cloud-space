@@ -15,7 +15,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, view
   if (viewMode === 'list') {
     return (
       <div 
-        className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-md cursor-pointer"
+        className="flex items-center cursor-pointer w-full"
         onClick={(e) => {
           // Don't navigate if clicking on the dropdown
           if ((e.target as HTMLElement).closest('.dropdown-menu-trigger')) {
@@ -25,25 +25,33 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, view
           onClick();
         }}
       >
-        <div className="flex items-center space-x-3">
-          <FolderOpen className="h-5 w-5 text-cloudDrive-blue opacity-80" />
-          <span className="font-medium truncate max-w-[150px]" title={folder.name}>
-            {folder.name}
-          </span>
+        <div className="flex items-center flex-1">
+          <div className="mr-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-50">
+              <FolderOpen className="h-5 w-5 text-blue-500" />
+            </div>
+          </div>
+          <div className="flex flex-col min-w-0">
+            <p className="text-sm font-medium truncate max-w-[350px]" title={folder.name}>
+              {folder.name}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Folder
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(folder.updatedAt), { addSuffix: true })}
-          </span>
+        
+        <div className="flex items-center ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 dropdown-menu-trigger"
+                size="icon"
+                className="h-8 w-8 rounded-full p-0 ml-2 dropdown-menu-trigger"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">Actions</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -74,11 +82,11 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, view
       }}
     >
       <CardContent className="p-0">
-        <div className="aspect-square flex items-center justify-center bg-muted/20">
-          <FolderOpen className="h-16 w-16 text-cloudDrive-blue opacity-80" />
+        <div className="aspect-square flex items-center justify-center bg-blue-50">
+          <FolderOpen className="h-16 w-16 text-blue-500" />
         </div>
       </CardContent>
-      <CardFooter className="p-2 flex-col items-start gap-1">
+      <CardFooter className="p-3 flex-col items-start gap-1">
         <div className="w-full flex justify-between items-start">
           <div className="truncate flex-1">
             <h3 className="text-sm font-medium truncate" title={folder.name}>
@@ -90,7 +98,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, view
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 dropdown-menu-trigger"
+                className="h-8 w-8 dropdown-menu-trigger -mt-1 -mr-2"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className="h-4 w-4" />
