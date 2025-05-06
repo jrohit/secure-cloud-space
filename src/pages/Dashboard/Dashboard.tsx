@@ -1,17 +1,17 @@
 import FileGrid from "@/components/files/FileGrid";
 import FilesEmptyState from "@/components/files/FilesEmptyState";
 import FilesToolbar from "@/components/files/FilesToolbar";
+import ProfileDialog from "@/components/profile/ProfileDialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
+import { Grid, List, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Grid, List, Search } from "lucide-react";
-import ProfileDialog from "@/components/profile/ProfileDialog";
-import { Input } from "@/components/ui/input";
 
 const Dashboard = () => {
   const { user, token } = useAuth();
@@ -24,7 +24,7 @@ const Dashboard = () => {
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -32,15 +32,15 @@ const Dashboard = () => {
   // Determine what type of files to load based on the route
   const getFileType = (): string => {
     const path = location.pathname;
-    if (path.includes('/starred')) return 'starred';
-    if (path.includes('/trash')) return 'trash';
-    if (path.includes('/search')) return 'search';
-    return 'all';
+    if (path.includes("/starred")) return "starred";
+    if (path.includes("/trash")) return "trash";
+    if (path.includes("/search")) return "search";
+    return "all";
   };
 
   const fileType = getFileType();
-  const isTrashView = fileType === 'trash';
-  const isSearchView = fileType === 'search';
+  const isTrashView = fileType === "trash";
+  const isSearchView = fileType === "search";
 
   useEffect(() => {
     if (token) {
@@ -62,13 +62,31 @@ const Dashboard = () => {
       if (token && user) {
         if (isSearchView) {
           // Only load files for search, no folders
-          const filesData = await filesApi.getFiles(token, null, true, 'all', searchQuery);
+          const filesData = await filesApi.getFiles(
+            token,
+            null,
+            true,
+            "all",
+            searchQuery
+          );
           setFiles(filesData?.files || []);
           setFolders([]);
         } else {
           const [filesData, foldersData] = await Promise.all([
-            filesApi.getFiles(token, currentFolder?._id || null, resetCache, fileType),
-            !isTrashView && !isSearchView ? foldersApi.getFolders(token, currentFolder?._id || null, resetCache, user.id) : { folders: [] },
+            filesApi.getFiles(
+              token,
+              currentFolder?._id || null,
+              resetCache,
+              fileType
+            ),
+            !isTrashView && !isSearchView
+              ? foldersApi.getFolders(
+                  token,
+                  currentFolder?._id || null,
+                  resetCache,
+                  user.id
+                )
+              : { folders: [] },
           ]);
 
           setFiles(filesData?.files || []);
@@ -119,6 +137,7 @@ const Dashboard = () => {
 
     setIsUploading(true);
     setUploadProgress(0);
+    debugger;
 
     const formData = new FormData();
     Array.from(files).forEach((file) => {
@@ -228,14 +247,14 @@ const Dashboard = () => {
 
     try {
       const result = await filesApi.starFile(token, fileId);
-      
+
       // Update the file in the state
-      setFiles(prev => 
-        prev.map(file => 
+      setFiles((prev) =>
+        prev.map((file) =>
           file._id === fileId ? { ...file, isStarred: result.isStarred } : file
         )
       );
-      
+
       toast({
         title: "Success",
         description: result.isStarred ? "File starred" : "File unstarred",
@@ -255,10 +274,10 @@ const Dashboard = () => {
 
     try {
       await filesApi.trashFile(token, fileId);
-      
+
       // Remove the file from the current view
-      setFiles(prev => prev.filter(file => file._id !== fileId));
-      
+      setFiles((prev) => prev.filter((file) => file._id !== fileId));
+
       toast({
         title: "Success",
         description: "File moved to trash",
@@ -278,12 +297,12 @@ const Dashboard = () => {
 
     try {
       await filesApi.restoreFile(token, fileId);
-      
+
       // Remove the file from trash view
       if (isTrashView) {
-        setFiles(prev => prev.filter(file => file._id !== fileId));
+        setFiles((prev) => prev.filter((file) => file._id !== fileId));
       }
-      
+
       toast({
         title: "Success",
         description: "File restored from trash",
@@ -307,21 +326,19 @@ const Dashboard = () => {
   const getPageTitle = (): string => {
     if (isSearchView) return "Search Results";
     if (isTrashView) return "Trash";
-    if (fileType === 'starred') return "Starred";
+    if (fileType === "starred") return "Starred";
     if (currentFolder) return currentFolder.name;
     return "My Drive";
   };
 
   const toggleViewMode = () => {
-    setViewMode(prev => prev === 'grid' ? 'list' : 'grid');
+    setViewMode((prev) => (prev === "grid" ? "list" : "grid"));
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">
-          {getPageTitle()}
-        </h2>
+        <h2 className="text-2xl font-bold tracking-tight">{getPageTitle()}</h2>
         <div className="flex items-center gap-2">
           {isSearchView && (
             <form onSubmit={handleSearch} className="flex items-center">
@@ -342,11 +359,23 @@ const Dashboard = () => {
             variant="ghost"
             size="icon"
             onClick={toggleViewMode}
-            title={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+            title={
+              viewMode === "grid"
+                ? "Switch to list view"
+                : "Switch to grid view"
+            }
           >
-            {viewMode === 'grid' ? <List className="h-5 w-5" /> : <Grid className="h-5 w-5" />}
+            {viewMode === "grid" ? (
+              <List className="h-5 w-5" />
+            ) : (
+              <Grid className="h-5 w-5" />
+            )}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setIsProfileOpen(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsProfileOpen(true)}
+          >
             Profile
           </Button>
         </div>
@@ -373,7 +402,9 @@ const Dashboard = () => {
         </div>
       ) : isSearchView && searchQuery === "" ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Enter a search term to find files</p>
+          <p className="text-muted-foreground">
+            Enter a search term to find files
+          </p>
         </div>
       ) : folders.length === 0 && files.length === 0 ? (
         <FilesEmptyState />
@@ -391,10 +422,7 @@ const Dashboard = () => {
         />
       )}
 
-      <ProfileDialog
-        open={isProfileOpen}
-        onOpenChange={setIsProfileOpen}
-      />
+      <ProfileDialog open={isProfileOpen} onOpenChange={setIsProfileOpen} />
     </div>
   );
 };

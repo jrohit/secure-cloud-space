@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
-import { File } from '@/types';
-import { useAuth } from '@/contexts/AuthContext';
-import { filesApi } from '@/services/api';
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Button } from "@/components/ui/button"
-import { DotsHorizontalIcon, Download, Star, Trash2, RotateCcw } from "lucide-react"
-import { useNavigate } from 'react-router-dom';
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/AuthContext";
+import { filesApi } from "@/services/api";
+import { File } from "@/types";
+import {
+  Download,
+  EllipsisVertical,
+  RotateCcw,
+  Star,
+  Trash2,
+} from "lucide-react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface FileItemProps {
   file: File;
@@ -19,7 +25,7 @@ interface FileItemProps {
   onStar?: () => void;
   onTrash?: () => void;
   onRestore?: () => void;
-  viewMode: 'grid' | 'list';
+  viewMode: "grid" | "list";
 }
 
 const FileItem: React.FC<FileItemProps> = ({
@@ -89,7 +95,7 @@ const FileItem: React.FC<FileItemProps> = ({
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0">
               <span className="sr-only">Open menu</span>
-              <DotsHorizontalIcon className="h-4 w-4" />
+              <EllipsisVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[160px]">
@@ -171,7 +177,7 @@ const FileItem: React.FC<FileItemProps> = ({
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 p-0">
               <span className="sr-only">Open menu</span>
-              <DotsHorizontalIcon className="h-4 w-4" />
+              <EllipsisVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[160px]">
@@ -209,7 +215,7 @@ const FileItem: React.FC<FileItemProps> = ({
     </div>
   );
 
-  return viewMode === 'grid' ? renderGridItem() : renderListItem();
+  return viewMode === "grid" ? renderGridItem() : renderListItem();
 };
 
 const formatFileSize = (bytes: number): string => {
