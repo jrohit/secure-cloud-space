@@ -1,538 +1,503 @@
 
-import { useEffect, useState, useCallback } from "react";
-import FileGrid from "@/components/files/FileGrid";
-import FilesEmptyState from "@/components/files/FilesEmptyState";
-import FilesToolbar from "@/components/files/FilesToolbar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/Spinner";
-import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import { filesApi, foldersApi } from "@/services/api";
-import { File as FileType, Folder, StorageInfo, UploadingFile } from "@/types";
-import { Grid, List, Search } from "lucide-react";
-import { useLocation, useParams } from "react-router-dom";
-import { v4 as uuidv4 } from "uuid";
-import FileUploadProgress from "@/components/files/FileUploadProgress";
-import { userEncryptionService } from "@/services/api/userEncryption";
+// Import necessary components for file type definitions
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { filesApi, foldersApi } from '@/services/api';
+import { File, Folder, StorageInfo, UploadingFile } from '@/types';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink } from '@/components/ui/breadcrumb';
+import { Alert } from '@/components/ui/alert';
+import { useToast } from '@/components/ui/use-toast';
+import { AlertCircle, Folder as FolderIcon, Home } from 'lucide-react';
+import FileGrid from '@/components/files/FileGrid';
+import FilesEmptyState from '@/components/files/FilesEmptyState';
+import FilesToolbar from '@/components/files/FilesToolbar';
+import FilePreviewDialog from '@/components/files/FilePreviewDialog';
+import FileUploadProgress from '@/components/files/FileUploadProgress';
+import { v4 as uuidv4 } from 'uuid';
 
-const Dashboard = () => {
-  const { user, token, masterKey } = useAuth();
+const Dashboard: React.FC = () => {
+  const { token, user, masterKey } = useAuth();
   const { toast } = useToast();
-  const location = useLocation();
-  const params = useParams();
-  const [files, setFiles] = useState<FileType[]>([]);
+  const navigate = useNavigate();
+  const { folderId } = useParams();
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [loading, setLoading] = useState(true);
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
+  const [breadcrumbs, setBreadcrumbs] = useState<Folder[]>([]);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFileIndex, setSelectedFileIndex] = useState<number>(-1);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
-
-  // Determine what type of files to load based on the route
-  const getFileType = (): string => {
-    const path = location.pathname;
-    if (path.includes("/starred")) return "starred";
-    if (path.includes("/trash")) return "trash";
-    if (path.includes("/search")) return "search";
-    return "all";
-  };
-
-  const fileType = getFileType();
-  const isTrashView = fileType === "trash";
-  const isSearchView = fileType === "search";
-
+  
   // Load storage info
   useEffect(() => {
-    if (token) {
-      loadStorageInfo();
-    }
+    const loadStorageInfo = async () => {
+      if (!token) return;
+      
+      try {
+        const info = await filesApi.getStorageInfo(token);
+        setStorageInfo(info);
+      } catch (error) {
+        console.error('Error loading storage info:', error);
+      }
+    };
+    
+    loadStorageInfo();
   }, [token]);
-
-  const loadStorageInfo = async () => {
-    if (!token) return;
-
-    try {
-      const info = await filesApi.getStorageInfo(token);
-      setStorageInfo(info);
-    } catch (error) {
-      console.error("Error loading storage info:", error);
-    }
-  };
-
+  
+  // Load folders and files when folder ID changes
   useEffect(() => {
-    if (token) {
-      if (isSearchView && !searchQuery) {
-        setFiles([]);
-        setFolders([]);
-        setLoading(false);
-        return;
-      }
-      loadFilesAndFolders();
-    }
-  }, [token, currentFolder, fileType, searchQuery]);
-
-  const loadFilesAndFolders = async ({
-    resetCache = false,
-  }: { resetCache?: boolean } = {}) => {
-    setLoading(true);
-    try {
-      if (token && user) {
-        if (isSearchView) {
-          // Only load files for search, no folders
-          const filesData = await filesApi.getFiles(
-            token,
-            null,
-            true,
-            "all",
-            searchQuery
-          );
-          setFiles(filesData?.files || []);
-          setFolders([]);
+    const loadFolderContents = async () => {
+      if (!token || !user) return;
+      
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Get current folder details if folderId is provided
+        if (folderId) {
+          const response = await foldersApi.getFolders(token, folderId);
+          const currentFolder = response.folders.find(f => f._id === folderId);
+          if (currentFolder) {
+            setCurrentFolder(currentFolder);
+          } else {
+            throw new Error('Folder not found');
+          }
         } else {
-          const [filesData, foldersData] = await Promise.all([
-            filesApi.getFiles(
-              token,
-              currentFolder?._id || null,
-              resetCache,
-              fileType
-            ),
-            !isTrashView && !isSearchView
-              ? foldersApi.getFolders(
-                  token,
-                  currentFolder?._id || null,
-                  resetCache,
-                  user.id
-                )
-              : { folders: [] },
-          ]);
-
-          setFiles(filesData?.files || []);
-          setFolders(foldersData?.folders || []);
+          setCurrentFolder(null);
         }
+        
+        // Load folders
+        const foldersResponse = await foldersApi.getFolders(token, folderId || null);
+        
+        // For folders with encrypted names, decrypt them
+        let processedFolders = foldersResponse.folders;
+        if (masterKey) {
+          processedFolders = foldersResponse.folders.map(folder => {
+            // If metadata is encrypted and we have a master key, decrypt the name
+            if (folder.metadataEncrypted && masterKey) {
+              const decryptedName = userEncryptionService.decryptName(folder.name, masterKey);
+              return {
+                ...folder,
+                originalName: decryptedName || folder.name
+              };
+            }
+            return folder;
+          });
+        }
+        
+        setFolders(processedFolders);
+        
+        // Load files
+        const filesResponse = await filesApi.getFiles(token, folderId || null);
+        setFiles(filesResponse.files);
+        
+        // Build breadcrumbs
+        await buildBreadcrumbs(folderId);
+        
+      } catch (error: any) {
+        console.error('Error loading folder contents:', error);
+        setError(error?.message || 'Failed to load folder contents');
+        if (error?.status === 404) {
+          navigate('/dashboard');
+        }
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Error loading files and folders:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load your files and folders",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateFolder = async (name: string) => {
-    if (!token || !user || !masterKey) {
-      toast({
-        title: "Error",
-        description: "You need to be logged in to create folders",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Encrypt folder name if we have a master key
-      const encryptedName = userEncryptionService.encryptName(name, masterKey);
-      
-      await foldersApi.createFolder(
-        token,
-        encryptedName,
-        currentFolder?._id || null,
-        user.id,
-        true // metadataEncrypted flag
-      );
-      
-      loadFilesAndFolders({ resetCache: true }).then(() => {
-        toast({
-          title: "Success",
-          description: `Folder "${name}" created successfully`,
-        });
-      });
-    } catch (error) {
-      console.error("Error creating folder:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create folder",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleFileProgress = useCallback((fileId: string, progress: number) => {
-    setUploadingFiles(prev => 
-      prev.map(f => f.id === fileId ? { ...f, progress } : f)
-    );
-  }, []);
-
-  const handleFileStatusChange = useCallback((fileId: string, status: UploadingFile['status'], error?: string) => {
-    setUploadingFiles(prev => 
-      prev.map(f => f.id === fileId ? { ...f, status, error } : f)
-    );
-  }, []);
-
-  const handleDismissFile = useCallback((fileId: string) => {
-    setUploadingFiles(prev => prev.filter(f => f.id !== fileId));
-  }, []);
-
-  const handleDismissAllFiles = useCallback(() => {
-    // Only dismiss completed and error files
-    setUploadingFiles(prev => 
-      prev.filter(f => f.status === 'encrypting' || f.status === 'uploading')
-    );
-  }, []);
-
-  const handleUploadFiles = async (fileList: FileList) => {
-    if (!token || !user) {
-      toast({
-        title: "Error",
-        description: "You need to be logged in to upload files",
-        variant: "destructive",
-      });
+    };
+    
+    loadFolderContents();
+  }, [token, user, folderId, navigate, masterKey]);
+  
+  // Build breadcrumbs for navigation
+  const buildBreadcrumbs = async (folderId: string | undefined) => {
+    if (!token || !folderId) {
+      setBreadcrumbs([]);
       return;
     }
     
-    if (!fileList || fileList.length === 0) return;
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    // Convert FileList to array for easier handling
-    const filesArray = Array.from(fileList);
-
-    // Calculate total size to check quota
-    const totalSize = filesArray.reduce((sum, file) => sum + file.size, 0);
-
     try {
-      // Check storage quota before uploading
-      const { hasSpace, storageInfo: updatedStorage } =
-        await filesApi.checkStorageQuota(token, totalSize);
-
+      const breadcrumbList: Folder[] = [];
+      let currentId = folderId;
+      
+      // Traverse up the folder tree
+      while (currentId) {
+        const response = await foldersApi.getFolders(token, currentId);
+        const folder = response.folders.find(f => f._id === currentId);
+        
+        if (folder) {
+          breadcrumbList.unshift(folder);
+          currentId = folder.parentId || '';
+        } else {
+          break;
+        }
+      }
+      
+      setBreadcrumbs(breadcrumbList);
+    } catch (error) {
+      console.error('Error building breadcrumbs:', error);
+    }
+  };
+  
+  // Handle file upload
+  const handleFileUpload = async (fileList: FileList) => {
+    if (!token || !user || !fileList.length) return;
+    
+    const files = Array.from(fileList);
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    
+    // First check if we have enough storage
+    try {
+      const { hasSpace, storageInfo } = await filesApi.checkStorageQuota(token, totalSize);
+      
       if (!hasSpace) {
-        const remainingSpace =
-          updatedStorage.storageLimit - updatedStorage.storageUsed;
-        const requiredMB = (totalSize / (1024 * 1024)).toFixed(2);
-        const availableMB = (remainingSpace / (1024 * 1024)).toFixed(2);
-
+        const remainingSpace = storageInfo.storageLimit - storageInfo.storageUsed;
         toast({
-          title: "Storage Quota Exceeded",
-          description: `You need ${requiredMB} MB but only have ${availableMB} MB available.`,
-          variant: "destructive",
+          title: "Storage quota exceeded",
+          description: `You need ${(totalSize / (1024 * 1024)).toFixed(2)} MB but only have ${(remainingSpace / (1024 * 1024)).toFixed(2)} MB available.`,
+          variant: "destructive"
         });
-
-        setIsUploading(false);
         return;
       }
-
-      // Create upload status entries for each file
-      const newUploadingFiles = filesArray.map(file => ({
+      
+      // Create uploading files records
+      const newUploadingFiles: UploadingFile[] = files.map(file => ({
         id: uuidv4(),
         file,
         progress: 0,
-        status: 'encrypting' as const
-      })) as UploadingFile[];
+        status: 'encrypting'
+      }));
       
       setUploadingFiles(prev => [...prev, ...newUploadingFiles]);
-
-      // Upload files with individual progress tracking
-      await filesApi.multipleFileUpload({
+      
+      // Update progress per file
+      const handleProgress = (fileId: string, progress: number) => {
+        setUploadingFiles(prev => 
+          prev.map(f => f.id === fileId ? { ...f, progress } : f)
+        );
+      };
+      
+      // Update file status
+      const handleFileStatus = (fileId: string, status: UploadingFile['status'], error?: string) => {
+        setUploadingFiles(prev => 
+          prev.map(f => f.id === fileId ? { ...f, status, error } : f)
+        );
+      };
+      
+      // Upload the files
+      const uploadedFiles = await filesApi.multipleFileUpload({
         token,
-        files: filesArray,
-        folderId: currentFolder?._id || null,
-        masterKey: masterKey || "", // Pass master key for encryption if available
-        onProgress: handleFileProgress,
-        onFileStatusChange: handleFileStatusChange,
+        files: files as unknown as Blob[],
+        folderId: folderId || null,
+        masterKey: masterKey || '',
         userId: user.id,
+        onProgress: handleProgress,
+        onFileStatusChange: handleFileStatus
       });
-
-      // Update storage info after successful upload
-      await loadStorageInfo();
-
-      loadFilesAndFolders({ resetCache: true }).then(() => {
-        toast({
-          title: "Success",
-          description: `${filesArray.length} ${
-            filesArray.length === 1 ? 'file' : 'files'
-          } uploaded successfully`,
-        });
-      });
-    } catch (error) {
-      console.error("Error uploading files:", error);
+      
+      // Refresh the file list
+      const filesResponse = await filesApi.getFiles(token, folderId || null, true);
+      setFiles(filesResponse.files);
+      
+      // Update storage info
+      const info = await filesApi.getStorageInfo(token);
+      setStorageInfo(info);
+      
       toast({
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to upload files",
-        variant: "destructive",
+        title: "Upload complete",
+        description: `Successfully uploaded ${uploadedFiles.length} files`
       });
-    } finally {
-      setIsUploading(false);
+      
+    } catch (error: any) {
+      console.error('Error uploading files:', error);
+      toast({
+        title: "Upload failed",
+        description: error?.message || 'Failed to upload files',
+        variant: "destructive"
+      });
     }
   };
-
-  const handleDeleteFile = async (fileId: string) => {
-    if (!token) return;
-
+  
+  // Create a new folder
+  const handleCreateFolder = async (name: string) => {
+    if (!token || !user) return;
+    
     try {
-      await filesApi.deleteFile(token, fileId);
-      setFiles((prev) => prev.filter((file) => file._id !== fileId));
-
-      // Update storage info after deletion
-      await loadStorageInfo();
-
+      // Encrypt folder name if we have a master key
+      const folderName = masterKey ? userEncryptionService.encryptName(name, masterKey) : name;
+      
+      // Create the folder
+      const newFolder = await foldersApi.createFolder(
+        token, 
+        folderName, 
+        folderId || null, 
+        user.id,
+        !!masterKey // metadataEncrypted flag
+      );
+      
+      // Add decrypted name for display
+      const folderWithOriginalName = masterKey ? {
+        ...newFolder,
+        originalName: name
+      } : newFolder;
+      
+      // Update the folders list
+      setFolders(prev => [...prev, folderWithOriginalName]);
+      
       toast({
-        title: "Success",
-        description: "File deleted successfully",
+        title: "Folder created",
+        description: `Created folder: ${name}`
       });
-    } catch (error) {
-      console.error("Error deleting file:", error);
+    } catch (error: any) {
+      console.error('Error creating folder:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete file",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteFolder = async (folderId: string) => {
-    if (!token) return;
-
-    try {
-      await foldersApi.deleteFolder(token, folderId);
-      loadFilesAndFolders({ resetCache: true });
-      toast({
-        title: "Success",
-        description: "Folder deleted successfully",
-      });
-    } catch (error) {
-      console.error("Error deleting folder:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete folder",
-        variant: "destructive",
+        title: "Failed to create folder",
+        description: error?.message || 'An error occurred',
+        variant: "destructive"
       });
     }
   };
-
-  const handleNavigateToFolder = (folder: Folder) => {
-    setCurrentFolder(folder);
-  };
-
+  
+  // Navigate up to parent folder
   const handleNavigateUp = async () => {
-    if (!currentFolder || !currentFolder.parentId || !token || !user) {
-      setCurrentFolder(null);
-      return;
-    }
-
-    try {
-      const parentFolders = await foldersApi.getFolders(
-        token,
-        null,
-        false,
-        user.id
-      );
-      const parentFolder = parentFolders.folders?.find(
-        (f) => f._id === currentFolder.parentId
-      );
-      setCurrentFolder(parentFolder || null);
-    } catch (error) {
-      console.error("Error navigating up:", error);
-      setCurrentFolder(null);
+    if (!currentFolder?.parentId) {
+      navigate('/dashboard');
+    } else {
+      navigate(`/dashboard/folder/${currentFolder.parentId}`);
     }
   };
-
-  const handleFileStar = async (fileId: string) => {
+  
+  // Star/unstar a file
+  const handleStarFile = async (file: File) => {
     if (!token) return;
-
+    
     try {
-      const result = await filesApi.starFile(token, fileId);
-
-      // Update the file in the state
-      setFiles((prev) =>
-        prev.map((file) =>
-          file._id === fileId ? { ...file, isStarred: result.isStarred } : file
-        )
+      const { isStarred } = await filesApi.starFile(token, file._id);
+      
+      // Update the file in the list
+      setFiles(prev => 
+        prev.map(f => f._id === file._id ? { ...f, isStarred } : f)
       );
-
+      
       toast({
-        title: "Success",
-        description: result.isStarred ? "File starred" : "File unstarred",
+        title: isStarred ? "File starred" : "File unstarred",
       });
     } catch (error) {
-      console.error("Error starring file:", error);
+      console.error('Error starring file:', error);
       toast({
-        title: "Error",
+        title: "Action failed",
         description: "Failed to update file",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
-  const handleFileTrash = async (fileId: string) => {
+  
+  // Move file to trash
+  const handleTrashFile = async (file: File) => {
     if (!token) return;
-
+    
     try {
-      await filesApi.trashFile(token, fileId);
-
-      // Remove the file from the current view
-      setFiles((prev) => prev.filter((file) => file._id !== fileId));
-
+      await filesApi.trashFile(token, file._id);
+      
+      // Remove the file from the list
+      setFiles(prev => prev.filter(f => f._id !== file._id));
+      
       toast({
-        title: "Success",
-        description: "File moved to trash",
+        title: "File moved to trash",
       });
     } catch (error) {
-      console.error("Error trashing file:", error);
+      console.error('Error trashing file:', error);
       toast({
-        title: "Error",
+        title: "Action failed",
         description: "Failed to move file to trash",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
-  const handleFileRestore = async (fileId: string) => {
+  
+  // Delete file permanently
+  const handleDeleteFile = async (file: File) => {
     if (!token) return;
-
+    
     try {
-      await filesApi.restoreFile(token, fileId);
-
-      // Remove the file from trash view
-      if (isTrashView) {
-        setFiles((prev) => prev.filter((file) => file._id !== fileId));
-      }
-
+      await filesApi.deleteFile(token, file._id);
+      
+      // Remove the file from the list
+      setFiles(prev => prev.filter(f => f._id !== file._id));
+      
       toast({
-        title: "Success",
-        description: "File restored from trash",
+        title: "File deleted permanently",
       });
     } catch (error) {
-      console.error("Error restoring file:", error);
+      console.error('Error deleting file:', error);
       toast({
-        title: "Error",
-        description: "Failed to restore file from trash",
-        variant: "destructive",
+        title: "Action failed",
+        description: "Failed to delete file",
+        variant: "destructive"
       });
     }
   };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSearching(true);
-    // The actual search is triggered by the useEffect when searchQuery changes
-  };
-
-  const getPageTitle = (): string => {
-    if (isSearchView) return "Search Results";
-    if (isTrashView) return "Trash";
-    if (fileType === "starred") return "Starred";
-    if (currentFolder) {
-      if (masterKey && currentFolder.metadataEncrypted) {
-        return userEncryptionService.decryptName(currentFolder.name, masterKey);
-      }
-      return currentFolder.name;
+  
+  // Restore file from trash
+  const handleRestoreFile = async (file: File) => {
+    if (!token) return;
+    
+    try {
+      await filesApi.restoreFile(token, file._id);
+      
+      // If we're in the trash view, remove the file from the list
+      setFiles(prev => prev.filter(f => f._id !== file._id));
+      
+      toast({
+        title: "File restored",
+      });
+    } catch (error) {
+      console.error('Error restoring file:', error);
+      toast({
+        title: "Action failed",
+        description: "Failed to restore file",
+        variant: "destructive"
+      });
     }
-    return "My Drive";
   };
-
-  const toggleViewMode = () => {
-    setViewMode((prev) => (prev === "grid" ? "list" : "grid"));
+  
+  // Open file preview
+  const handleOpenFile = (file: File, index: number) => {
+    setSelectedFile(file);
+    setSelectedFileIndex(index);
   };
-
+  
+  // Navigate to next file
+  const handleNextFile = () => {
+    if (selectedFileIndex < files.length - 1) {
+      setSelectedFile(files[selectedFileIndex + 1]);
+      setSelectedFileIndex(selectedFileIndex + 1);
+    }
+  };
+  
+  // Navigate to previous file
+  const handlePreviousFile = () => {
+    if (selectedFileIndex > 0) {
+      setSelectedFile(files[selectedFileIndex - 1]);
+      setSelectedFileIndex(selectedFileIndex - 1);
+    }
+  };
+  
+  // Dismiss uploading file
+  const handleDismissFile = (fileId: string) => {
+    setUploadingFiles(prev => prev.filter(file => file.id !== fileId));
+  };
+  
+  // Dismiss all uploading files
+  const handleDismissAllFiles = () => {
+    setUploadingFiles([]);
+  };
+  
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">{getPageTitle()}</h2>
-        <div className="flex items-center gap-2">
-          {isSearchView && (
-            <form onSubmit={handleSearch} className="flex items-center">
-              <Input
-                type="text"
-                placeholder="Search files..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64 mr-2"
-              />
-              <Button type="submit" disabled={isSearching}>
-                <Search className="h-4 w-4 mr-2" />
-                Search
-              </Button>
-            </form>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleViewMode}
-            title={
-              viewMode === "grid"
-                ? "Switch to list view"
-                : "Switch to grid view"
-            }
-          >
-            {viewMode === "grid" ? (
-              <List className="h-5 w-5" />
-            ) : (
-              <Grid className="h-5 w-5" />
-            )}
-          </Button>
-        </div>
+    <div className="flex flex-col h-full">
+      {/* Breadcrumb navigation */}
+      <div className="p-2 border-b">
+        <Breadcrumb>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/dashboard" className="flex items-center">
+              <Home className="mr-1 h-4 w-4" />
+              Home
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          {breadcrumbs.map((folder, index) => (
+            <BreadcrumbItem key={folder._id}>
+              <BreadcrumbLink 
+                href={`/dashboard/folder/${folder._id}`}
+                className="flex items-center"
+              >
+                {index === 0 && <FolderIcon className="mr-1 h-4 w-4" />}
+                {folder.metadataEncrypted && masterKey
+                  ? userEncryptionService.decryptName(folder.name, masterKey)
+                  : folder.name}
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+          ))}
+        </Breadcrumb>
       </div>
-
-      {!isSearchView && (
-        <FilesToolbar
-          currentFolder={currentFolder}
-          onNavigateUp={handleNavigateUp}
-          onCreateFolder={handleCreateFolder}
-          onUploadFiles={handleUploadFiles}
-          isUploading={isUploading}
-          uploadProgress={uploadProgress}
-          reloadFilesAndFolders={() => {
-            loadFilesAndFolders({ resetCache: true });
-          }}
-          isTrashView={isTrashView}
-          storageInfo={storageInfo}
-        />
-      )}
-
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Spinner className="h-12 w-12" />
+      
+      {/* Error message */}
+      {error && (
+        <div className="p-4">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <span className="ml-2">{error}</span>
+          </Alert>
         </div>
-      ) : isSearchView && searchQuery === "" ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            Enter a search term to find files
-          </p>
+      )}
+      
+      {/* Toolbar */}
+      <FilesToolbar 
+        currentFolder={currentFolder}
+        onNavigateUp={handleNavigateUp}
+        onCreateFolder={handleCreateFolder}
+        onUploadFiles={handleFileUpload}
+        onViewModeChange={setViewMode}
+        viewMode={viewMode}
+      />
+      
+      {/* File grid or empty state */}
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="mt-4 text-sm text-muted-foreground">Loading files...</p>
+          </div>
         </div>
       ) : folders.length === 0 && files.length === 0 ? (
-        <FilesEmptyState />
+        <FilesEmptyState 
+          onCreateFolder={handleCreateFolder}
+          onUploadFiles={handleFileUpload}
+        />
       ) : (
         <FileGrid
           folders={folders}
           files={files}
-          onFolderClick={handleNavigateToFolder}
-          onFileDelete={handleDeleteFile}
-          onFolderDelete={handleDeleteFolder}
-          onFileStar={handleFileStar}
-          onFileTrash={handleFileTrash}
-          onFileRestore={isTrashView ? handleFileRestore : undefined}
           viewMode={viewMode}
+          onOpenFolder={(folderId) => navigate(`/dashboard/folder/${folderId}`)}
+          onOpenFile={handleOpenFile}
+          onStarFile={handleStarFile}
+          onTrashFile={handleTrashFile}
+          onDeleteFile={handleDeleteFile}
+          onRestoreFile={handleRestoreFile}
+          masterKey={masterKey}
         />
       )}
       
-      {/* File upload progress dialog */}
-      <FileUploadProgress 
-        uploadingFiles={uploadingFiles}
-        onDismissFile={handleDismissFile}
-        onDismissAll={handleDismissAllFiles}
-      />
+      {/* File preview dialog */}
+      {selectedFile && (
+        <FilePreviewDialog
+          file={selectedFile}
+          onClose={() => setSelectedFile(null)}
+          onNext={hasNext ? handleNextFile : undefined}
+          onPrevious={hasPrevious ? handlePreviousFile : undefined}
+          hasNext={selectedFileIndex < files.length - 1}
+          hasPrevious={selectedFileIndex > 0}
+        />
+      )}
+      
+      {/* File upload progress */}
+      {uploadingFiles.length > 0 && (
+        <FileUploadProgress
+          uploadingFiles={uploadingFiles}
+          onDismissFile={handleDismissFile}
+          onDismissAll={handleDismissAllFiles}
+        />
+      )}
     </div>
   );
 };
+
+// Add missing import
+import { userEncryptionService } from '@/services/api/userEncryption';
 
 export default Dashboard;

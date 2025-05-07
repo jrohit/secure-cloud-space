@@ -18,7 +18,7 @@ import { filesApi } from "@/services/api";
 import { useEffect, useState } from "react";
 import { StorageInfo } from "@/types";
 import { Button } from "@/components/ui/button";
-import UpgradeStorageDialog from "../storage/UpgradeStorageDialog";
+import { UpgradeStorageDialog } from "../storage/UpgradeStorageDialog";
 
 interface SidebarProps {
   collapsed: boolean;

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,7 +52,7 @@ const FileItem: React.FC<FileItemProps> = ({
     if (viewMode === "grid" && file.type.startsWith("image/") && token && user) {
       const loadThumbnail = async () => {
         try {
-          const url = await filesApi.getThumbnailUrl(token, file._id, user.id);
+          const url = await filesApi.getThumbnailUrl(token, file._id, user.id, masterKey);
           setThumbnailUrl(url);
         } catch (error) {
           console.error("Error loading thumbnail:", error);
@@ -63,7 +62,7 @@ const FileItem: React.FC<FileItemProps> = ({
 
       loadThumbnail();
     }
-  }, [file._id, file.type, token, user?.id, viewMode]);
+  }, [file._id, file.type, token, user?.id, viewMode, masterKey]);
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -72,7 +71,7 @@ const FileItem: React.FC<FileItemProps> = ({
 
     setIsDownloading(true);
     try {
-      const blob = await filesApi.downloadFile(token, file._id, user.id);
+      const blob = await filesApi.downloadFile(token, file._id, user.id, masterKey);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

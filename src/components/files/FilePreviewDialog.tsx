@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -50,7 +49,7 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
             file.type === 'application/pdf') {
           
           console.log("Fetching and decrypting file:", decryptedFileName, file.type);
-          const url = await filesApi.getCachedFileUrl(token, file._id, user.id);
+          const url = await filesApi.getCachedFileUrl(token, file._id, user.id, masterKey);
           
           if (isMounted) {
             console.log("File loaded successfully, setting object URL");
@@ -80,7 +79,7 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [file._id, file.type, token, user?.id, decryptedFileName]);
+  }, [file._id, file.type, token, user?.id, decryptedFileName, masterKey]);
   
   if (!token || !user) return null;
 
@@ -89,7 +88,7 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
 
     setIsDownloading(true);
     try {
-      const blob = await filesApi.downloadFile(token, file._id, user.id);
+      const blob = await filesApi.downloadFile(token, file._id, user.id, masterKey);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

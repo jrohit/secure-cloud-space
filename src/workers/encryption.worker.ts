@@ -161,7 +161,7 @@ async function handleDecryption(data) {
       offset += chunk.byteLength;
     }
     
-    // Send the decrypted data back
+    // Send the decrypted data back with proper transfer option
     self.postMessage({
       decryptedData: result.buffer,
       originalType,

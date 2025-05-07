@@ -1,4 +1,4 @@
-import { CachedFilesData, File, StorageInfo, UploadingFile } from "@/types";
+import { CachedFilesData, File as FileType, StorageInfo, UploadingFile } from "@/types";
 import { encryptionService } from "./encryption";
 import { API_URL, handleResponse } from "./utils";
 import { userEncryptionService } from "./userEncryption";
@@ -125,7 +125,7 @@ export const filesApi = {
     userId,
   }: {
     token: string;
-    files: File[];
+    files: Blob[];
     folderId: string | null;
     masterKey: string;
     onProgress?: (fileId: string, progress: number) => void;
@@ -292,7 +292,8 @@ export const filesApi = {
   downloadFile: async (
     token: string,
     fileId: string,
-    userId: string
+    userId: string,
+    masterKey?: string
   ): Promise<Blob> => {
     // Get file metadata to know the original type
     const fileResponse = await fetch(`${API_URL}/files/${fileId}`, {
@@ -300,7 +301,17 @@ export const filesApi = {
         Authorization: `Bearer ${token}`,
       },
     });
-    const fileMetadata = await handleResponse<File>(fileResponse);
+    const fileMetadata = await handleResponse<FileType>(fileResponse);
+    
+    // Check if we need to use master key or fall back to user key
+    let encryptionKey;
+    if (masterKey && fileMetadata.metadataEncrypted) {
+      encryptionKey = masterKey;
+    } else {
+      // Generate encryption key from user ID and token
+      const userKey = await encryptionService.generateUserEncryptionKey(userId, token);
+      encryptionKey = await encryptionService.cryptoKeyToString(userKey);
+    }
 
     // Download encrypted file
     const response = await fetch(`${API_URL}/files/${fileId}/download`, {
@@ -316,15 +327,11 @@ export const filesApi = {
     // Get encrypted blob
     const encryptedBlob = await response.blob();
 
-    // Generate encryption key from user ID and token
-    const encryptionKey = await encryptionService.generateUserEncryptionKey(userId, token);
-    const keyString = await encryptionService.cryptoKeyToString(encryptionKey);
-
     // Decrypt the file with original type
     return encryptionService.decryptFile(
       encryptedBlob,
       fileMetadata?.encryptionIV || '',
-      keyString,
+      encryptionKey,
       fileMetadata?.type || "application/octet-stream"
     );
   },
@@ -339,7 +346,7 @@ export const filesApi = {
   /**
    * Get URL for file thumbnail preview
    */
-  getThumbnailUrl: async (token: string, fileId: string, userId: string): Promise<string> => {
+  getThumbnailUrl: async (token: string, fileId: string, userId: string, masterKey?: string): Promise<string> => {
     // First try to get from thumbnail cache
     try {
       const cachedUrl = filesApi.cachedFileUrls.get(`thumb_${fileId}_${userId}`);
@@ -348,7 +355,7 @@ export const filesApi = {
       }
       
       // If not cached, fetch and decrypt the file to create a thumbnail
-      const blob = await filesApi.downloadFile(token, fileId, userId);
+      const blob = await filesApi.downloadFile(token, fileId, userId, masterKey);
       
       // Generate a thumbnail from the blob
       const thumbnail = await encryptionService.generateThumbnail(blob);
@@ -374,7 +381,7 @@ export const filesApi = {
       }
       
       // If thumbnail generation failed, return the full file URL
-      return filesApi.getCachedFileUrl(token, fileId, userId);
+      return filesApi.getCachedFileUrl(token, fileId, userId, masterKey);
     } catch (error) {
       console.error("Error generating thumbnail:", error);
       // Fall back to server-provided thumbnail or preview endpoint
@@ -394,7 +401,8 @@ export const filesApi = {
   getCachedFileUrl: async (
     token: string,
     fileId: string,
-    userId: string
+    userId: string,
+    masterKey?: string
   ): Promise<string> => {
     const cacheKey = `${fileId}_${userId}`;
     const cached = filesApi.cachedFileUrls.get(cacheKey);
@@ -406,7 +414,7 @@ export const filesApi = {
 
     try {
       // Download and decrypt the file
-      const blob = await filesApi.downloadFile(token, fileId, userId);
+      const blob = await filesApi.downloadFile(token, fileId, userId, masterKey);
       const url = URL.createObjectURL(blob);
 
       // Cache the URL
@@ -443,14 +451,13 @@ export const filesApi = {
   
   /**
    * Search files by name
-   * Uses a regex to search for the query string in filenames
    */
   searchFiles: async (
     token: string,
     query: string,
     userId: string,
     masterKey?: string
-  ): Promise<File[]> => {
+  ): Promise<FileType[]> => {
     const files = await filesApi.getFiles(token, null, true, "all", query);
     
     // If we have a master key and results, try to decrypt file names for display

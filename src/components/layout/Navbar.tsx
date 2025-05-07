@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,7 +11,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { LogOut, Menu, Settings, User } from "lucide-react";
 import { useState } from "react";
-import ProfileDialog from "../profile/ProfileDialog";
+import { ProfileDialog } from "../profile/ProfileDialog";
 
 interface NavbarProps {
   toggleSidebar: () => void;
