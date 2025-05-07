@@ -1,11 +1,17 @@
-
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/Spinner";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -17,7 +23,7 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       await login(email, password);
       navigate("/dashboard");
@@ -38,7 +44,7 @@ const Login = () => {
                 <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cloudDrive-blue to-cloudDrive-green flex items-center justify-center text-white font-bold text-xl">
                   S
                 </div>
-                <h2 className="text-2xl font-bold">SecureCloudSpace</h2>
+                <h2 className="text-2xl font-bold">My Local Cloud</h2>
               </div>
             </div>
             <CardTitle className="text-2xl">Welcome back</CardTitle>

@@ -1,7 +1,6 @@
-
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { CloudUpload, Shield, Database } from "lucide-react";
+import { CloudUpload, Database, Shield } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -15,7 +14,8 @@ const Index = () => {
             Secure Cloud Storage for Your Important Files
           </h1>
           <p className="text-lg md:text-xl mb-8 max-w-2xl opacity-90">
-            Store, share, and access your files from anywhere with enterprise-grade security
+            Store, share, and access your files from anywhere with end to end
+            encryption
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Button
@@ -40,16 +40,21 @@ const Index = () => {
       {/* Features Section */}
       <section className="py-16 bg-background">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">Why Choose SecureCloudSpace</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">
+            Why Choose My Local Cloud
+          </h2>
           <div className="grid md:grid-cols-3 gap-8">
             {/* Feature 1 */}
             <div className="flex flex-col items-center text-center p-6 rounded-lg border border-border">
               <div className="w-16 h-16 rounded-full bg-cloudDrive-blue/10 flex items-center justify-center mb-4">
                 <CloudUpload className="h-8 w-8 text-cloudDrive-blue" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">Easy File Management</h3>
+              <h3 className="text-xl font-semibold mb-3">
+                Easy File Management
+              </h3>
               <p className="text-muted-foreground">
-                Upload, organize, and access your files with an intuitive interface designed for simplicity and efficiency.
+                Upload, organize, and access your files with an intuitive
+                interface designed for simplicity and efficiency.
               </p>
             </div>
 
@@ -60,7 +65,8 @@ const Index = () => {
               </div>
               <h3 className="text-xl font-semibold mb-3">Advanced Security</h3>
               <p className="text-muted-foreground">
-                Files are encrypted in transit and at rest, ensuring your sensitive data remains protected at all times.
+                Files are encrypted in transit and at rest, ensuring your
+                sensitive data remains protected at all times.
               </p>
             </div>
 
@@ -71,7 +77,8 @@ const Index = () => {
               </div>
               <h3 className="text-xl font-semibold mb-3">Reliable Storage</h3>
               <p className="text-muted-foreground">
-                Your files are redundantly stored on multiple servers to ensure they're always available when you need them.
+                Your files are redundantly stored on multiple servers to ensure
+                they're always available when you need them.
               </p>
             </div>
           </div>
@@ -81,11 +88,14 @@ const Index = () => {
       {/* CTA Section */}
       <section className="py-16 bg-muted">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-4">Ready to secure your files?</h2>
+          <h2 className="text-3xl font-bold mb-4">
+            Ready to secure your files?
+          </h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Join thousands of users who trust SecureCloudSpace with their important documents, photos, and files.
+            Join thousands of users who trust My Local Cloud with their
+            important documents, photos, and files.
           </p>
-          <Button 
+          <Button
             size="lg"
             className="bg-gradient-to-r from-cloudDrive-blue to-cloudDrive-green text-white hover:opacity-90 transition-opacity"
             onClick={() => navigate("/register")}
@@ -103,10 +113,10 @@ const Index = () => {
               <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cloudDrive-blue to-cloudDrive-green flex items-center justify-center text-white font-bold">
                 S
               </div>
-              <span className="text-lg font-semibold">SecureCloudSpace</span>
+              <span className="text-lg font-semibold">My Local Cloud</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} SecureCloudSpace. All rights reserved.
+              © {new Date().getFullYear()} My Local Cloud. All rights reserved.
             </p>
           </div>
         </div>

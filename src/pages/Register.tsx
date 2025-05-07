@@ -1,11 +1,17 @@
-
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/Spinner";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 const Register = () => {
   const [name, setName] = useState("");
@@ -32,11 +38,11 @@ const Register = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validatePasswords()) return;
-    
+
     setIsSubmitting(true);
-    
+
     try {
       await register(name, email, password);
       navigate("/dashboard");
@@ -57,7 +63,7 @@ const Register = () => {
                 <div className="w-10 h-10 rounded-full bg-gradient-to-r from-cloudDrive-blue to-cloudDrive-green flex items-center justify-center text-white font-bold text-xl">
                   S
                 </div>
-                <h2 className="text-2xl font-bold">SecureCloudSpace</h2>
+                <h2 className="text-2xl font-bold">My Local Cloud</h2>
               </div>
             </div>
             <CardTitle className="text-2xl">Create an account</CardTitle>
@@ -110,7 +116,10 @@ const Register = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="confirm-password" className="text-sm font-medium">
+                <label
+                  htmlFor="confirm-password"
+                  className="text-sm font-medium"
+                >
                   Confirm Password
                 </label>
                 <Input

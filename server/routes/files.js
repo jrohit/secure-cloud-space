@@ -1,4 +1,3 @@
-
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
@@ -64,12 +63,12 @@ const checkStorageQuota = async (req, res, next) => {
 
     // Check if upload exceeds remaining quota
     if (user.storageUsed + totalUploadSize > user.storageLimit) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Storage quota exceeded",
         storageUsed: user.storageUsed,
         storageLimit: user.storageLimit,
         needed: totalUploadSize,
-        remaining: user.storageLimit - user.storageUsed
+        remaining: user.storageLimit - user.storageUsed,
       });
     }
 
@@ -85,26 +84,26 @@ const checkStorageQuota = async (req, res, next) => {
 // Helper function to generate thumbnails
 const generateThumbnail = async (filePath, fileName, fileType) => {
   try {
-    const thumbnailDir = path.join(path.dirname(filePath), '.thumbnails');
+    const thumbnailDir = path.join(path.dirname(filePath), ".thumbnails");
     await fs.ensureDir(thumbnailDir);
     const thumbnailPath = path.join(thumbnailDir, fileName);
-    
-    if (fileType.startsWith('image/')) {
+
+    if (fileType.startsWith("image/")) {
       // Generate image thumbnail
       await sharp(filePath)
-        .resize(200, 200, { fit: 'inside' })
+        .resize(200, 200, { fit: "inside" })
         .toFile(thumbnailPath);
       return thumbnailPath;
-    } else if (fileType.startsWith('video/')) {
+    } else if (fileType.startsWith("video/")) {
       // For video thumbnails, we'd typically use ffmpeg
       // This is a placeholder implementation
       return null;
-    } else if (fileType === 'application/pdf') {
+    } else if (fileType === "application/pdf") {
       // For PDF thumbnails, we'd typically use pdf.js or similar
       // This is a placeholder implementation
       return null;
     }
-    
+
     return null;
   } catch (error) {
     console.error("Error generating thumbnail:", error);
@@ -113,68 +112,74 @@ const generateThumbnail = async (filePath, fileName, fileType) => {
 };
 
 // Upload file
-router.post("/upload", auth, upload.array("files"), checkStorageQuota, async (req, res) => {
-  try {
-    if (req.files && req.files?.length < 1) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-    let newFilesArray = [];
+router.post(
+  "/upload",
+  auth,
+  upload.array("files"),
+  checkStorageQuota,
+  async (req, res) => {
+    try {
+      if (req.files && req.files?.length < 1) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      let newFilesArray = [];
 
-    if (req.files.length > 0) {
-      // Create file record in database
-      for (let i = 0; i < req.files.length; i++) {
-        // Generate thumbnail if supported file type
-        const thumbnailPath = await generateThumbnail(
-          req.files[i].path,
-          req.files[i].filename,
-          req.files[i].mimetype
-        );
+      if (req.files.length > 0) {
+        // Create file record in database
+        for (let i = 0; i < req.files.length; i++) {
+          // Generate thumbnail if supported file type
+          const thumbnailPath = await generateThumbnail(
+            req.files[i].path,
+            req.files[i].filename,
+            req.files[i].mimetype
+          );
 
-        const newFile = new File({
-          name: req.files[i].originalname,
-          type: req.files[i].mimetype,
-          size: req.files[i].size,
-          path: req.files[i].path,
-          folderId: req.body.folderId || null,
-          userId: req.user._id,
-          thumbnailPath: thumbnailPath
-        });
+          const newFile = new File({
+            name: req.files[i].originalname,
+            type: req.files[i].mimetype,
+            size: req.files[i].size,
+            path: req.files[i].path,
+            folderId: req.body.folderId || null,
+            userId: req.user._id,
+            thumbnailPath: thumbnailPath,
+          });
 
-        await newFile.save();
-        newFilesArray.push({
-          id: newFile._id,
-          name: newFile.name,
-          type: newFile.type,
-          size: newFile.size,
-          path: newFile.path,
-          folderId: newFile.folderId,
-          userId: newFile.userId,
-          createdAt: newFile.createdAt,
-          updatedAt: newFile.updatedAt,
-          thumbnailPath: newFile.thumbnailPath,
-          isStarred: newFile.isStarred,
-          isTrash: newFile.isTrash
+          await newFile.save();
+          newFilesArray.push({
+            id: newFile._id,
+            name: newFile.name,
+            type: newFile.type,
+            size: newFile.size,
+            path: newFile.path,
+            folderId: newFile.folderId,
+            userId: newFile.userId,
+            createdAt: newFile.createdAt,
+            updatedAt: newFile.updatedAt,
+            thumbnailPath: newFile.thumbnailPath,
+            isStarred: newFile.isStarred,
+            isTrash: newFile.isTrash,
+          });
+        }
+
+        // Update user's storage usage
+        await User.findByIdAndUpdate(req.user._id, {
+          $inc: { storageUsed: req.totalUploadSize },
         });
       }
 
-      // Update user's storage usage
-      await User.findByIdAndUpdate(req.user._id, {
-        $inc: { storageUsed: req.totalUploadSize }
+      // Invalidate cache for file listing
+      const cacheKey = `files:${req.user._id}:${req.body.folderId || "root"}`;
+      await req.redisClient.del(cacheKey);
+
+      res.status(201).json({
+        ...newFilesArray,
       });
+    } catch (error) {
+      console.error("File upload error:", error);
+      res.status(500).json({ message: "Server error" });
     }
-
-    // Invalidate cache for file listing
-    const cacheKey = `files:${req.user._id}:${req.body.folderId || "root"}`;
-    await req.redisClient.del(cacheKey);
-
-    res.status(201).json({
-      ...newFilesArray,
-    });
-  } catch (error) {
-    console.error("File upload error:", error);
-    res.status(500).json({ message: "Server error" });
   }
-});
+);
 
 // Get all files
 router.get("/", auth, async (req, res) => {
@@ -186,31 +191,33 @@ router.get("/", auth, async (req, res) => {
 
     // Prepare query object
     let query = { userId: req.user._id };
-    
+
     // Handle different types of requests
-    if (type === 'all') {
+    if (type === "all") {
       query.isTrash = false;
       if (folderId) {
         query.folderId = folderId;
       } else {
         query.folderId = null;
       }
-    } else if (type === 'starred') {
+    } else if (type === "starred") {
       query.isStarred = true;
       query.isTrash = false;
-    } else if (type === 'trash') {
+    } else if (type === "trash") {
       query.isTrash = true;
     }
 
     // Handle search
     if (search) {
-      query.name = { $regex: search, $options: 'i' };
+      query.name = { $regex: search, $options: "i" };
       // Don't use cache for search queries
       resetCache = "true";
     }
 
     // Generate cache key based on query parameters
-    const cacheKey = `files:${req.user._id}:${type}:${folderId || "root"}:${search || ""}`;
+    const cacheKey = `files:${req.user._id}:${type}:${folderId || "root"}:${
+      search || ""
+    }`;
     const cachedFiles = await req.redisClient.get(cacheKey);
 
     if (cachedFiles && resetCache === "false") {
@@ -239,7 +246,7 @@ router.patch("/:id/star", auth, async (req, res) => {
   try {
     const file = await File.findOne({
       _id: req.params.id,
-      userId: req.user._id
+      userId: req.user._id,
     });
 
     if (!file) {
@@ -252,9 +259,9 @@ router.patch("/:id/star", auth, async (req, res) => {
     // Invalidate cache
     await req.redisClient.flushAll("ASYNC");
 
-    res.json({ 
+    res.json({
       message: file.isStarred ? "File starred" : "File unstarred",
-      isStarred: file.isStarred
+      isStarred: file.isStarred,
     });
   } catch (error) {
     console.error("Star/unstar file error:", error);
@@ -267,7 +274,7 @@ router.patch("/:id/trash", auth, async (req, res) => {
   try {
     const file = await File.findOne({
       _id: req.params.id,
-      userId: req.user._id
+      userId: req.user._id,
     });
 
     if (!file) {
@@ -293,7 +300,7 @@ router.patch("/:id/restore", auth, async (req, res) => {
     const file = await File.findOne({
       _id: req.params.id,
       userId: req.user._id,
-      isTrash: true
+      isTrash: true,
     });
 
     if (!file) {
@@ -327,15 +334,17 @@ router.delete("/:id", auth, async (req, res) => {
 
     // Delete the file from storage
     await fs.remove(file.path);
-    
+
     // Delete thumbnail if exists
     if (file.thumbnailPath) {
-      await fs.remove(file.thumbnailPath).catch(err => console.error("Error deleting thumbnail:", err));
+      await fs
+        .remove(file.thumbnailPath)
+        .catch((err) => console.error("Error deleting thumbnail:", err));
     }
 
     // Update user's storage usage
     await User.findByIdAndUpdate(req.user._id, {
-      $inc: { storageUsed: -file.size }
+      $inc: { storageUsed: -file.size },
     });
 
     // Delete the file document
@@ -396,12 +405,15 @@ router.get("/:id/preview", auth, async (req, res) => {
     }
 
     // If it's an image or has a thumbnail, serve it
-    if (file.thumbnailPath && await fs.pathExists(file.thumbnailPath)) {
+    if (file.thumbnailPath && (await fs.pathExists(file.thumbnailPath))) {
       // Thumbnail exists, serve it
       res.setHeader("Content-Type", "image/jpeg");
       const thumbnailStream = fs.createReadStream(file.thumbnailPath);
       thumbnailStream.pipe(res);
-    } else if (file.type.startsWith('image/') && await fs.pathExists(file.path)) {
+    } else if (
+      file.type.startsWith("image/") &&
+      (await fs.pathExists(file.path))
+    ) {
       // It's an image and no thumbnail, serve the original
       res.setHeader("Content-Type", file.type);
       const fileStream = fs.createReadStream(file.path);
@@ -419,8 +431,10 @@ router.get("/:id/preview", auth, async (req, res) => {
 // Get user storage info
 router.get("/storage-info", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('storageUsed storageLimit storageType');
-    
+    const user = await User.findById(req.user._id).select(
+      "storageUsed storageLimit storageType"
+    );
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -429,7 +443,7 @@ router.get("/storage-info", auth, async (req, res) => {
       storageUsed: user.storageUsed,
       storageLimit: user.storageLimit,
       storageType: user.storageType,
-      usagePercentage: (user.storageUsed / user.storageLimit) * 100
+      usagePercentage: (user.storageUsed / user.storageLimit) * 100,
     });
   } catch (error) {
     console.error("Storage info error:", error);
