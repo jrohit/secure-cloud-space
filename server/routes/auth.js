@@ -1,68 +1,20 @@
+
 const express = require("express");
 const router = express.Router();
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const { v4: uuidv4 } = require("uuid");
 const fs = require("fs-extra");
 const path = require("path");
+const User = require("../models/User");
 const auth = require("../middleware/auth");
-const { v4: uuidv4 } = require("uuid");
 
-// Register a new user
-router.post("/register", async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    // Check if user already exists
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ message: "User already exists" });
-    }
-
-    // Generate a unique bucket ID for the user
-    const bucketId = uuidv4();
-
-    // Create the user's storage bucket
-    const userBucketPath = path.join(process.env.STORAGE_PATH, bucketId);
-    await fs.ensureDir(userBucketPath);
-
-    // Create new user
-    user = new User({
-      name,
-      email,
-      password,
-      bucketId,
-    });
-
-    await user.save();
-
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
-    });
-
-    // Return user info and token
-    res.status(201).json({
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      },
-      token,
-    });
-  } catch (error) {
-    console.error("Register error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-// Login user
+// Log in user
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check if user exists
+    // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
@@ -74,36 +26,99 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
-    });
+    // Create JWT token
+    const token = jwt.sign(
+      { id: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
 
-    // Cache user data in Redis
-    const redisClient = req.redisClient;
-    await redisClient.set(
-      `user:${user._id}`,
-      JSON.stringify({
-        id: user._id,
-        name: user.name,
-        email: user.email,
-      }),
-      { EX: 3600 }
-    ); // Cache for 1 hour
+    // Return user without password
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      storageUsed: user.storageUsed,
+      storageLimit: user.storageLimit,
+      storageType: user.storageType,
+      bucketId: user.bucketId,
+      avatar: user.avatar,
+      encryptedMasterKey: user.encryptedMasterKey,
+      salt: user.salt,
+      iv: user.iv,
+      tag: user.tag,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
 
-    // Return user info and token
-    res.json({
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      },
-      token,
-    });
+    res.json({ user: userResponse, token });
   } catch (error) {
     console.error("Login error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Register new user
+router.post("/signup", async (req, res) => {
+  try {
+    const { name, email, password, encryptedMasterKey, salt, iv, tag } = req.body;
+
+    // Check if user already exists
+    let user = await User.findOne({ email });
+    if (user) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Create unique bucket ID for user
+    const bucketId = uuidv4();
+    const userStoragePath = path.join(process.env.STORAGE_PATH, bucketId);
+    
+    // Ensure user storage directory exists
+    await fs.ensureDir(userStoragePath);
+    await fs.ensureDir(path.join(userStoragePath, '.thumbnails'));
+
+    // Create new user with encryption parameters
+    user = new User({
+      name,
+      email,
+      password,
+      bucketId,
+      encryptedMasterKey: encryptedMasterKey || "", // Default empty if not provided
+      salt: salt || "", // Default empty if not provided
+      iv: iv || "", // Default empty if not provided
+      tag: tag || "", // Default empty if not provided
+    });
+
+    await user.save();
+
+    // Create JWT token
+    const token = jwt.sign(
+      { id: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    // Return user without password
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      storageUsed: user.storageUsed,
+      storageLimit: user.storageLimit,
+      storageType: user.storageType,
+      bucketId: user.bucketId,
+      avatar: user.avatar,
+      encryptedMasterKey: user.encryptedMasterKey,
+      salt: user.salt,
+      iv: user.iv,
+      tag: user.tag,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+
+    res.status(201).json({ user: userResponse, token });
+  } catch (error) {
+    console.error("Signup error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -111,39 +126,83 @@ router.post("/login", async (req, res) => {
 // Get current user
 router.get("/me", auth, async (req, res) => {
   try {
-    // Get user from Redis cache first
-    const redisClient = req.redisClient;
-    const cachedUser = await redisClient.get(`user:${req.user._id}`);
-
-    if (cachedUser) {
-      return res.json(JSON.parse(cachedUser));
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // If not in cache, get from database
-    const user = await User.findById(req.user._id).select("-password");
-
-    // Cache user data
-    await redisClient.set(
-      `user:${user._id}`,
-      JSON.stringify({
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      }),
-      { EX: 3600 }
-    ); // Cache for 1 hour
-
-    res.json({
+    // Return user without password
+    const userResponse = {
       id: user._id,
       name: user.name,
       email: user.email,
+      storageUsed: user.storageUsed,
+      storageLimit: user.storageLimit,
+      storageType: user.storageType,
+      bucketId: user.bucketId,
+      avatar: user.avatar,
+      encryptedMasterKey: user.encryptedMasterKey,
+      salt: user.salt,
+      iv: user.iv,
+      tag: user.tag,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-    });
+    };
+
+    res.json(userResponse);
   } catch (error) {
     console.error("Get current user error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Update password and re-encrypt master key
+router.put("/update-password", auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword, encryptedMasterKey, iv, tag } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    // Update password and encryption params
+    user.password = newPassword;
+    
+    // Only update encryption params if provided
+    if (encryptedMasterKey) user.encryptedMasterKey = encryptedMasterKey;
+    if (iv) user.iv = iv;
+    if (tag) user.tag = tag;
+    
+    await user.save();
+
+    // Return updated user without password
+    const userResponse = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      storageUsed: user.storageUsed,
+      storageLimit: user.storageLimit,
+      storageType: user.storageType,
+      bucketId: user.bucketId,
+      avatar: user.avatar,
+      encryptedMasterKey: user.encryptedMasterKey,
+      salt: user.salt,
+      iv: user.iv,
+      tag: user.tag,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+
+    res.json(userResponse);
+  } catch (error) {
+    console.error("Update password error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });

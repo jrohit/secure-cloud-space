@@ -3,56 +3,48 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  createdAt: string;
-  updatedAt: string;
-  avatar: string | null;
   storageUsed: number;
   storageLimit: number;
   storageType: string;
-}
-
-export interface CachedFilesData {
-  files: File[];
-  source: string | null;
-}
-
-export interface CachedFoldersData {
-  folders: Folder[];
-  source: string | null;
+  bucketId: string;
+  avatar: string | null;
+  encryptedMasterKey: string;
+  salt: string;
+  iv: string;
+  tag: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface File {
   _id: string;
   name: string;
+  originalName?: string;
   type: string;
   size: number;
   path: string;
+  thumbnailPath: string | null;
+  thumbnailCache?: string | null;
   folderId: string | null;
   userId: string;
-  createdAt: string;
-  updatedAt: string;
   isStarred: boolean;
   isTrash: boolean;
-  thumbnailPath: string | null;
+  encryptionIV?: string;
+  metadataEncrypted?: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Folder {
   _id: string;
   name: string;
-  parentId: string | null;
+  originalName?: string;
   userId: string;
+  parentId: string | null;
+  isTrash: boolean;
+  metadataEncrypted?: boolean;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface AuthResponse {
-  user: User;
-  token: string;
-}
-
-export interface ApiError {
-  message: string;
-  status: number;
 }
 
 export interface StorageInfo {
@@ -62,16 +54,11 @@ export interface StorageInfo {
   usagePercentage: number;
 }
 
-export interface StoragePlan {
-  id: string;
-  name: string;
-  size: number;
-  unit: string;
-  price: number;
-}
-
-export interface ViewMode {
-  mode: 'grid' | 'list';
+export interface FolderItemProps {
+  folder: Folder;
+  onClick: () => void;
+  onDelete: () => void;
+  viewMode?: 'grid' | 'list';
 }
 
 export interface FileViewProps {
@@ -83,9 +70,37 @@ export interface FileViewProps {
   hasPrevious?: boolean;
 }
 
-export interface FolderItemProps {
-  folder: Folder;
-  onClick: () => void;
-  onDelete: () => void;
-  viewMode?: 'grid' | 'list'; // Add viewMode property to FolderItemProps
+export interface FilesToolbarProps {
+  currentFolder: Folder | null;
+  onNavigateUp: () => void;
+  onCreateFolder: (name: string) => void;
+  onUploadFiles: (files: FileList) => void;
+  isUploading: boolean;
+  uploadProgress: number;
+  reloadFilesAndFolders: () => void;
+  isTrashView: boolean;
+  storageInfo?: StorageInfo | null;
+}
+
+export interface PlanOption {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  features: string[];
+  storageGB: number;
+  recommended?: boolean;
+}
+
+export interface CachedFilesData {
+  files: File[];
+  source?: string;
+}
+
+export interface UploadingFile {
+  id: string;
+  file: File;
+  progress: number;
+  status: 'encrypting' | 'uploading' | 'complete' | 'error';
+  error?: string;
 }

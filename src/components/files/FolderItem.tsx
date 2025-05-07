@@ -1,4 +1,5 @@
 
+import { useEffect, useState } from 'react';
 import { Folder, FolderItemProps } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -10,8 +11,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatDistanceToNow } from "date-fns";
 import { FolderOpen, Trash2, MoreVertical } from "lucide-react";
+import { userEncryptionService } from '@/services/api/userEncryption';
+import { useAuth } from '@/contexts/AuthContext';
 
 const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, viewMode = 'grid' }) => {
+  const { masterKey } = useAuth();
+  const [decryptedName, setDecryptedName] = useState<string>(folder.name);
+  
+  // Decrypt folder name if needed
+  useEffect(() => {
+    if (masterKey && folder.metadataEncrypted) {
+      const decrypted = userEncryptionService.decryptName(folder.name, masterKey);
+      setDecryptedName(decrypted || folder.name);
+    } else {
+      setDecryptedName(folder.name);
+    }
+  }, [folder.name, masterKey, folder.metadataEncrypted]);
+  
   if (viewMode === 'list') {
     return (
       <div 
@@ -32,8 +48,8 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, view
             </div>
           </div>
           <div className="flex flex-col min-w-0">
-            <p className="text-sm font-medium truncate max-w-[350px]" title={folder.name}>
-              {folder.name}
+            <p className="text-sm font-medium truncate max-w-[350px]" title={decryptedName}>
+              {decryptedName}
             </p>
             <p className="text-xs text-muted-foreground">
               Folder
@@ -89,8 +105,8 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, view
       <CardFooter className="p-3 flex-col items-start gap-1">
         <div className="w-full flex justify-between items-start">
           <div className="truncate flex-1">
-            <h3 className="text-sm font-medium truncate" title={folder.name}>
-              {folder.name}
+            <h3 className="text-sm font-medium truncate" title={decryptedName}>
+              {decryptedName}
             </h3>
           </div>
           <DropdownMenu>

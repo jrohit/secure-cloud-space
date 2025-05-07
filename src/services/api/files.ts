@@ -1,9 +1,14 @@
-import { CachedFilesData, File, StorageInfo } from "@/types";
-import { encryptAndUpload } from "@/utils/EncryptDecrypt";
+
+import { CachedFilesData, File, StorageInfo, UploadingFile } from "@/types";
 import { encryptionService } from "./encryption";
 import { API_URL, handleResponse } from "./utils";
+import { userEncryptionService } from "./userEncryption";
+import { v4 as uuidv4 } from "uuid";
 
 export const filesApi = {
+  /**
+   * Get files based on folder, type and search criteria
+   */
   getFiles: async (
     token: string,
     folderId: string | null = null,
@@ -37,6 +42,9 @@ export const filesApi = {
     return handleResponse<CachedFilesData>(response);
   },
 
+  /**
+   * Star or unstar a file
+   */
   starFile: async (
     token: string,
     fileId: string
@@ -50,6 +58,9 @@ export const filesApi = {
     return handleResponse<{ isStarred: boolean }>(response);
   },
 
+  /**
+   * Move file to trash
+   */
   trashFile: async (token: string, fileId: string): Promise<void> => {
     const response = await fetch(`${API_URL}/files/${fileId}/trash`, {
       method: "PATCH",
@@ -60,6 +71,9 @@ export const filesApi = {
     return handleResponse<void>(response);
   },
 
+  /**
+   * Restore file from trash
+   */
   restoreFile: async (token: string, fileId: string): Promise<void> => {
     const response = await fetch(`${API_URL}/files/${fileId}/restore`, {
       method: "PATCH",
@@ -70,6 +84,9 @@ export const filesApi = {
     return handleResponse<void>(response);
   },
 
+  /**
+   * Get storage information for the current user
+   */
   getStorageInfo: async (token: string): Promise<StorageInfo> => {
     const response = await fetch(`${API_URL}/files/storage-info`, {
       headers: {
@@ -79,7 +96,9 @@ export const filesApi = {
     return handleResponse<StorageInfo>(response);
   },
 
-  // Check if user has enough storage before uploading
+  /**
+   * Check if user has enough storage before uploading
+   */
   checkStorageQuota: async (
     token: string,
     totalSize: number
@@ -94,30 +113,29 @@ export const filesApi = {
     };
   },
 
+  /**
+   * Upload multiple files with encryption
+   */
   multipleFileUpload: async ({
     token,
     files,
     folderId,
-    setUploadProgress,
-    setIsUploading,
+    masterKey,
+    onProgress,
+    onFileStatusChange,
     userId,
   }: {
     token: string;
-    files: FileList;
+    files: File[];
     folderId: string | null;
-    setUploadProgress: (arg0: number) => void;
-    setIsUploading: (arg0: boolean) => any;
+    masterKey: string;
+    onProgress?: (fileId: string, progress: number) => void;
+    onFileStatusChange?: (fileId: string, status: UploadingFile['status'], error?: string) => void;
     userId: string;
-  }) => {
+  }): Promise<File[]> => {
     try {
-      setIsUploading(true);
-      setUploadProgress(0);
-
       // Calculate total size for quota check
-      const totalSize = Array.from(files).reduce(
-        (sum, file) => sum + file.size,
-        0
-      );
+      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
 
       // Check storage quota before encrypting
       const { hasSpace, storageInfo } = await filesApi.checkStorageQuota(
@@ -126,197 +144,123 @@ export const filesApi = {
       );
 
       if (!hasSpace) {
-        const remainingSpace =
-          storageInfo.storageLimit - storageInfo.storageUsed;
+        const remainingSpace = storageInfo.storageLimit - storageInfo.storageUsed;
         throw new Error(
-          `Storage quota exceeded. You need ${(
-            totalSize /
-            (1024 * 1024)
-          ).toFixed(2)} MB but only have ${(
+          `Storage quota exceeded. You need ${(totalSize / (1024 * 1024)).toFixed(2)} MB but only have ${(
             remainingSpace /
             (1024 * 1024)
           ).toFixed(2)} MB available.`
         );
       }
 
-      const formData = await encryptAndUpload(
-        files,
-        (fileName, percentage) => {
-          console.log(fileName, percentage);
-        },
-        (fileName) => {
-          console.log("upload complete", fileName);
-        },
-        (fileName, error) => {
-          console.log("error occurred while uploading", fileName, error);
-        }
-      );
+      const uploadedFiles: File[] = [];
 
-      if (folderId) {
-        formData.append("folderId", folderId);
+      // Process one file at a time to conserve memory
+      for (const file of files) {
+        const fileId = uuidv4();
+        
+        try {
+          // Update status to encrypting
+          onFileStatusChange?.(fileId, 'encrypting');
+          
+          // Encrypt the file name if we have a master key
+          const encryptedName = masterKey 
+            ? userEncryptionService.encryptName(file.name, masterKey) 
+            : file.name;
+          
+          // Store original file metadata
+          const fileMetadata = JSON.stringify({
+            originalName: file.name,
+            originalType: file.type,
+            size: file.size,
+            metadataEncrypted: !!masterKey
+          });
+
+          // Encrypt metadata with user-specific key from auth
+          const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
+          const encryptedMetadata = encryptionService.encryptData(fileMetadata, encryptionKey);
+
+          // Encrypt the file using the web worker with progress reporting
+          const { encryptedBlob, iv } = await encryptionService.encryptFile(
+            file,
+            masterKey || encryptionKey, // Use master key if available, otherwise fall back to derived key
+            file.name,
+            (progress) => {
+              onProgress?.(fileId, progress / 2); // First 50% is encryption
+            }
+          );
+
+          // Update status to uploading
+          onFileStatusChange?.(fileId, 'uploading');
+
+          // Create FormData for this file
+          const formData = new FormData();
+          formData.append("files", encryptedBlob, encryptedName);
+          formData.append("encryptedMetadata", encryptedMetadata);
+          formData.append("encryptionIV", iv);
+          
+          if (folderId) {
+            formData.append("folderId", folderId);
+          }
+
+          // Upload with progress tracking
+          const xhr = new XMLHttpRequest();
+          
+          await new Promise<void>((resolve, reject) => {
+            xhr.open("POST", `${API_URL}/files/upload`);
+            xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+            
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                // Second 50% is upload
+                const uploadProgress = (event.loaded / event.total) * 50;
+                onProgress?.(fileId, 50 + uploadProgress);
+              }
+            };
+            
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                const response = JSON.parse(xhr.responseText);
+                uploadedFiles.push(response);
+                onProgress?.(fileId, 100);
+                onFileStatusChange?.(fileId, 'complete');
+                resolve();
+              } else {
+                const error = `Upload failed with status: ${xhr.status}`;
+                onFileStatusChange?.(fileId, 'error', error);
+                reject(new Error(error));
+              }
+            };
+            
+            xhr.onerror = () => {
+              const error = "Network error during upload";
+              onFileStatusChange?.(fileId, 'error', error);
+              reject(new Error(error));
+            };
+            
+            xhr.send(formData);
+          });
+        } catch (error) {
+          console.error(`Error processing file ${file.name}:`, error);
+          onFileStatusChange?.(
+            fileId, 
+            'error', 
+            error instanceof Error ? error.message : String(error)
+          );
+          // Continue with next file despite error
+        }
       }
 
-      // Generate encryption key
-      // const encryptionKey = encryptionService.generateUserEncryptionKey(
-      //   userId,
-      //   token
-      // );
-
-      // // Process one file at a time to conserve memory
-      // const totalFiles = files.length;
-
-      // for (let i = 0; i < totalFiles; i++) {
-      //   const file = files[i];
-
-      //   // Store original file type and name in metadata
-      //   const fileMetadata = JSON.stringify({
-      //     originalType: file.type,
-      //     name: file.name,
-      //     size: file.size,
-      //   });
-
-      //   // Encrypt metadata
-      //   const encryptedMetadata = encryptionService.encryptData(
-      //     fileMetadata,
-      //     encryptionKey
-      //   );
-
-      //   // Calculate progress for current file (each file gets an equal portion of progress up to 50%)
-      //   const fileProgressWeight = 50 / totalFiles;
-      //   const fileStartProgress = (i / totalFiles) * 50;
-
-      //   // Encrypt the file using the web worker with progress reporting
-      //   const encryptedFile = await encryptionService.encryptFile(
-      //     file,
-      //     encryptionKey,
-      //     (progress) => {
-      //       // Map the file's encryption progress (0-100) to its portion of the overall progress
-      //       const mappedProgress =
-      //         fileStartProgress + (progress / 100) * fileProgressWeight;
-      //       setUploadProgress(Math.round(mappedProgress));
-      //     }
-      //   );
-
-      //   // Add encrypted file and metadata to form data for this batch
-      //   const batchFormData = new FormData();
-      //   batchFormData.append("files", encryptedFile, file.name);
-      //   batchFormData.append("encryptedMetadata", encryptedMetadata);
-
-      //   if (folderId) {
-      //     batchFormData.append("folderId", folderId);
-      //   }
-
-      //   // Upload this file
-      //   const uploadStartProgress = 50 + (i / totalFiles) * 50;
-      //   const uploadEndProgress = 50 + ((i + 1) / totalFiles) * 50;
-
-      //   await new Promise<void>((resolve, reject) => {
-      //     const xhr = new XMLHttpRequest();
-      //     xhr.open("POST", `${API_URL}/files/upload`);
-      //     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-
-      //     xhr.upload.onprogress = (event) => {
-      //       if (event.lengthComputable) {
-      //         // Calculate progress for this file's upload
-      //         const fileUploadProgress = event.loaded / event.total;
-      //         const overallProgress =
-      //           uploadStartProgress +
-      //           fileUploadProgress * (uploadEndProgress - uploadStartProgress);
-      //         setUploadProgress(Math.round(overallProgress));
-      //       }
-      //     };
-
-      //     xhr.onload = () => {
-      //       if (xhr.status >= 200 && xhr.status < 300) {
-      //         setUploadProgress(uploadEndProgress);
-      //         resolve();
-      //       } else {
-      //         reject(new Error(`Upload failed with status: ${xhr.status}`));
-      //       }
-      //     };
-
-      //     xhr.onerror = () => reject(new Error("Network error during upload"));
-
-      //     xhr.send(batchFormData);
-      //   });
-      // }
-
-      const response = await fetch(`${API_URL}/files/upload`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-      return handleResponse<File>(response);
-
-      setUploadProgress(100);
+      return uploadedFiles;
     } catch (error) {
       console.error("Error in file encryption/upload:", error);
       throw error;
-    } finally {
-      setIsUploading(false);
     }
   },
 
-  uploadFile: async (
-    token: string,
-    file: Blob,
-    fileName: string,
-    fileType: string,
-    folderId: string | null = null,
-    userId: string
-  ): Promise<File> => {
-    // Generate encryption key
-    const encryptionKey = encryptionService.generateUserEncryptionKey(
-      userId,
-      token
-    );
-
-    // Check storage quota before encrypting
-    const { hasSpace } = await filesApi.checkStorageQuota(token, file.size);
-    if (!hasSpace) {
-      throw new Error("Storage quota exceeded");
-    }
-
-    // Encrypt the file
-    const encryptedFile = await encryptionService.encryptFile(
-      file,
-      encryptionKey
-    );
-
-    // Store original file metadata
-    const fileMetadata = JSON.stringify({
-      originalType: fileType,
-      name: fileName,
-    });
-
-    // Encrypt metadata
-    const encryptedMetadata = encryptionService.encryptData(
-      fileMetadata,
-      encryptionKey
-    );
-
-    // Create new FormData with encrypted file
-    const encryptedFormData = new FormData();
-    encryptedFormData.append("file", encryptedFile, fileName);
-    encryptedFormData.append("encryptedMetadata", encryptedMetadata);
-
-    // Add folder ID if provided
-    if (folderId) {
-      encryptedFormData.append("folderId", folderId);
-    }
-
-    const response = await fetch(`${API_URL}/files/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: encryptedFormData,
-    });
-    return handleResponse<File>(response);
-  },
-
+  /**
+   * Permanently delete a file
+   */
   deleteFile: async (token: string, fileId: string): Promise<void> => {
     const response = await fetch(`${API_URL}/files/${fileId}`, {
       method: "DELETE",
@@ -327,17 +271,14 @@ export const filesApi = {
     return handleResponse<void>(response);
   },
 
+  /**
+   * Download and decrypt a file
+   */
   downloadFile: async (
     token: string,
     fileId: string,
     userId: string
   ): Promise<Blob> => {
-    // Generate encryption key
-    const encryptionKey = encryptionService.generateUserEncryptionKey(
-      userId,
-      token
-    );
-
     // Get file metadata to know the original type
     const fileResponse = await fetch(`${API_URL}/files/${fileId}`, {
       headers: {
@@ -360,32 +301,86 @@ export const filesApi = {
     // Get encrypted blob
     const encryptedBlob = await response.blob();
 
+    // Generate encryption key from user ID and token
+    const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
+
     // Decrypt the file with original type
     return encryptionService.decryptFile(
       encryptedBlob,
       encryptionKey,
-      fileMetadata?.type || "application/octet-stream"
+      fileMetadata?.type || "application/octet-stream",
+      fileMetadata?.encryptionIV
     );
   },
 
+  /**
+   * Get URL for file preview
+   */
   getFilePreviewUrl: (token: string, fileId: string): string => {
     return `${API_URL}/files/${fileId}/preview?token=${token}`;
   },
 
-  // Create a cached URL for a file that's been fetched and decrypted
-  // This helps avoid re-downloading and decrypting the same file multiple times
-  cachedFileUrls: new Map<string, { url: string; timestamp: number }>(),
+  /**
+   * Get URL for file thumbnail preview
+   */
+  getThumbnailUrl: async (token: string, fileId: string, userId: string): Promise<string> => {
+    // First try to get from thumbnail cache
+    try {
+      const cachedUrl = filesApi.cachedFileUrls.get(`thumb_${fileId}_${userId}`);
+      if (cachedUrl && Date.now() - cachedUrl.timestamp < filesApi.cacheExpiryTime) {
+        return cachedUrl.url;
+      }
+      
+      // If not cached, fetch and decrypt the file to create a thumbnail
+      const blob = await filesApi.downloadFile(token, fileId, userId);
+      
+      // Generate a thumbnail from the blob
+      const thumbnail = await encryptionService.generateThumbnail(blob);
+      if (thumbnail) {
+        const url = URL.createObjectURL(thumbnail);
+        
+        // Cache the thumbnail URL
+        filesApi.cachedFileUrls.set(`thumb_${fileId}_${userId}`, {
+          url,
+          timestamp: Date.now()
+        });
+        
+        // Set up cleanup
+        setTimeout(() => {
+          const cachedItem = filesApi.cachedFileUrls.get(`thumb_${fileId}_${userId}`);
+          if (cachedItem && cachedItem.url === url) {
+            URL.revokeObjectURL(url);
+            filesApi.cachedFileUrls.delete(`thumb_${fileId}_${userId}`);
+          }
+        }, filesApi.cacheExpiryTime);
+        
+        return url;
+      }
+      
+      // If thumbnail generation failed, return the full file URL
+      return filesApi.getCachedFileUrl(token, fileId, userId);
+    } catch (error) {
+      console.error("Error generating thumbnail:", error);
+      // Fall back to server-provided thumbnail or preview endpoint
+      return `${API_URL}/files/${fileId}/preview?token=${token}`;
+    }
+  },
 
   // Cache expiry time in milliseconds (30 minutes)
   cacheExpiryTime: 30 * 60 * 1000,
 
-  // Get a cached file URL or create one if it doesn't exist
+  // Create a cached URL for a file that's been fetched and decrypted
+  cachedFileUrls: new Map<string, { url: string; timestamp: number }>(),
+
+  /**
+   * Get a cached file URL or create one if it doesn't exist
+   */
   getCachedFileUrl: async (
     token: string,
     fileId: string,
     userId: string
   ): Promise<string> => {
-    const cacheKey = `${fileId}-${userId}`;
+    const cacheKey = `${fileId}_${userId}`;
     const cached = filesApi.cachedFileUrls.get(cacheKey);
 
     // Check if we have a valid cached URL
@@ -420,11 +415,42 @@ export const filesApi = {
     }
   },
 
-  // Clean up all cached URLs
+  /**
+   * Clean up all cached URLs
+   */
   clearCachedFileUrls: () => {
     for (const [key, { url }] of filesApi.cachedFileUrls.entries()) {
       URL.revokeObjectURL(url);
     }
     filesApi.cachedFileUrls.clear();
   },
+  
+  /**
+   * Search files by name
+   * Uses a regex to search for the query string in filenames
+   */
+  searchFiles: async (
+    token: string,
+    query: string,
+    userId: string,
+    masterKey?: string
+  ): Promise<File[]> => {
+    const files = await filesApi.getFiles(token, null, true, "all", query);
+    
+    // If we have a master key and results, try to decrypt file names for display
+    if (masterKey && files.files.length > 0) {
+      return files.files.map(file => {
+        if (file.metadataEncrypted) {
+          const decryptedName = userEncryptionService.decryptName(file.name, masterKey);
+          return {
+            ...file,
+            originalName: decryptedName || file.name
+          };
+        }
+        return file;
+      });
+    }
+    
+    return files.files;
+  }
 };

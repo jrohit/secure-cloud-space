@@ -1,9 +1,11 @@
 
+import { useState } from "react";
 import { File, Folder } from "@/types";
 import FileItem from "./FileItem";
 import FolderItem from "./FolderItem";
-import { useState } from "react";
 import FilePreviewDialog from "./FilePreviewDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { userEncryptionService } from "@/services/api/userEncryption";
 
 interface FileGridProps {
   folders: Folder[];
@@ -28,6 +30,7 @@ const FileGrid: React.FC<FileGridProps> = ({
   onFileRestore,
   viewMode
 }) => {
+  const { masterKey } = useAuth();
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number>(-1);
 
@@ -80,8 +83,8 @@ const FileGrid: React.FC<FileGridProps> = ({
         
         <div className="divide-y">
           {/* Render folders first */}
-          {folders.map((folder, index) => (
-            <div key={folder._id ?? index} className="grid grid-cols-12 items-center px-4 py-2 hover:bg-muted/30">
+          {folders.map((folder) => (
+            <div key={folder._id} className="grid grid-cols-12 items-center px-4 py-2 hover:bg-muted/30">
               <div className="col-span-6">
                 <FolderItem
                   folder={folder}
@@ -148,9 +151,9 @@ const FileGrid: React.FC<FileGridProps> = ({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
       {/* Render folders first */}
-      {folders.map((folder, index) => (
+      {folders.map((folder) => (
         <FolderItem
-          key={folder._id ?? index}
+          key={folder._id}
           folder={folder}
           onClick={() => onFolderClick(folder)}
           onDelete={() => onFolderDelete(folder._id)}

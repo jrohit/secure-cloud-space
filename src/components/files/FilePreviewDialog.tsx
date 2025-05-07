@@ -1,12 +1,13 @@
 
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { filesApi } from "@/services/api";
 import { FileViewProps } from "@/types";
-import { useState, useEffect } from "react";
 import { Spinner } from "@/components/ui/Spinner";
+import { userEncryptionService } from "@/services/api/userEncryption";
 
 const FilePreviewDialog: React.FC<FileViewProps> = ({
   file,
@@ -16,11 +17,22 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
   hasNext = false,
   hasPrevious = false,
 }) => {
-  const { token, user } = useAuth();
+  const { token, user, masterKey } = useAuth();
   const [isDownloading, setIsDownloading] = useState(false);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<string | null>(null);
+  const [decryptedFileName, setDecryptedFileName] = useState<string>(file.name);
+  
+  useEffect(() => {
+    if (masterKey && file.metadataEncrypted) {
+      const decrypted = userEncryptionService.decryptName(file.name, masterKey);
+      setDecryptedFileName(decrypted || file.name);
+    } else {
+      setDecryptedFileName(file.name);
+    }
+  }, [file.name, masterKey, file.metadataEncrypted]);
   
   useEffect(() => {
     let isMounted = true;
@@ -37,12 +49,13 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
             file.type.startsWith('audio/') ||
             file.type === 'application/pdf') {
           
-          console.log("Fetching and decrypting file:", file.name, file.type);
+          console.log("Fetching and decrypting file:", decryptedFileName, file.type);
           const url = await filesApi.getCachedFileUrl(token, file._id, user.id);
           
           if (isMounted) {
             console.log("File loaded successfully, setting object URL");
             setObjectUrl(url);
+            setPreviewType(file.type);
           }
         }
       } catch (error) {
@@ -61,8 +74,11 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
     
     return () => {
       isMounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
-  }, [file._id, token, user, file.name, file.type]);
+  }, [file._id, token, user, decryptedFileName, file.type]);
   
   if (!token || !user) return null;
 
@@ -75,11 +91,12 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = file.name;
+      a.download = decryptedFileName;
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error downloading file:", error);
+      setLoadingError(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsDownloading(false);
     }
@@ -107,18 +124,33 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
       );
     }
 
-    if (file.type.startsWith("image/")) {
+    // Check if we have a valid previewType and objectUrl
+    if (!previewType || !objectUrl) {
+      return (
+        <div className="flex h-[50vh] flex-col items-center justify-center">
+          <p className="text-center text-muted-foreground">
+            Preview not available for this file type
+          </p>
+          <Button onClick={handleDownload} className="mt-4" disabled={isDownloading}>
+            <Download className="mr-2 h-4 w-4" />
+            Download
+          </Button>
+        </div>
+      );
+    }
+
+    if (previewType.startsWith("image/")) {
       return (
         <div className="flex items-center justify-center h-full max-h-[70vh] overflow-hidden">
           <img
-            src={objectUrl || undefined}
-            alt={file.name}
+            src={objectUrl}
+            alt={decryptedFileName}
             className="max-h-full max-w-full object-contain"
             onError={() => setLoadingError("Failed to load image")}
           />
         </div>
       );
-    } else if (file.type.startsWith("video/")) {
+    } else if (previewType.startsWith("video/")) {
       return (
         <div className="flex items-center justify-center h-full max-h-[70vh]">
           <video 
@@ -128,12 +160,12 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
             autoPlay
             onError={() => setLoadingError("Failed to load video")}
           >
-            <source src={objectUrl || undefined} type={file.type} />
+            <source src={objectUrl} type={previewType} />
             Your browser does not support the video tag.
           </video>
         </div>
       );
-    } else if (file.type.startsWith("audio/")) {
+    } else if (previewType.startsWith("audio/")) {
       return (
         <div className="flex flex-col items-center justify-center py-8">
           <div className="w-64 h-64 bg-muted rounded-lg flex items-center justify-center mb-4">
@@ -152,16 +184,16 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
             autoPlay
             onError={() => setLoadingError("Failed to load audio")}
           >
-            <source src={objectUrl || undefined} type={file.type} />
+            <source src={objectUrl} type={previewType} />
             Your browser does not support the audio tag.
           </audio>
         </div>
       );
-    } else if (file.type === "application/pdf") {
+    } else if (previewType === "application/pdf") {
       return (
         <iframe
-          src={objectUrl || undefined}
-          title={file.name}
+          src={objectUrl}
+          title={decryptedFileName}
           className="h-[70vh] w-full"
           onError={() => setLoadingError("Failed to load PDF")}
         />
@@ -227,7 +259,7 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
         </div>
 
         <div className="p-4 bg-muted/50 border-t">
-          <h3 className="text-lg font-medium">{file.name}</h3>
+          <h3 className="text-lg font-medium">{decryptedFileName}</h3>
           <p className="text-sm text-muted-foreground">
             {file.type} · {formatFileSize(file.size)}
           </p>

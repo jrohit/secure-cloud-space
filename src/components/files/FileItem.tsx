@@ -1,3 +1,5 @@
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { filesApi } from "@/services/api";
 import { File } from "@/types";
 import { Download, MoreVertical, RotateCcw, Star, Trash2 } from "lucide-react";
-import React, { useState } from "react";
+import { userEncryptionService } from "@/services/api/userEncryption";
 
 interface FileItemProps {
   file: File;
@@ -30,22 +32,28 @@ const FileItem: React.FC<FileItemProps> = ({
   onRestore,
   viewMode,
 }) => {
-  const { token, user } = useAuth();
+  const { token, user, masterKey } = useAuth();
   const [isDownloading, setIsDownloading] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailError, setThumbnailError] = useState(false);
+  const [decryptedFileName, setDecryptedFileName] = useState<string>(file.name);
+
+  // Decrypt file name if needed
+  useEffect(() => {
+    if (masterKey && file.metadataEncrypted) {
+      const decrypted = userEncryptionService.decryptName(file.name, masterKey);
+      setDecryptedFileName(decrypted || file.name);
+    } else {
+      setDecryptedFileName(file.name);
+    }
+  }, [file.name, masterKey, file.metadataEncrypted]);
 
   // Load thumbnail for images if in grid view
-  React.useEffect(() => {
-    if (
-      viewMode === "grid" &&
-      file.type.startsWith("image/") &&
-      token &&
-      user
-    ) {
+  useEffect(() => {
+    if (viewMode === "grid" && file.type.startsWith("image/") && token && user) {
       const loadThumbnail = async () => {
         try {
-          const url = await filesApi.getCachedFileUrl(token, file._id, user.id);
+          const url = await filesApi.getThumbnailUrl(token, file._id, user.id);
           setThumbnailUrl(url);
         } catch (error) {
           console.error("Error loading thumbnail:", error);
@@ -91,7 +99,7 @@ const FileItem: React.FC<FileItemProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = file.name;
+      a.download = decryptedFileName;
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
@@ -111,7 +119,7 @@ const FileItem: React.FC<FileItemProps> = ({
             <div className="mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted overflow-hidden">
               <img
                 src={thumbnailUrl}
-                alt={file.name}
+                alt={decryptedFileName}
                 className="h-full w-full object-cover"
                 onError={() => setThumbnailError(true)}
               />
@@ -213,7 +221,7 @@ const FileItem: React.FC<FileItemProps> = ({
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted overflow-hidden">
               <img
                 src={thumbnailUrl}
-                alt={file.name}
+                alt={decryptedFileName}
                 className="h-full w-full object-cover"
                 onError={() => setThumbnailError(true)}
               />
@@ -360,15 +368,15 @@ const FileItem: React.FC<FileItemProps> = ({
               {onDelete && (
                 <DropdownMenuItem onClick={handleDelete}>
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  Delete Permanently
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
         {getFileIcon()}
-        <p className="text-sm font-medium line-clamp-1 text-center break-all">
-          {file.name}
+        <p className="text-sm font-medium line-clamp-2 text-center break-all">
+          {decryptedFileName}
         </p>
         <p className="text-xs text-muted-foreground">
           {formatFileSize(file.size)}
@@ -388,7 +396,7 @@ const FileItem: React.FC<FileItemProps> = ({
         <div className="flex flex-col min-w-0">
           <div className="flex items-center">
             <p className="text-sm font-medium truncate pr-2 max-w-[350px]">
-              {file.name}
+              {decryptedFileName}
             </p>
             {file.isStarred && (
               <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
@@ -438,7 +446,7 @@ const FileItem: React.FC<FileItemProps> = ({
             {onDelete && (
               <DropdownMenuItem onClick={handleDelete}>
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete
+                Delete Permanently
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

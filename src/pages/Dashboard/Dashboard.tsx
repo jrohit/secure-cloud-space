@@ -1,3 +1,5 @@
+
+import { useEffect, useState, useCallback } from "react";
 import FileGrid from "@/components/files/FileGrid";
 import FilesEmptyState from "@/components/files/FilesEmptyState";
 import FilesToolbar from "@/components/files/FilesToolbar";
@@ -7,27 +9,29 @@ import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { filesApi, foldersApi } from "@/services/api";
-import { File, Folder, StorageInfo } from "@/types";
+import { File as FileType, Folder, StorageInfo, UploadingFile } from "@/types";
 import { Grid, List, Search } from "lucide-react";
-import { useEffect, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
+import { v4 as uuidv4 } from "uuid";
+import FileUploadProgress from "@/components/files/FileUploadProgress";
+import { userEncryptionService } from "@/services/api/userEncryption";
 
 const Dashboard = () => {
-  const { user, token } = useAuth();
+  const { user, token, masterKey } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
   const params = useParams();
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<FileType[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
 
   // Determine what type of files to load based on the route
   const getFileType = (): string => {
@@ -124,15 +128,27 @@ const Dashboard = () => {
   };
 
   const handleCreateFolder = async (name: string) => {
-    if (!token || !user) return;
+    if (!token || !user || !masterKey) {
+      toast({
+        title: "Error",
+        description: "You need to be logged in to create folders",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      // Encrypt folder name if we have a master key
+      const encryptedName = userEncryptionService.encryptName(name, masterKey);
+      
       await foldersApi.createFolder(
         token,
-        name,
+        encryptedName,
         currentFolder?._id || null,
-        user.id
+        user.id,
+        true // metadataEncrypted flag
       );
+      
       loadFilesAndFolders({ resetCache: true }).then(() => {
         toast({
           title: "Success",
@@ -149,8 +165,39 @@ const Dashboard = () => {
     }
   };
 
+  const handleFileProgress = useCallback((fileId: string, progress: number) => {
+    setUploadingFiles(prev => 
+      prev.map(f => f.id === fileId ? { ...f, progress } : f)
+    );
+  }, []);
+
+  const handleFileStatusChange = useCallback((fileId: string, status: UploadingFile['status'], error?: string) => {
+    setUploadingFiles(prev => 
+      prev.map(f => f.id === fileId ? { ...f, status, error } : f)
+    );
+  }, []);
+
+  const handleDismissFile = useCallback((fileId: string) => {
+    setUploadingFiles(prev => prev.filter(f => f.id !== fileId));
+  }, []);
+
+  const handleDismissAllFiles = useCallback(() => {
+    // Only dismiss completed and error files
+    setUploadingFiles(prev => 
+      prev.filter(f => f.status === 'encrypting' || f.status === 'uploading')
+    );
+  }, []);
+
   const handleUploadFiles = async (fileList: FileList) => {
-    if (!token || !user) return;
+    if (!token || !user) {
+      toast({
+        title: "Error",
+        description: "You need to be logged in to upload files",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!fileList || fileList.length === 0) return;
 
     setIsUploading(true);
@@ -183,12 +230,24 @@ const Dashboard = () => {
         return;
       }
 
+      // Create upload status entries for each file
+      const newUploadingFiles = filesArray.map(file => ({
+        id: uuidv4(),
+        file,
+        progress: 0,
+        status: 'encrypting' as const
+      }));
+      
+      setUploadingFiles(prev => [...prev, ...newUploadingFiles]);
+
+      // Upload files with individual progress tracking
       await filesApi.multipleFileUpload({
         token,
         files: filesArray,
         folderId: currentFolder?._id || null,
-        setUploadProgress,
-        setIsUploading,
+        masterKey: masterKey || "", // Pass master key for encryption if available
+        onProgress: handleFileProgress,
+        onFileStatusChange: handleFileStatusChange,
         userId: user.id,
       });
 
@@ -198,8 +257,8 @@ const Dashboard = () => {
       loadFilesAndFolders({ resetCache: true }).then(() => {
         toast({
           title: "Success",
-          description: `${files.length} ${
-            files.length === 1 ? "file" : "files"
+          description: `${filesArray.length} ${
+            filesArray.length === 1 ? 'file' : 'files'
           } uploaded successfully`,
         });
       });
@@ -372,7 +431,12 @@ const Dashboard = () => {
     if (isSearchView) return "Search Results";
     if (isTrashView) return "Trash";
     if (fileType === "starred") return "Starred";
-    if (currentFolder) return currentFolder.name;
+    if (currentFolder) {
+      if (masterKey && currentFolder.metadataEncrypted) {
+        return userEncryptionService.decryptName(currentFolder.name, masterKey);
+      }
+      return currentFolder.name;
+    }
     return "My Drive";
   };
 
@@ -382,9 +446,6 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-4">
-      {/* <MultiFileUpload /> */}
-      {/* <FileUploader /> */}
-      {/* <FileDecryptor /> */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight">{getPageTitle()}</h2>
         <div className="flex items-center gap-2">
@@ -434,7 +495,7 @@ const Dashboard = () => {
             loadFilesAndFolders({ resetCache: true });
           }}
           isTrashView={isTrashView}
-          // storageInfo={storageInfo}
+          storageInfo={storageInfo}
         />
       )}
 
@@ -463,6 +524,13 @@ const Dashboard = () => {
           viewMode={viewMode}
         />
       )}
+      
+      {/* File upload progress dialog */}
+      <FileUploadProgress 
+        uploadingFiles={uploadingFiles}
+        onDismissFile={handleDismissFile}
+        onDismissAll={handleDismissAllFiles}
+      />
     </div>
   );
 };

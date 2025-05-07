@@ -7,6 +7,7 @@ const File = require("../models/File");
 const User = require("../models/User");
 const auth = require("../middleware/auth");
 const sharp = require("sharp");
+const crypto = require("crypto");
 
 // Configure multer for file storage
 const storage = multer.diskStorage({
@@ -27,11 +28,14 @@ const storage = multer.diskStorage({
       await fs.ensureDir(uploadPath);
     }
 
+    // Create thumbnails directory if needed
+    await fs.ensureDir(path.join(uploadPath, '.thumbnails'));
+
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
     // Create a unique filename to prevent overwriting
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const uniqueSuffix = Date.now() + "-" + crypto.randomBytes(8).toString('hex');
     const extension = path.extname(file.originalname);
     cb(null, uniqueSuffix + extension);
   },
@@ -88,20 +92,14 @@ const generateThumbnail = async (filePath, fileName, fileType) => {
     await fs.ensureDir(thumbnailDir);
     const thumbnailPath = path.join(thumbnailDir, fileName);
 
+    // For now we'll only generate thumbnails for images
+    // In a production app, you'd want to handle videos and PDFs too
     if (fileType.startsWith("image/")) {
       // Generate image thumbnail
       await sharp(filePath)
         .resize(200, 200, { fit: "inside" })
         .toFile(thumbnailPath);
       return thumbnailPath;
-    } else if (fileType.startsWith("video/")) {
-      // For video thumbnails, we'd typically use ffmpeg
-      // This is a placeholder implementation
-      return null;
-    } else if (fileType === "application/pdf") {
-      // For PDF thumbnails, we'd typically use pdf.js or similar
-      // This is a placeholder implementation
-      return null;
     }
 
     return null;
@@ -119,61 +117,91 @@ router.post(
   checkStorageQuota,
   async (req, res) => {
     try {
-      if (req.files && req.files?.length < 1) {
+      if (!req.files || req.files.length < 1) {
         return res.status(400).json({ message: "No file uploaded" });
       }
       let newFilesArray = [];
 
-      if (req.files.length > 0) {
-        // Create file record in database
-        for (let i = 0; i < req.files.length; i++) {
-          // Generate thumbnail if supported file type
-          const thumbnailPath = await generateThumbnail(
+      // Process each uploaded file
+      for (let i = 0; i < req.files.length; i++) {
+        // Generate thumbnail if supported file type
+        let thumbnailPath = null;
+        
+        try {
+          thumbnailPath = await generateThumbnail(
             req.files[i].path,
             req.files[i].filename,
             req.files[i].mimetype
           );
-
-          const newFile = new File({
-            name: req.files[i].originalname,
-            type: req.files[i].mimetype,
-            size: req.files[i].size,
-            path: req.files[i].path,
-            folderId: req.body.folderId || null,
-            userId: req.user._id,
-            thumbnailPath: thumbnailPath,
-          });
-
-          await newFile.save();
-          newFilesArray.push({
-            id: newFile._id,
-            name: newFile.name,
-            type: newFile.type,
-            size: newFile.size,
-            path: newFile.path,
-            folderId: newFile.folderId,
-            userId: newFile.userId,
-            createdAt: newFile.createdAt,
-            updatedAt: newFile.updatedAt,
-            thumbnailPath: newFile.thumbnailPath,
-            isStarred: newFile.isStarred,
-            isTrash: newFile.isTrash,
-          });
+        } catch (thumbErr) {
+          console.error("Error generating thumbnail:", thumbErr);
+          // Continue without thumbnail
         }
 
-        // Update user's storage usage
-        await User.findByIdAndUpdate(req.user._id, {
-          $inc: { storageUsed: req.totalUploadSize },
+        // Parse encrypted metadata if provided
+        let metadataEncrypted = true;
+        let originalName = null;
+        
+        if (req.body.encryptedMetadata) {
+          try {
+            // We'll store the encrypted metadata in DB but don't decrypt it here
+            // Client will decrypt it when needed
+            metadataEncrypted = true;
+          } catch (metaErr) {
+            console.error("Error with metadata:", metaErr);
+          }
+        }
+
+        // Store any IV provided for later decryption
+        const encryptionIV = req.body.encryptionIV || null;
+
+        // Create file record in database
+        const newFile = new File({
+          name: req.files[i].originalname,
+          originalName: originalName,
+          type: req.files[i].mimetype,
+          size: req.files[i].size,
+          path: req.files[i].path,
+          folderId: req.body.folderId || null,
+          userId: req.user._id,
+          thumbnailPath: thumbnailPath,
+          encryptionIV: encryptionIV,
+          metadataEncrypted: metadataEncrypted,
+        });
+
+        await newFile.save();
+        
+        newFilesArray.push({
+          _id: newFile._id,
+          name: newFile.name,
+          type: newFile.type,
+          size: newFile.size,
+          path: newFile.path,
+          folderId: newFile.folderId,
+          userId: newFile.userId,
+          thumbnailPath: newFile.thumbnailPath,
+          thumbnailCache: newFile.thumbnailCache,
+          isStarred: newFile.isStarred,
+          isTrash: newFile.isTrash,
+          encryptionIV: newFile.encryptionIV,
+          metadataEncrypted: newFile.metadataEncrypted,
+          createdAt: newFile.createdAt,
+          updatedAt: newFile.updatedAt,
         });
       }
+
+      // Update user's storage usage
+      await User.findByIdAndUpdate(req.user._id, {
+        $inc: { storageUsed: req.totalUploadSize },
+      });
 
       // Invalidate cache for file listing
       const cacheKey = `files:${req.user._id}:${req.body.folderId || "root"}`;
       await req.redisClient.del(cacheKey);
 
-      res.status(201).json({
-        ...newFilesArray,
-      });
+      res.status(201).json(
+        newFilesArray.length === 1 ? newFilesArray[0] : newFilesArray
+      );
     } catch (error) {
       console.error("File upload error:", error);
       res.status(500).json({ message: "Server error" });
