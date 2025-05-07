@@ -1,24 +1,26 @@
 
-import { useEffect, useState } from 'react';
-import { Folder, FolderItemProps } from "@/types";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatDistanceToNow } from "date-fns";
-import { FolderOpen, Trash2, MoreVertical } from "lucide-react";
-import { userEncryptionService } from '@/services/api/userEncryption';
-import { useAuth } from '@/contexts/AuthContext';
+import { FolderItemProps } from "@/types";
+import { Folder, MoreVertical, Trash2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { userEncryptionService } from "@/services/api/userEncryption";
 
-const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, viewMode = 'grid' }) => {
+const FolderItem: React.FC<FolderItemProps> = ({
+  folder,
+  onClick,
+  onDelete,
+  viewMode = "grid",
+}) => {
   const { masterKey } = useAuth();
   const [decryptedName, setDecryptedName] = useState<string>(folder.name);
-  
-  // Decrypt folder name if needed
+
   useEffect(() => {
     if (masterKey && folder.metadataEncrypted) {
       const decrypted = userEncryptionService.decryptName(folder.name, masterKey);
@@ -27,56 +29,92 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, view
       setDecryptedName(folder.name);
     }
   }, [folder.name, masterKey, folder.metadataEncrypted]);
-  
-  if (viewMode === 'list') {
+
+  const handleClick = () => {
+    onClick();
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete();
+  };
+
+  if (viewMode === "grid") {
     return (
-      <div 
-        className="flex items-center cursor-pointer w-full"
-        onClick={(e) => {
-          // Don't navigate if clicking on the dropdown
-          if ((e.target as HTMLElement).closest('.dropdown-menu-trigger')) {
-            e.stopPropagation();
-            return;
-          }
-          onClick();
-        }}
+      <div
+        className="group relative flex flex-col rounded-lg border bg-card p-2 transition-all hover:shadow-md"
+        onClick={handleClick}
       >
-        <div className="flex items-center flex-1">
-          <div className="mr-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-50">
-              <FolderOpen className="h-5 w-5 text-blue-500" />
-            </div>
-          </div>
-          <div className="flex flex-col min-w-0">
-            <p className="text-sm font-medium truncate max-w-[350px]" title={decryptedName}>
-              {decryptedName}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Folder
-            </p>
-          </div>
-        </div>
-        
-        <div className="flex items-center ml-auto">
+        <div className="absolute right-2 top-2 z-10">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full p-0 ml-2 dropdown-menu-trigger"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreVertical className="h-4 w-4" />
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">Open menu</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }} className="text-destructive">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={handleDelete}
+              >
                 <Trash2 className="mr-2 h-4 w-4" />
-                <span>Delete</span>
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="aspect-square mb-2 overflow-hidden rounded-lg">
+          <div className="flex h-full items-center justify-center bg-muted">
+            <Folder className="h-16 w-16 text-blue-500" />
+          </div>
+        </div>
+
+        <div className="flex items-start justify-between space-x-2 text-sm">
+          <div className="truncate font-medium">{decryptedName}</div>
+        </div>
+      </div>
+    );
+  } else {
+    // List view
+    return (
+      <div
+        className="group flex items-center justify-between rounded-lg border bg-card p-2 transition-all hover:bg-accent"
+        onClick={handleClick}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
+            <Folder className="h-6 w-6 text-blue-500" />
+          </div>
+          <div className="font-medium">{decryptedName}</div>
+        </div>
+
+        <div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={handleDelete}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -84,59 +122,6 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, view
       </div>
     );
   }
-
-  return (
-    <Card 
-      className="overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer"
-      onClick={(e) => {
-        // Don't navigate if clicking on the dropdown
-        if ((e.target as HTMLElement).closest('.dropdown-menu-trigger')) {
-          e.stopPropagation();
-          return;
-        }
-        onClick();
-      }}
-    >
-      <CardContent className="p-0">
-        <div className="aspect-square flex items-center justify-center bg-blue-50">
-          <FolderOpen className="h-16 w-16 text-blue-500" />
-        </div>
-      </CardContent>
-      <CardFooter className="p-3 flex-col items-start gap-1">
-        <div className="w-full flex justify-between items-start">
-          <div className="truncate flex-1">
-            <h3 className="text-sm font-medium truncate" title={decryptedName}>
-              {decryptedName}
-            </h3>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 dropdown-menu-trigger -mt-1 -mr-2"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }} className="text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
-                <span>Delete</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Modified {formatDistanceToNow(new Date(folder.updatedAt), { addSuffix: true })}
-        </p>
-      </CardFooter>
-    </Card>
-  );
 };
 
 export default FolderItem;

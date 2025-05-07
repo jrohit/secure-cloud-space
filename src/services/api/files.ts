@@ -1,4 +1,3 @@
-
 import { CachedFilesData, File, StorageInfo, UploadingFile } from "@/types";
 import { encryptionService } from "./encryption";
 import { API_URL, handleResponse } from "./utils";
@@ -12,7 +11,7 @@ export const filesApi = {
   getFiles: async (
     token: string,
     folderId: string | null = null,
-    resetCache: boolean | false = false,
+    resetCache: boolean = false,
     type: string = "all",
     search: string | null = null
   ): Promise<CachedFilesData> => {
@@ -132,7 +131,7 @@ export const filesApi = {
     onProgress?: (fileId: string, progress: number) => void;
     onFileStatusChange?: (fileId: string, status: UploadingFile['status'], error?: string) => void;
     userId: string;
-  }): Promise<File[]> => {
+  }): Promise<any[]> => {
     try {
       // Calculate total size for quota check
       const totalSize = files.reduce((sum, file) => sum + file.size, 0);
@@ -153,7 +152,7 @@ export const filesApi = {
         );
       }
 
-      const uploadedFiles: File[] = [];
+      const uploadedFiles: any[] = [];
 
       // Process one file at a time to conserve memory
       for (const file of files) {
@@ -176,15 +175,24 @@ export const filesApi = {
             metadataEncrypted: !!masterKey
           });
 
-          // Encrypt metadata with user-specific key from auth
-          const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
-          const encryptedMetadata = encryptionService.encryptData(fileMetadata, encryptionKey);
+          // Create a key from the master key or derive from user credentials
+          let encryptionKey;
+          if (masterKey) {
+            // Use the master key for encryption
+            encryptionKey = masterKey;
+          } else {
+            // Fall back to a deterministic key based on user credentials
+            encryptionKey = await encryptionService.generateUserEncryptionKey(userId, token);
+            encryptionKey = await encryptionService.cryptoKeyToString(encryptionKey);
+          }
+          
+          // Encrypt metadata with the derived key
+          const encryptedMetadataResult = await encryptionService.encryptData(fileMetadata, encryptionKey);
 
-          // Encrypt the file using the web worker with progress reporting
+          // Encrypt the file using Web Crypto API with progress reporting
           const { encryptedBlob, iv } = await encryptionService.encryptFile(
             file,
-            masterKey || encryptionKey, // Use master key if available, otherwise fall back to derived key
-            file.name,
+            encryptionKey,
             (progress) => {
               onProgress?.(fileId, progress / 2); // First 50% is encryption
             }
@@ -195,8 +203,9 @@ export const filesApi = {
 
           // Create FormData for this file
           const formData = new FormData();
+          // The actual file name will be the encryptedName
           formData.append("files", encryptedBlob, encryptedName);
-          formData.append("encryptedMetadata", encryptedMetadata);
+          formData.append("encryptedMetadata", encryptedMetadataResult.encrypted);
           formData.append("encryptionIV", iv);
           
           if (folderId) {
@@ -220,11 +229,17 @@ export const filesApi = {
             
             xhr.onload = () => {
               if (xhr.status >= 200 && xhr.status < 300) {
-                const response = JSON.parse(xhr.responseText);
-                uploadedFiles.push(response);
-                onProgress?.(fileId, 100);
-                onFileStatusChange?.(fileId, 'complete');
-                resolve();
+                try {
+                  const response = JSON.parse(xhr.responseText);
+                  uploadedFiles.push(response);
+                  onProgress?.(fileId, 100);
+                  onFileStatusChange?.(fileId, 'complete');
+                  resolve();
+                } catch (error) {
+                  const errorMsg = `Failed to parse upload response: ${error}`;
+                  onFileStatusChange?.(fileId, 'error', errorMsg);
+                  reject(new Error(errorMsg));
+                }
               } else {
                 const error = `Upload failed with status: ${xhr.status}`;
                 onFileStatusChange?.(fileId, 'error', error);
@@ -240,7 +255,7 @@ export const filesApi = {
             
             xhr.send(formData);
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Error processing file ${file.name}:`, error);
           onFileStatusChange?.(
             fileId, 
@@ -302,14 +317,15 @@ export const filesApi = {
     const encryptedBlob = await response.blob();
 
     // Generate encryption key from user ID and token
-    const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
+    const encryptionKey = await encryptionService.generateUserEncryptionKey(userId, token);
+    const keyString = await encryptionService.cryptoKeyToString(encryptionKey);
 
     // Decrypt the file with original type
     return encryptionService.decryptFile(
       encryptedBlob,
-      encryptionKey,
-      fileMetadata?.type || "application/octet-stream",
-      fileMetadata?.encryptionIV
+      fileMetadata?.encryptionIV || '',
+      keyString,
+      fileMetadata?.type || "application/octet-stream"
     );
   },
 

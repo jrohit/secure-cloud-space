@@ -1,5 +1,4 @@
 
-import CryptoJS from "crypto-js";
 import { v4 as uuidv4 } from "uuid";
 
 const MAX_CHUNK_SIZE = 20 * 1024 * 1024; // 20MB chunks for file processing
@@ -7,295 +6,244 @@ const MAX_CHUNK_SIZE = 20 * 1024 * 1024; // 20MB chunks for file processing
 export const encryptionService = {
   /**
    * Generates an encryption key based on user credentials
-   * This is a deterministic way to create a key that only the user can recreate
    */
-  generateUserEncryptionKey: (userId: string, token: string): string => {
+  generateUserEncryptionKey: async (userId: string, token: string): Promise<CryptoKey> => {
     // Create a deterministic key based on user ID and auth token
-    return CryptoJS.SHA256(userId + token).toString();
+    const encoder = new TextEncoder();
+    const data = encoder.encode(userId + token);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    
+    // Import the hash as a CryptoKey
+    return crypto.subtle.importKey(
+      'raw',
+      hashBuffer,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  },
+  
+  /**
+   * Convert CryptoKey to base64 string
+   */
+  cryptoKeyToString: async (key: CryptoKey): Promise<string> => {
+    const exported = await crypto.subtle.exportKey('raw', key);
+    return btoa(String.fromCharCode(...new Uint8Array(exported)));
+  },
+  
+  /**
+   * Convert base64 string to CryptoKey
+   */
+  stringToCryptoKey: async (keyString: string): Promise<CryptoKey> => {
+    const binaryString = atob(keyString);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    return crypto.subtle.importKey(
+      'raw',
+      bytes.buffer,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
   },
 
   /**
-   * Encrypts data with the user's encryption key
+   * Encrypt data using Web Crypto API
    */
-  encryptData: (data: string, encryptionKey: string): string => {
-    return CryptoJS.AES.encrypt(data, encryptionKey).toString();
+  encryptData: async (data: string, encryptionKey: CryptoKey | string): Promise<{
+    encrypted: string;
+    iv: string;
+  }> => {
+    // Convert string key to CryptoKey if needed
+    let key = encryptionKey;
+    if (typeof encryptionKey === 'string') {
+      key = await encryptionService.stringToCryptoKey(encryptionKey);
+    }
+    
+    // Generate random IV
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    
+    // Encrypt the data
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(data);
+    
+    const encryptedBuffer = await crypto.subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv: iv
+      },
+      key as CryptoKey,
+      dataBuffer
+    );
+    
+    // Convert to base64 strings
+    const encryptedBase64 = btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
+    const ivBase64 = btoa(String.fromCharCode(...iv));
+    
+    return {
+      encrypted: encryptedBase64,
+      iv: ivBase64
+    };
   },
 
   /**
-   * Decrypts data with the user's encryption key
+   * Decrypt data using Web Crypto API
    */
-  decryptData: (encryptedData: string, encryptionKey: string): string => {
+  decryptData: async (encryptedData: string, iv: string, encryptionKey: CryptoKey | string): Promise<string> => {
     try {
-      const bytes = CryptoJS.AES.decrypt(encryptedData, encryptionKey);
-      return bytes.toString(CryptoJS.enc.Utf8);
+      // Convert string key to CryptoKey if needed
+      let key = encryptionKey;
+      if (typeof encryptionKey === 'string') {
+        key = await encryptionService.stringToCryptoKey(encryptionKey);
+      }
+      
+      // Decode base64 strings
+      const encryptedBuffer = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0)).buffer;
+      const ivBuffer = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
+      
+      // Decrypt the data
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: ivBuffer
+        },
+        key as CryptoKey,
+        encryptedBuffer
+      );
+      
+      // Convert buffer to string
+      const decoder = new TextDecoder();
+      return decoder.decode(decryptedBuffer);
     } catch (error) {
       console.error("Failed to decrypt data:", error);
-      return ""; // Return empty string on decryption failure
+      throw new Error("Decryption failed");
     }
   },
 
   /**
-   * Encrypt file content using a web worker
-   * This function processes files in chunks to avoid memory issues
+   * Encrypt file content using Web Crypto API with chunking
    */
   encryptFile: async (
     file: Blob,
-    encryptionKey: string,
-    fileName?: string,
+    encryptionKey: string | CryptoKey,
     onProgress?: (progress: number) => void
   ): Promise<{ 
     encryptedBlob: Blob;
     iv: string;
   }> => {
-    // Create a worker
-    const worker = new Worker(
-      new URL("../../workers/encryption.worker.ts", import.meta.url),
-      { type: "module" }
-    );
-
-    // Define chunk size based on file size
-    const chunkSize = Math.min(
-      file.size > 500 * 1024 * 1024
-        ? 50 * 1024 * 1024  // 50MB chunks for very large files
-        : file.size > 100 * 1024 * 1024
-        ? 20 * 1024 * 1024  // 20MB chunks for large files
-        : 10 * 1024 * 1024, // 10MB chunks for smaller files
-      MAX_CHUNK_SIZE
-    );
-
-    const totalChunks = Math.ceil(file.size / chunkSize);
-    let encryptedChunks: { data: string; iv: string }[] = new Array(totalChunks);
-    let completedChunks = 0;
-    let iv: string | null = null;
-
-    return new Promise((resolve, reject) => {
-      // Process worker responses
-      worker.onmessage = (e) => {
-        const { encrypted, iv: chunkIv, error, chunkIndex, totalChunks, type, progress } = e.data;
-
-        if (type === "error" || error) {
-          worker.terminate();
-          reject(new Error(`Worker error: ${error}`));
-          return;
-        }
-
-        if (type === "progress" && onProgress) {
-          // Calculate overall progress based on chunk progress
-          const chunkProgress = progress / 100;
-          const overallProgress =
-            (chunkIndex / totalChunks + chunkProgress / totalChunks) * 100;
-          onProgress(Math.round(overallProgress));
-          return;
-        }
-
-        if (type === "result") {
-          // Store the encrypted chunk and IV (we'll use the same IV for all chunks)
-          if (!iv) iv = chunkIv;
-          
-          encryptedChunks[chunkIndex] = {
-            data: encrypted,
-            iv: chunkIv
-          };
-          completedChunks++;
-
-          if (onProgress) {
-            onProgress(Math.round((completedChunks / totalChunks) * 100));
-          }
-
-          // Check if all chunks are processed
-          if (completedChunks === totalChunks) {
-            try {
-              // Combine all encrypted chunks with their IVs to form our custom format
-              const combinedEncrypted = encryptedChunks.map(chunk => 
-                `${chunk.iv}|||IV_SEP|||${chunk.data}`
-              ).join("|||CHUNK|||");
-
-              // Terminate the worker
-              worker.terminate();
-
-              // Return the encrypted data as a blob and the IV
-              resolve({
-                encryptedBlob: new Blob([combinedEncrypted], { type: "application/encrypted" }),
-                iv: iv || ""
-              });
-            } catch (err) {
-              reject(new Error(`Error combining encrypted chunks: ${err}`));
-            }
-          }
-        }
-      };
-
-      // Handle worker errors
-      worker.onerror = (error) => {
-        worker.terminate();
-        reject(new Error(`Worker error: ${error.message}`));
-      };
-
-      // Send chunks to the worker for processing
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * chunkSize;
-        const end = Math.min(start + chunkSize, file.size);
-        const chunk = file.slice(start, end);
-
-        worker.postMessage({
-          action: "encrypt",
-          data: {
-            fileChunk: chunk,
-            encryptionKey,
-            chunkIndex: i,
-            totalChunks,
-            fileName: fileName || file.name || `file-${uuidv4()}`
-          },
-        });
+    // Convert string key to CryptoKey if needed
+    let key = encryptionKey;
+    if (typeof encryptionKey === 'string') {
+      key = await encryptionService.stringToCryptoKey(encryptionKey);
+    }
+    
+    // Generate random IV
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ivBase64 = btoa(String.fromCharCode(...iv));
+    
+    // Process file in chunks to avoid memory issues
+    const chunkSize = Math.min(MAX_CHUNK_SIZE, file.size);
+    const chunksCount = Math.ceil(file.size / chunkSize);
+    const encryptedChunks: Blob[] = [];
+    
+    for (let i = 0; i < chunksCount; i++) {
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, file.size);
+      const chunk = file.slice(start, end);
+      
+      // Read chunk as ArrayBuffer
+      const chunkBuffer = await chunk.arrayBuffer();
+      
+      // Encrypt chunk using AES-GCM
+      const encryptedBuffer = await crypto.subtle.encrypt(
+        {
+          name: 'AES-GCM',
+          iv: iv
+        },
+        key as CryptoKey,
+        chunkBuffer
+      );
+      
+      // Convert to blob and add to chunks array
+      encryptedChunks.push(new Blob([encryptedBuffer]));
+      
+      // Report progress
+      if (onProgress) {
+        onProgress((i + 1) / chunksCount * 100);
       }
-    });
+    }
+    
+    // Combine all chunks into a single blob
+    const encryptedBlob = new Blob(encryptedChunks, { type: 'application/encrypted' });
+    
+    return {
+      encryptedBlob,
+      iv: ivBase64
+    };
   },
 
   /**
-   * Decrypt file content using a web worker
+   * Decrypt file content using Web Crypto API with chunking
    */
   decryptFile: async (
     encryptedBlob: Blob,
-    encryptionKey: string,
+    iv: string,
+    encryptionKey: string | CryptoKey,
     originalType: string,
-    iv?: string,
-    fileName?: string,
     onProgress?: (progress: number) => void
   ): Promise<Blob> => {
-    // Create a worker
-    const worker = new Worker(
-      new URL("../../workers/encryption.worker.ts", import.meta.url),
-      { type: "module" }
-    );
-
-    // Get the encrypted text
-    const encryptedText = await encryptedBlob.text();
-
-    // Check if we're using the new format with embedded IVs
-    let encryptedChunks: { data: string; iv: string }[] = [];
-    
-    if (encryptedText.includes("|||IV_SEP|||")) {
-      // New format with embedded IVs
-      const chunks = encryptedText.split("|||CHUNK|||");
-      
-      encryptedChunks = chunks.map(chunk => {
-        const [chunkIv, data] = chunk.split("|||IV_SEP|||");
-        return { data, iv: chunkIv };
-      });
-    } else if (encryptedText.includes("|||CHUNK|||")) {
-      // Old format without embedded IVs
-      const chunks = encryptedText.split("|||CHUNK|||");
-      
-      if (!iv) {
-        throw new Error("IV is required for decryption of legacy format");
-      }
-      
-      encryptedChunks = chunks.map(chunk => ({
-        data: chunk,
-        iv
-      }));
-    } else {
-      // Single chunk without |||CHUNK||| separator
-      if (!iv) {
-        throw new Error("IV is required for decryption of legacy format");
-      }
-      
-      encryptedChunks = [{
-        data: encryptedText,
-        iv
-      }];
+    // Convert string key to CryptoKey if needed
+    let key = encryptionKey;
+    if (typeof encryptionKey === 'string') {
+      key = await encryptionService.stringToCryptoKey(encryptionKey);
     }
     
-    const totalChunks = encryptedChunks.length;
-    let decryptedChunks: ArrayBuffer[] = new Array(totalChunks);
-    let completedChunks = 0;
-
-    return new Promise((resolve, reject) => {
-      // Process worker responses
-      worker.onmessage = (e) => {
-        const {
-          decryptedData,
-          error,
-          chunkIndex,
-          totalChunks,
-          type,
-          progress,
-        } = e.data;
-
-        if (type === "error" || error) {
-          worker.terminate();
-          reject(new Error(`Worker error: ${error}`));
-          return;
-        }
-
-        if (type === "progress" && onProgress) {
-          // Calculate overall progress based on chunk progress
-          const chunkProgress = progress / 100;
-          const overallProgress =
-            (chunkIndex / totalChunks + chunkProgress / totalChunks) * 100;
-          onProgress(Math.round(overallProgress));
-          return;
-        }
-
-        if (type === "result") {
-          // Store the decrypted chunk
-          decryptedChunks[chunkIndex] = decryptedData;
-          completedChunks++;
-
-          if (onProgress) {
-            onProgress(Math.round((completedChunks / totalChunks) * 100));
-          }
-
-          // Check if all chunks are processed
-          if (completedChunks === totalChunks) {
-            try {
-              // Combine all decrypted chunks
-              const combinedSize = decryptedChunks.reduce(
-                (acc, chunk) => acc + chunk.byteLength,
-                0
-              );
-              const combinedArray = new Uint8Array(combinedSize);
-
-              let offset = 0;
-              for (const chunk of decryptedChunks) {
-                combinedArray.set(new Uint8Array(chunk), offset);
-                offset += chunk.byteLength;
-              }
-
-              // Terminate the worker
-              worker.terminate();
-
-              // Return the decrypted data as a blob with the original type
-              resolve(new Blob([combinedArray], { type: originalType }));
-            } catch (error) {
-              reject(new Error(`Error combining decrypted chunks: ${error}`));
-            }
-          }
-        }
-      };
-
-      // Handle worker errors
-      worker.onerror = (error) => {
-        worker.terminate();
-        reject(new Error(`Worker error: ${error.message}`));
-      };
-
-      // Send chunks to the worker for processing
-      encryptedChunks.forEach((chunk, i) => {
-        worker.postMessage({
-          action: "decrypt",
-          data: {
-            encryptedText: chunk.data,
-            iv: chunk.iv,
-            encryptionKey,
-            originalType,
-            chunkIndex: i,
-            totalChunks,
-            fileName: fileName || `file-${i}`
+    // Decode IV from base64
+    const ivArray = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
+    
+    // Process file in chunks if it's large
+    const chunkSize = Math.min(MAX_CHUNK_SIZE, encryptedBlob.size);
+    const chunksCount = Math.ceil(encryptedBlob.size / chunkSize);
+    const decryptedChunks: Blob[] = [];
+    
+    for (let i = 0; i < chunksCount; i++) {
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, encryptedBlob.size);
+      const chunk = encryptedBlob.slice(start, end);
+      
+      // Read chunk as ArrayBuffer
+      const chunkBuffer = await chunk.arrayBuffer();
+      
+      try {
+        // Decrypt chunk using AES-GCM
+        const decryptedBuffer = await crypto.subtle.decrypt(
+          {
+            name: 'AES-GCM',
+            iv: ivArray
           },
-        });
-      });
-    });
+          key as CryptoKey,
+          chunkBuffer
+        );
+        
+        // Convert to blob and add to chunks array
+        decryptedChunks.push(new Blob([decryptedBuffer]));
+        
+        // Report progress
+        if (onProgress) {
+          onProgress((i + 1) / chunksCount * 100);
+        }
+      } catch (error) {
+        console.error(`Error decrypting chunk ${i}:`, error);
+        throw new Error(`Failed to decrypt file: ${error}`);
+      }
+    }
+    
+    // Combine all chunks into a single blob with original type
+    return new Blob(decryptedChunks, { type: originalType || 'application/octet-stream' });
   },
 
   /**

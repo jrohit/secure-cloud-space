@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,48 +10,60 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/Spinner";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Spinner } from "@/components/ui/Spinner";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 
 const Register = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { register } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
   const navigate = useNavigate();
+  const { register } = useAuth();
 
-  const validatePasswords = () => {
-    if (password !== confirmPassword) {
-      setPasswordError("Passwords do not match");
-      return false;
-    }
-    if (password.length < 6) {
-      setPasswordError("Password must be at least 6 characters");
-      return false;
-    }
-    setPasswordError("");
-    return true;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (!validatePasswords()) return;
-
-    setIsSubmitting(true);
+    
+    if (password !== confirmPassword) {
+      toast({
+        title: "Passwords do not match",
+        description: "Please make sure your passwords match.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (password.length < 8) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 8 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      setIsLoading(true);
       await register(name, email, password);
-      navigate("/dashboard");
+      navigate("/");
+      toast({
+        title: "Registration successful",
+        description: "Welcome to SecureDrive!",
+      });
     } catch (error) {
-      console.error(error);
+      toast({
+        title: "Registration failed",
+        description: error instanceof Error ? error.message : "Please check your details and try again.",
+        variant: "destructive",
+      });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
@@ -84,7 +98,7 @@ const Register = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  disabled={isSubmitting}
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
@@ -98,7 +112,7 @@ const Register = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  disabled={isSubmitting}
+                  disabled={isLoading}
                 />
               </div>
               <div className="space-y-2">
@@ -107,13 +121,20 @@ const Register = () => {
                 </label>
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  disabled={isSubmitting}
+                  disabled={isLoading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-cloudDrive-blue hover:underline"
+                >
+                  {showPassword ? <EyeIcon /> : <EyeOffIcon />}
+                </button>
               </div>
               <div className="space-y-2">
                 <label
@@ -129,7 +150,7 @@ const Register = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  disabled={isSubmitting}
+                  disabled={isLoading}
                 />
                 {passwordError && (
                   <p className="text-destructive text-sm">{passwordError}</p>
@@ -140,9 +161,9 @@ const Register = () => {
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-cloudDrive-blue to-cloudDrive-green hover:opacity-90 transition-opacity"
-                disabled={isSubmitting}
+                disabled={isLoading}
               >
-                {isSubmitting ? <Spinner className="h-5 w-5 mr-2" /> : null}
+                {isLoading ? <Spinner className="h-5 w-5 mr-2" /> : null}
                 Sign up
               </Button>
               <div className="text-center text-sm">

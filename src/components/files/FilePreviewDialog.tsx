@@ -56,15 +56,17 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
             console.log("File loaded successfully, setting object URL");
             setObjectUrl(url);
             setPreviewType(file.type);
+            setIsLoading(false);
+          }
+        } else {
+          if (isMounted) {
+            setIsLoading(false);
           }
         }
       } catch (error) {
         console.error("Error loading file:", error);
         if (isMounted) {
           setLoadingError(`Failed to load file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      } finally {
-        if (isMounted) {
           setIsLoading(false);
         }
       }
@@ -78,7 +80,7 @@ const FilePreviewDialog: React.FC<FileViewProps> = ({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [file._id, token, user, decryptedFileName, file.type]);
+  }, [file._id, file.type, token, user?.id, decryptedFileName]);
   
   if (!token || !user) return null;
 

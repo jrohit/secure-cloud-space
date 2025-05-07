@@ -236,7 +236,7 @@ const Dashboard = () => {
         file,
         progress: 0,
         status: 'encrypting' as const
-      }));
+      })) as UploadingFile[];
       
       setUploadingFiles(prev => [...prev, ...newUploadingFiles]);
 

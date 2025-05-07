@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   name: string;
@@ -95,6 +94,25 @@ export interface PlanOption {
 export interface CachedFilesData {
   files: File[];
   source?: string;
+}
+
+export interface CachedFoldersData {
+  folders: Folder[];
+  source?: string;
+}
+
+export interface StoragePlan {
+  id: string;
+  name: string;
+  storageGB: number;
+  priceMonthly: number;
+  priceYearly: number;
+  features: string[];
+}
+
+export interface ApiError {
+  message: string;
+  status?: number;
 }
 
 export interface UploadingFile {

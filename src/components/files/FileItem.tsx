@@ -65,38 +65,15 @@ const FileItem: React.FC<FileItemProps> = ({
     }
   }, [file._id, file.type, token, user?.id, viewMode]);
 
-  const handleFileClick = () => {
-    onClick();
-  };
-
-  const handleStar = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onStar?.();
-  };
-
-  const handleTrash = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onTrash?.();
-  };
-
-  const handleRestore = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onRestore?.();
-  };
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDelete?.();
-  };
-
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    
     if (!token || !user) return;
 
     setIsDownloading(true);
     try {
       const blob = await filesApi.downloadFile(token, file._id, user.id);
-      const url = URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = decryptedFileName;
@@ -109,351 +86,286 @@ const FileItem: React.FC<FileItemProps> = ({
     }
   };
 
-  // Get file icon based on file type
+  const getFileIconClass = () => {
+    if (file.type.startsWith("image/")) return "text-blue-500";
+    if (file.type.startsWith("video/")) return "text-red-500";
+    if (file.type.startsWith("audio/")) return "text-green-500";
+    if (file.type === "application/pdf") return "text-orange-500";
+    if (file.type.includes("spreadsheet") || file.type.includes("excel"))
+      return "text-green-700";
+    if (file.type.includes("document") || file.type.includes("word"))
+      return "text-blue-700";
+    if (file.type.includes("presentation") || file.type.includes("powerpoint"))
+      return "text-orange-700";
+    return "text-gray-500";
+  };
+
   const getFileIcon = () => {
-    // For grid view thumbnails
-    if (viewMode === "grid") {
-      if (file.type.startsWith("image/")) {
-        if (thumbnailUrl && !thumbnailError) {
-          return (
-            <div className="mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted overflow-hidden">
-              <img
-                src={thumbnailUrl}
-                alt={decryptedFileName}
-                className="h-full w-full object-cover"
-                onError={() => setThumbnailError(true)}
-              />
-            </div>
-          );
-        } else {
-          return (
-            <div className="mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-12 w-12 text-muted-foreground"
-              >
-                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
-                <circle cx="9" cy="9" r="2"></circle>
-                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
-              </svg>
-            </div>
-          );
-        }
-      } else if (file.type.startsWith("video/")) {
-        return (
-          <div className="mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-12 w-12 text-muted-foreground"
-            >
-              <path d="m10 7 5 3-5 3Z"></path>
-              <rect width="20" height="14" x="2" y="3" rx="2"></rect>
-              <path d="M12 17v4"></path>
-              <path d="M8 21h8"></path>
-            </svg>
-          </div>
-        );
-      } else if (file.type.startsWith("audio/")) {
-        return (
-          <div className="mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-12 w-12 text-muted-foreground"
-            >
-              <path d="M2 13a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path>
-              <path d="M14 13a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2h-3a2 2 0 0 0-2 2Z"></path>
-              <path d="M10 21v-6"></path>
-              <path d="M7 18h6"></path>
-              <path d="M19 21v-6"></path>
-            </svg>
-          </div>
-        );
-      } else {
-        return (
-          <div className="mb-2 flex h-24 w-24 items-center justify-center rounded-md bg-muted">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-12 w-12 text-muted-foreground"
-            >
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-            </svg>
-          </div>
-        );
-      }
+    if (file.type.startsWith("image/")) {
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className={`h-8 w-8 ${getFileIconClass()}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+          />
+        </svg>
+      );
+    } else if (file.type.startsWith("video/")) {
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className={`h-8 w-8 ${getFileIconClass()}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+          />
+        </svg>
+      );
+    } else if (file.type.startsWith("audio/")) {
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className={`h-8 w-8 ${getFileIconClass()}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+          />
+        </svg>
+      );
     } else {
-      // For list view icons - smaller and more compact
-      if (file.type.startsWith("image/")) {
-        if (thumbnailUrl && !thumbnailError) {
-          return (
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted overflow-hidden">
-              <img
-                src={thumbnailUrl}
-                alt={decryptedFileName}
-                className="h-full w-full object-cover"
-                onError={() => setThumbnailError(true)}
-              />
-            </div>
-          );
-        } else {
-          return (
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5 text-muted-foreground"
-              >
-                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
-                <circle cx="9" cy="9" r="2"></circle>
-                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
-              </svg>
-            </div>
-          );
-        }
-      } else if (file.type.startsWith("video/")) {
-        return (
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5 text-muted-foreground"
-            >
-              <path d="m10 7 5 3-5 3Z"></path>
-              <rect width="20" height="14" x="2" y="3" rx="2"></rect>
-              <path d="M12 17v4"></path>
-              <path d="M8 21h8"></path>
-            </svg>
-          </div>
-        );
-      } else if (file.type.startsWith("audio/")) {
-        return (
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5 text-muted-foreground"
-            >
-              <path d="M2 13a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path>
-              <path d="M14 13a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2h-3a2 2 0 0 0-2 2Z"></path>
-              <path d="M10 21v-6"></path>
-              <path d="M7 18h6"></path>
-              <path d="M19 21v-6"></path>
-            </svg>
-          </div>
-        );
-      } else {
-        return (
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5 text-muted-foreground"
-            >
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-            </svg>
-          </div>
-        );
-      }
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className={`h-8 w-8 ${getFileIconClass()}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+          />
+        </svg>
+      );
     }
   };
 
-  // For grid view
+  const renderThumbnail = () => {
+    if (thumbnailUrl && !thumbnailError) {
+      return (
+        <img
+          src={thumbnailUrl}
+          alt={decryptedFileName}
+          className="object-cover w-full h-full rounded-lg"
+          onError={() => setThumbnailError(true)}
+        />
+      );
+    }
+    return (
+      <div
+        className={`flex items-center justify-center w-full h-full bg-muted rounded-lg`}
+      >
+        {getFileIcon()}
+      </div>
+    );
+  };
+
   if (viewMode === "grid") {
     return (
       <div
-        className="group relative flex aspect-square h-full w-full cursor-pointer flex-col items-center justify-center rounded-md border p-4 hover:bg-secondary"
-        onClick={handleFileClick}
+        className={`group relative flex flex-col rounded-lg border bg-card p-2 transition-all hover:shadow-md ${
+          file.isTrash ? "opacity-75" : ""
+        }`}
+        onClick={onClick}
       >
-        {file.isStarred && (
-          <div className="absolute left-2 top-2 z-10">
-            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-          </div>
-        )}
-
-        <div className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute right-2 top-2 z-10">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[160px]">
-              <DropdownMenuItem
-                onClick={handleDownload}
-                disabled={isDownloading}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </DropdownMenuItem>
-              {onStar && (
-                <DropdownMenuItem onClick={handleStar}>
-                  <Star className="mr-2 h-4 w-4" />
-                  {file.isStarred ? "Unstar" : "Star"}
-                </DropdownMenuItem>
+            <DropdownMenuContent align="end">
+              {!file.isTrash && (
+                <>
+                  <DropdownMenuItem onClick={handleDownload}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onStar?.();
+                  }}>
+                    <Star
+                      className={`mr-2 h-4 w-4 ${
+                        file.isStarred ? "fill-yellow-400 text-yellow-400" : ""
+                      }`}
+                    />
+                    {file.isStarred ? "Unstar" : "Star"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onTrash?.();
+                  }}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Move to trash
+                  </DropdownMenuItem>
+                </>
               )}
-              {onTrash && (
-                <DropdownMenuItem onClick={handleTrash}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Move to Trash
-                </DropdownMenuItem>
-              )}
-              {onRestore && (
-                <DropdownMenuItem onClick={handleRestore}>
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Restore
-                </DropdownMenuItem>
-              )}
-              {onDelete && (
-                <DropdownMenuItem onClick={handleDelete}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Permanently
-                </DropdownMenuItem>
+              {file.isTrash && (
+                <>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onRestore?.();
+                  }}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Restore
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete?.();
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete permanently
+                  </DropdownMenuItem>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        {getFileIcon()}
-        <p className="text-sm font-medium line-clamp-2 text-center break-all">
-          {decryptedFileName}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {formatFileSize(file.size)}
-        </p>
+
+        <div className="aspect-square mb-2 overflow-hidden rounded-lg">
+          {renderThumbnail()}
+        </div>
+
+        <div className="flex items-start justify-between space-x-2 text-sm">
+          <div className="truncate font-medium">
+            {decryptedFileName}
+            {file.isStarred && (
+              <Star className="ml-1 inline-block h-3 w-3 fill-yellow-400 text-yellow-400" />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  } else {
+    // List view
+    return (
+      <div
+        className={`group flex items-center justify-between rounded-lg border bg-card p-2 transition-all hover:bg-accent ${
+          file.isTrash ? "opacity-75" : ""
+        }`}
+        onClick={onClick}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
+            {getFileIcon()}
+          </div>
+          <div>
+            <div className="font-medium">
+              {decryptedFileName}
+              {file.isStarred && (
+                <Star className="ml-1 inline-block h-3 w-3 fill-yellow-400 text-yellow-400" />
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {formatFileSize(file.size)} • {formatDate(file.updatedAt)}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDownload}>
+            <Download className="h-4 w-4" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!file.isTrash && (
+                <>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onStar?.();
+                  }}>
+                    <Star
+                      className={`mr-2 h-4 w-4 ${
+                        file.isStarred ? "fill-yellow-400 text-yellow-400" : ""
+                      }`}
+                    />
+                    {file.isStarred ? "Unstar" : "Star"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onTrash?.();
+                  }}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Move to trash
+                  </DropdownMenuItem>
+                </>
+              )}
+              {file.isTrash && (
+                <>
+                  <DropdownMenuItem onClick={(e) => {
+                    e.stopPropagation();
+                    onRestore?.();
+                  }}>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Restore
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete?.();
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete permanently
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     );
   }
-
-  // For list view
-  return (
-    <div
-      className="w-full flex items-center cursor-pointer"
-      onClick={handleFileClick}
-    >
-      <div className="flex items-center flex-1">
-        <div className="mr-3">{getFileIcon()}</div>
-        <div className="flex flex-col min-w-0">
-          <div className="flex items-center">
-            <p className="text-sm font-medium truncate pr-2 max-w-[350px]">
-              {decryptedFileName}
-            </p>
-            {file.isStarred && (
-              <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400 shrink-0" />
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {file.type.split("/")[1]?.toUpperCase() || file.type}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center ml-auto">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full p-0 ml-2"
-            >
-              <MoreVertical className="h-4 w-4" />
-              <span className="sr-only">Actions</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[160px]">
-            <DropdownMenuItem onClick={handleDownload} disabled={isDownloading}>
-              <Download className="mr-2 h-4 w-4" />
-              Download
-            </DropdownMenuItem>
-            {onStar && (
-              <DropdownMenuItem onClick={handleStar}>
-                <Star className="mr-2 h-4 w-4" />
-                {file.isStarred ? "Unstar" : "Star"}
-              </DropdownMenuItem>
-            )}
-            {onTrash && (
-              <DropdownMenuItem onClick={handleTrash}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Move to Trash
-              </DropdownMenuItem>
-            )}
-            {onRestore && (
-              <DropdownMenuItem onClick={handleRestore}>
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Restore
-              </DropdownMenuItem>
-            )}
-            {onDelete && (
-              <DropdownMenuItem onClick={handleDelete}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Permanently
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
-  );
 };
 
 const formatFileSize = (bytes: number): string => {
@@ -461,6 +373,13 @@ const formatFileSize = (bytes: number): string => {
   else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
   else if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " MB";
   else return (bytes / 1073741824).toFixed(1) + " GB";
+};
+
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+  }).format(date);
 };
 
 export default FileItem;

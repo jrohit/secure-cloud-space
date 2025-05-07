@@ -1,152 +1,165 @@
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useState, useContext, useEffect } from "react";
 import { User } from "@/types";
-import { authApi } from "@/services/api";
+import { authApi } from "@/services/api/auth";
 import { userEncryptionService } from "@/services/api/userEncryption";
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   masterKey: string | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<User>;
-  signup: (name: string, email: string, password: string) => Promise<User>;
+  loading: boolean; // Added loading property
+  updateUserData: (user: User) => void; // Added to replace updateUser
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  setUserMasterKey: (masterKey: string) => void;
+  register: (name: string, email: string, password: string) => Promise<void>; // Added register
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  token: null,
+  masterKey: null,
+  loading: true, // Initialize loading state
+  updateUserData: () => {},
+  login: async () => {},
+  logout: () => {},
+  register: async () => {},
+});
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [masterKey, setMasterKey] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Add loading state
 
-  // Check for existing auth on mount
+  // Check if there's a stored token on component mount
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const storedToken = localStorage.getItem("token");
-        if (storedToken) {
-          const userData = await authApi.getCurrentUser(storedToken);
-          setUser(userData);
-          setToken(storedToken);
-          
-          // Try to get master key from localStorage
-          const cachedMasterKey = await userEncryptionService.getMasterKey(userData, storedToken);
-          if (cachedMasterKey) {
-            setMasterKey(cachedMasterKey);
-          }
-        }
-      } catch (error) {
-        console.error("Authentication error:", error);
-        // Clear any invalid auth data
-        localStorage.removeItem("token");
-        setUser(null);
-        setToken(null);
-        setMasterKey(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
+    const storedToken = localStorage.getItem("token");
+    if (storedToken) {
+      setToken(storedToken);
+      getCurrentUser(storedToken);
+    } else {
+      setLoading(false); // Important: Set loading to false when no token
+    }
   }, []);
 
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
+  const getCurrentUser = async (authToken: string) => {
     try {
-      const { user, token } = await authApi.login(email, password);
+      const userData = await authApi.getCurrentUser(authToken);
+      setUser(userData);
       
-      // Get user's encryption details from user object
-      if (user.salt && user.iv && user.tag && user.encryptedMasterKey) {
+      // Try to get master key from localStorage
+      const cachedMasterKey = await userEncryptionService.getMasterKey(userData, authToken);
+      setMasterKey(cachedMasterKey);
+      
+    } catch (error) {
+      console.error("Error getting current user:", error);
+      logout();
+    } finally {
+      setLoading(false); // Important: Set loading to false after fetch completes
+    }
+  };
+
+  const login = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      const { user: userData, token: authToken } = await authApi.login(email, password);
+      
+      // Store in state
+      setUser(userData);
+      setToken(authToken);
+      
+      // Store in localStorage
+      localStorage.setItem("token", authToken);
+      
+      // Try to decrypt the master key with password
+      if (userData.encryptedMasterKey && userData.salt && userData.iv && userData.tag) {
         try {
-          // Decrypt the master key with the user's password
           const decryptedMasterKey = userEncryptionService.decryptMasterKey(
-            { 
-              iv: user.iv, 
-              ciphertext: user.encryptedMasterKey, 
-              tag: user.tag 
-            },
-            password,
-            user.salt
+            {
+              ciphertext: userData.encryptedMasterKey,
+              iv: userData.iv, 
+              tag: userData.tag
+            }, 
+            password, 
+            userData.salt
           );
           
-          // Save master key to state and localStorage
+          // Store master key in memory and localStorage
           setMasterKey(decryptedMasterKey);
-          userEncryptionService.saveMasterKey(user.id, decryptedMasterKey);
+          userEncryptionService.saveMasterKey(userData.id, decryptedMasterKey);
         } catch (error) {
           console.error("Failed to decrypt master key:", error);
+          // Continue login process even if master key decryption fails
         }
       }
-      
-      localStorage.setItem("token", token);
-      setUser(user);
-      setToken(token);
-      return user;
     } catch (error) {
       console.error("Login error:", error);
       throw error;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const signup = async (name: string, email: string, password: string) => {
-    setIsLoading(true);
+  const register = async (name: string, email: string, password: string) => {
     try {
-      // Generate encryption keys and parameters
+      setLoading(true);
+      
+      // Generate encryption parameters for the user's master key
       const { 
-        masterKey: newMasterKey,
-        encryptedMasterKey,
-        salt,
-        iv,
-        tag
+        masterKey: newMasterKey, 
+        encryptedMasterKey, 
+        salt, 
+        iv, 
+        tag 
       } = userEncryptionService.generateMasterKeyAndParams(password);
       
-      // Register user with encryption parameters
-      const { user, token } = await authApi.signup(
-        name, 
-        email, 
-        password, 
+      // Register the user with the generated encryption parameters
+      const { user: userData, token: authToken } = await authApi.signup(
+        name,
+        email,
+        password,
         encryptedMasterKey,
         salt,
         iv,
         tag
       );
       
-      // Set master key in state and localStorage
-      setMasterKey(newMasterKey);
-      userEncryptionService.saveMasterKey(user.id, newMasterKey);
+      // Store user data and token
+      setUser(userData);
+      setToken(authToken);
+      localStorage.setItem("token", authToken);
       
-      localStorage.setItem("token", token);
-      setUser(user);
-      setToken(token);
-      return user;
+      // Store master key in memory and localStorage
+      setMasterKey(newMasterKey);
+      userEncryptionService.saveMasterKey(userData.id, newMasterKey);
+      
     } catch (error) {
-      console.error("Signup error:", error);
+      console.error("Registration error:", error);
       throw error;
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   const logout = () => {
-    if (user) {
-      userEncryptionService.clearMasterKey(user.id);
-    }
-    localStorage.removeItem("token");
     setUser(null);
     setToken(null);
     setMasterKey(null);
-  };
-
-  const setUserMasterKey = (newMasterKey: string) => {
-    setMasterKey(newMasterKey);
+    localStorage.removeItem("token");
+    
+    // Clear any master keys from localStorage
     if (user) {
-      userEncryptionService.saveMasterKey(user.id, newMasterKey);
+      userEncryptionService.clearMasterKey(user.id);
     }
+  };
+  
+  const updateUserData = (updatedUser: User) => {
+    setUser(updatedUser);
   };
 
   return (
@@ -155,22 +168,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         token,
         masterKey,
-        isLoading,
+        loading,
+        updateUserData,
         login,
-        signup,
         logout,
-        setUserMasterKey,
+        register,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 };

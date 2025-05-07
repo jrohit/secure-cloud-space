@@ -4,14 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-
-export interface UploadingFile {
-  id: string;
-  file: File;
-  progress: number;
-  status: 'encrypting' | 'uploading' | 'complete' | 'error';
-  error?: string;
-}
+import { UploadingFile } from '@/types';
 
 interface FileUploadProgressProps {
   uploadingFiles: UploadingFile[];

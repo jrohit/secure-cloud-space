@@ -1,19 +1,21 @@
 
-import { CachedFoldersData, Folder } from "@/types";
+import { CachedFilesData, Folder } from "@/types";
 import { API_URL, handleResponse } from "./utils";
-import { encryptionService } from "./encryption";
 
 export const foldersApi = {
+  /**
+   * Get folders based on parentId
+   */
   getFolders: async (
     token: string,
     parentId: string | null = null,
-    resetCache: boolean | false = false,
-    userId: string | null = null
-  ): Promise<CachedFoldersData> => {
+    resetCache: boolean = false,
+    userId: string = ""
+  ): Promise<{ folders: Folder[] }> => {
     let url = new URL(`${API_URL}/folders`);
 
     if (parentId) {
-      url.searchParams.set("parentId", parentId.toString());
+      url.searchParams.set("parentId", parentId);
     }
 
     if (resetCache) {
@@ -25,64 +27,37 @@ export const foldersApi = {
         Authorization: `Bearer ${token}`,
       },
     });
-    
-    const data = await handleResponse<CachedFoldersData>(response);
-    
-    // Decrypt folder names if userId is provided
-    if (userId && data.folders) {
-      const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
-      
-      // Try to decrypt each folder name
-      data.folders = data.folders.map(folder => {
-        if (folder.name && folder.name.length > 24) {
-          try {
-            const decryptedName = encryptionService.decryptData(folder.name, encryptionKey);
-            // If decryption was successful and returned a non-empty string
-            if (decryptedName) {
-              return { ...folder, name: decryptedName };
-            }
-          } catch (error) {
-            console.error(`Error decrypting folder name: ${error}`);
-          }
-        }
-        return folder;
-      });
-    }
-    
-    return data;
+    return handleResponse<{ folders: Folder[] }>(response);
   },
 
+  /**
+   * Create a new folder
+   */
   createFolder: async (
     token: string,
     name: string,
     parentId: string | null = null,
-    userId: string
+    userId: string = "",
+    metadataEncrypted: boolean = false
   ): Promise<Folder> => {
-    // Generate encryption key
-    const encryptionKey = encryptionService.generateUserEncryptionKey(userId, token);
-    
-    // Encrypt the folder name
-    const encryptedName = encryptionService.encryptData(name, encryptionKey);
-    
     const response = await fetch(`${API_URL}/folders`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ 
-        name: encryptedName, 
+      body: JSON.stringify({
+        name,
         parentId,
-        isEncrypted: true 
+        metadataEncrypted
       }),
     });
-    
-    const folder = await handleResponse<Folder>(response);
-    
-    // Return the folder with the decrypted name for immediate use
-    return { ...folder, name };
+    return handleResponse<Folder>(response);
   },
 
+  /**
+   * Delete a folder
+   */
   deleteFolder: async (token: string, folderId: string): Promise<void> => {
     const response = await fetch(`${API_URL}/folders/${folderId}`, {
       method: "DELETE",

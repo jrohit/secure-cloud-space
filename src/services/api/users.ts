@@ -1,8 +1,24 @@
 
-import { StoragePlan, User } from "@/types";
+import { User, StoragePlan } from "@/types";
 import { API_URL, handleResponse } from "./utils";
 
-export const usersApi = {
+export interface ProfileUpdateRequest {
+  name?: string;
+  email?: string;
+}
+
+export interface PasswordUpdateRequest {
+  currentPassword: string;
+  newPassword: string;
+  encryptedMasterKey?: string;
+  iv?: string;
+  tag?: string;
+}
+
+export const userApi = {
+  /**
+   * Get current user profile
+   */
   getProfile: async (token: string): Promise<User> => {
     const response = await fetch(`${API_URL}/users/profile`, {
       headers: {
@@ -12,30 +28,39 @@ export const usersApi = {
     return handleResponse<User>(response);
   },
 
-  uploadAvatar: async (token: string, avatarFile: Blob): Promise<{ user: User }> => {
-    const formData = new FormData();
-    formData.append('avatar', avatarFile);
-
-    const response = await fetch(`${API_URL}/users/avatar`, {
-      method: "POST",
+  /**
+   * Update user profile
+   */
+  updateProfile: async (token: string, data: ProfileUpdateRequest): Promise<User> => {
+    const response = await fetch(`${API_URL}/users/profile`, {
+      method: "PATCH",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: formData,
+      body: JSON.stringify(data),
     });
-    return handleResponse<{ user: User }>(response);
+    return handleResponse<User>(response);
   },
 
-  deleteAvatar: async (token: string): Promise<void> => {
-    const response = await fetch(`${API_URL}/users/avatar`, {
-      method: "DELETE",
+  /**
+   * Update password
+   */
+  updatePassword: async (token: string, data: PasswordUpdateRequest): Promise<User> => {
+    const response = await fetch(`${API_URL}/users/password`, {
+      method: "PATCH",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify(data),
     });
-    return handleResponse<void>(response);
+    return handleResponse<User>(response);
   },
 
+  /**
+   * Get available storage plans
+   */
   getStoragePlans: async (token: string): Promise<StoragePlan[]> => {
     const response = await fetch(`${API_URL}/users/storage-plans`, {
       headers: {
@@ -45,15 +70,18 @@ export const usersApi = {
     return handleResponse<StoragePlan[]>(response);
   },
 
-  upgradeStorage: async (token: string, planId: string): Promise<{ storageLimit: number, storageType: string }> => {
+  /**
+   * Upgrade storage plan
+   */
+  upgradeStoragePlan: async (token: string, planId: string): Promise<User> => {
     const response = await fetch(`${API_URL}/users/upgrade-storage`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ planId }),
     });
-    return handleResponse<{ storageLimit: number, storageType: string }>(response);
+    return handleResponse<User>(response);
   },
 };
