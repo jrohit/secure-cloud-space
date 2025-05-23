@@ -28,13 +28,13 @@ export const authApi = {
     return handleResponse<AuthResponse>(response);
   },
 
-  register: async (name: string, email: string, password: string): Promise<AuthResponse> => {
+  register: async (name: string, email: string, password: string, encryptedMasterKeyString: string): Promise<AuthResponse> => {
     const response = await fetch(`${API_URL}/auth/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, encryptedMasterKeyString }),
     });
     return handleResponse<AuthResponse>(response);
   },

@@ -23,6 +23,10 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true
+  },
+  encryptedMasterKey: {
+    type: String,
+    default: null
   }
 }, { timestamps: true });
 

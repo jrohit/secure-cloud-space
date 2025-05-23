@@ -2,6 +2,14 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  generateSalt,
+  deriveKeyFromPassword,
+  generateMasterKey,
+  base64ToArrayBuffer,
+  encryptMasterKey,
+  arrayBufferToBase64,
+} from "../lib/cryptoUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/Spinner";

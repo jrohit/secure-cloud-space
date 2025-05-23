@@ -11,7 +11,7 @@ const { v4: uuidv4 } = require('uuid');
 // Register a new user
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, encryptedMasterKey } = req.body; // <-- Need to add encryptedMasterKey here
     
     // Check if user already exists
     let user = await User.findOne({ email });
