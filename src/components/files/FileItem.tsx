@@ -17,9 +17,10 @@ import { FileText, Download, Trash2, MoreVertical, Image, File as FileIcon } fro
 interface FileItemProps {
   file: File;
   onDelete: () => void;
+  onPreview: (file: File) => void;
 }
 
-const FileItem: React.FC<FileItemProps> = ({ file, onDelete }) => {
+const FileItem: React.FC<FileItemProps> = ({ file, onDelete, onPreview }) => {
   const { token } = useAuth();
   const [isDownloading, setIsDownloading] = useState(false);
   
@@ -79,7 +80,13 @@ const FileItem: React.FC<FileItemProps> = ({ file, onDelete }) => {
   return (
     <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
       <CardContent className="p-0">
-        <div className="aspect-square flex items-center justify-center bg-muted/30">
+        <div 
+          className="aspect-square flex items-center justify-center bg-muted/30 cursor-pointer"
+          onClick={() => onPreview(file)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onPreview(file); }}
+        >
           <FileIconComponent 
             style={{ color: fileColor }} 
             className="h-16 w-16 opacity-80" 

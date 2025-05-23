@@ -64,17 +64,21 @@ export const filesApi = {
     return handleResponse<File[]>(response);
   },
 
-  uploadFile: async (token: string, file: FormData, folderId: string | null = null): Promise<File> => {
+  uploadFile: async (token: string, encryptedFileBlob: Blob, fileName: string, folderId: string | null = null): Promise<File> => {
+    const formData = new FormData();
+    formData.append('file', encryptedFileBlob, fileName);
+
     if (folderId) {
-      file.append("folderId", folderId);
+      formData.append("folderId", folderId);
     }
     
     const response = await fetch(`${API_URL}/files/upload`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
+        // 'Content-Type': 'multipart/form-data' is automatically set by the browser for FormData
       },
-      body: file,
+      body: formData,
     });
     return handleResponse<File>(response);
   },

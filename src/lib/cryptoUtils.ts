@@ -68,6 +68,30 @@ export async function encryptMasterKey(
   return { iv, ciphertext };
 }
 
+export async function decryptFile(
+  encryptedFileBuffer: ArrayBuffer,
+  masterKey: CryptoKey
+): Promise<ArrayBuffer> {
+  if (encryptedFileBuffer.byteLength < 12) {
+    throw new Error("Invalid encrypted data: too short to contain IV.");
+  }
+
+  const iv = encryptedFileBuffer.slice(0, 12);
+  const ciphertext = encryptedFileBuffer.slice(12);
+
+  try {
+    const decryptedContent = await window.crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv },
+      masterKey,
+      ciphertext
+    );
+    return decryptedContent;
+  } catch (error) {
+    console.error("File decryption failed:", error);
+    throw new Error("File decryption failed. The key may be incorrect or data corrupted.");
+  }
+}
+
 export async function decryptMasterKey(
   encryptedMasterKeyString: string,
   passwordForKek: string
@@ -92,4 +116,17 @@ export async function decryptMasterKey(
   );
 
   return decryptedMasterKey;
+}
+
+export async function encryptFile(
+  fileArrayBuffer: ArrayBuffer,
+  masterKey: CryptoKey
+): Promise<{ iv: ArrayBuffer, ciphertext: ArrayBuffer }> {
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv },
+    masterKey,
+    fileArrayBuffer
+  );
+  return { iv, ciphertext };
 }

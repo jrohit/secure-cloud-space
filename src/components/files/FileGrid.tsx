@@ -9,6 +9,7 @@ interface FileGridProps {
   onFolderClick: (folder: Folder) => void;
   onFileDelete: (fileId: string) => void;
   onFolderDelete: (folderId: string) => void;
+  onFilePreview: (file: File) => void;
 }
 
 const FileGrid: React.FC<FileGridProps> = ({
@@ -17,6 +18,7 @@ const FileGrid: React.FC<FileGridProps> = ({
   onFolderClick,
   onFileDelete,
   onFolderDelete,
+  onFilePreview,
 }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -32,7 +34,12 @@ const FileGrid: React.FC<FileGridProps> = ({
 
       {/* Then render files */}
       {files.map((file) => (
-        <FileItem key={file.id} file={file} onDelete={() => onFileDelete(file.id)} />
+        <FileItem 
+          key={file.id} 
+          file={file} 
+          onDelete={() => onFileDelete(file.id)}
+          onPreview={onFilePreview}
+        />
       ))}
     </div>
   );
