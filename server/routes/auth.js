@@ -130,7 +130,8 @@ router.get('/me', auth, async (req, res) => {
       name: user.name,
       email: user.email,
       createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      updatedAt: user.updatedAt,
+      encryptedMasterKey: user.encryptedMasterKey // Add this
     }), { EX: 3600 }); // Cache for 1 hour
     
     res.json({
@@ -138,7 +139,8 @@ router.get('/me', auth, async (req, res) => {
       name: user.name,
       email: user.email,
       createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      updatedAt: user.updatedAt,
+      encryptedMasterKey: user.encryptedMasterKey // Add this
     });
   } catch (error) {
     console.error('Get current user error:', error);

@@ -12,7 +12,7 @@ import FilesToolbar from "@/components/files/FilesToolbar";
 import FilePreviewDialog from "@/components/previews/FilePreviewDialog";
 
 const Dashboard = () => {
-  const { user, token, decryptedMasterKey } = useAuth();
+  const { user, token, getMasterCryptoKey } = useAuth(); // Changed
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -57,10 +57,10 @@ const Dashboard = () => {
   };
 
   const handleFilePreview = async (fileToPreview: File) => {
-    if (!token || !decryptedMasterKey) {
+    if (!token) { // Check for token first
       toast({
         title: "Preview Error",
-        description: "Cannot preview file: Essential authentication or key information is missing.",
+        description: "Cannot preview file: Not authenticated.",
         variant: "destructive"
       });
       return;
@@ -78,7 +78,18 @@ const Dashboard = () => {
         throw new Error("Downloaded file data is too short to be valid encrypted content.");
       }
 
-      const decryptedBuffer = await decryptFile(encryptedBuffer, decryptedMasterKey);
+      const cryptoKey = await getMasterCryptoKey(); // Call the async function from context
+      if (!cryptoKey) {
+        toast({
+          title: "Decryption Key Error",
+          description: "Decryption key is not available. You might need to log in again or ensure your session is active.",
+          variant: "destructive",
+        });
+        setIsPreviewLoading(false); // Ensure loading state is reset
+        return; // Stop further processing
+      }
+
+      const decryptedBuffer = await decryptFile(encryptedBuffer, cryptoKey); // Use the obtained cryptoKey
 
       setPreviewFileContent(decryptedBuffer);
       setPreviewFileMetadata(fileToPreview);
@@ -120,11 +131,21 @@ const Dashboard = () => {
   };
 
   const handleUploadFiles = async (files: FileList) => {
-    // token and decryptedMasterKey are now available from useAuth() in the component scope
-    if (!token || !decryptedMasterKey) {
+    if (!token) { // Check for token first
       toast({
         title: "Upload Error",
-        description: "Cannot upload files: encryption key not available or not logged in.",
+        description: "Cannot upload files: Not authenticated.",
+        variant: "destructive",
+      });
+      setIsUploading(false);
+      return;
+    }
+
+    const cryptoKey = await getMasterCryptoKey();
+    if (!cryptoKey) {
+      toast({
+        title: "Upload Error",
+        description: "Encryption key is not available. You might need to log in again or ensure your session is active.",
         variant: "destructive",
       });
       setIsUploading(false);
@@ -150,7 +171,7 @@ const Dashboard = () => {
         });
 
         // Encrypt the file buffer
-        const { iv, ciphertext } = await encryptFile(fileBuffer, decryptedMasterKey);
+        const { iv, ciphertext } = await encryptFile(fileBuffer, cryptoKey); // Use cryptoKey
 
         // Create the combined Blob
         const encryptedBlob = new Blob([iv, ciphertext]);
