@@ -22,6 +22,9 @@ interface FilesToolbarProps {
   onUploadFiles: (files: FileList) => void;
   isUploading: boolean;
   uploadProgress: number;
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
+  onSearchSubmit: () => void;
 }
 
 const FilesToolbar: React.FC<FilesToolbarProps> = ({
@@ -31,9 +34,29 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
   onUploadFiles,
   isUploading,
   uploadProgress,
+  searchQuery,
+  onSearchQueryChange,
+  onSearchSubmit,
 }) => {
   const [folderName, setFolderName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
+
+  useEffect(() => {
+    setLocalSearchQuery(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      onSearchQueryChange(localSearchQuery);
+      onSearchSubmit();
+    }, 500); // 500ms debounce
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [localSearchQuery, onSearchQueryChange, onSearchSubmit]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCreateFolder = () => {
@@ -53,7 +76,16 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2"> {/* Added items-center for better alignment */}
+        <Input
+          type="search"
+          placeholder="Search files by name..."
+          value={localSearchQuery}
+          onChange={(e) => {
+            setLocalSearchQuery(e.target.value);
+          }}
+          className="max-w-xs h-9" // Adjusted styling
+        />
         {currentFolder && (
           <Button
             variant="outline"

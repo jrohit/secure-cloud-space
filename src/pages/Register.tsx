@@ -44,9 +44,37 @@ const Register = () => {
     if (!validatePasswords()) return;
     
     setIsSubmitting(true);
-    
+
     try {
-      await register(name, email, password);
+      // 1. Generate a raw master key
+      const rawMasterKey = generateMasterKey();
+
+      // 2. Generate a salt
+      const salt = generateSalt(16);
+
+      // 3. Derive a Key Encryption Key (KEK)
+      const kek = await deriveKeyFromPassword(password, salt);
+
+      // 4. Convert the raw master key to ArrayBuffer
+      const masterKeyArrayBuffer = base64ToArrayBuffer(rawMasterKey);
+
+      // 5. Encrypt the master key
+      const encryptedMasterKeyData = await encryptMasterKey(
+        masterKeyArrayBuffer,
+        kek
+      );
+
+      // 6. Convert salt, iv, and ciphertext to base64 strings
+      const saltBase64 = arrayBufferToBase64(salt);
+      const ivBase64 = arrayBufferToBase64(encryptedMasterKeyData.iv);
+      const ciphertextBase64 = arrayBufferToBase64(
+        encryptedMasterKeyData.ciphertext
+      );
+
+      // 7. Concatenate the base64 strings
+      const encryptedMasterKeyString = `${saltBase64}:${ivBase64}:${ciphertextBase64}`;
+
+      await register(name, email, password, encryptedMasterKeyString);
       navigate("/dashboard");
     } catch (error) {
       console.error(error);

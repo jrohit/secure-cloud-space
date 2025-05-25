@@ -24,19 +24,21 @@ const Dashboard = () => {
   const [previewFileContent, setPreviewFileContent] = useState<ArrayBuffer | null>(null);
   const [previewFileMetadata, setPreviewFileMetadata] = useState<File | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(''); // Add this line
 
   useEffect(() => {
     if (token) {
       loadFilesAndFolders();
     }
-  }, [token, currentFolder]);
+  }, [token, currentFolder, searchQuery]); // Added searchQuery
 
   const loadFilesAndFolders = async () => {
     setLoading(true);
     try {
       if (token) {
+        // Pass searchQuery only to getFiles
         const [filesData, foldersData] = await Promise.all([
-          filesApi.getFiles(token, currentFolder?.id || null),
+          filesApi.getFiles(token, currentFolder?.id || null, searchQuery), 
           foldersApi.getFolders(token, currentFolder?.id || null)
         ]);
         setFiles(filesData);
@@ -253,6 +255,9 @@ const Dashboard = () => {
         onUploadFiles={handleUploadFiles}
         isUploading={isUploading}
         uploadProgress={uploadProgress}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        onSearchSubmit={loadFilesAndFolders}
       />
 
       {loading ? (

@@ -28,13 +28,13 @@ export const authApi = {
     return handleResponse<AuthResponse>(response);
   },
 
-  register: async (name: string, email: string, password: string, encryptedMasterKeyString: string): Promise<AuthResponse> => {
+  register: async (userData: { name: string; email: string; password: string; encryptedMasterKey: string }): Promise<AuthResponse> => {
     const response = await fetch(`${API_URL}/auth/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, email, password, encryptedMasterKeyString }),
+      body: JSON.stringify(userData),
     });
     return handleResponse<AuthResponse>(response);
   },
@@ -51,10 +51,16 @@ export const authApi = {
 
 // Files API
 export const filesApi = {
-  getFiles: async (token: string, folderId: string | null = null): Promise<File[]> => {
-    const url = folderId ? 
-      `${API_URL}/files?folderId=${folderId}` : 
-      `${API_URL}/files`;
+  getFiles: async (token: string, folderId: string | null = null, searchQuery?: string): Promise<File[]> => {
+    const params = new URLSearchParams();
+    if (folderId) {
+      params.append('folderId', folderId);
+    }
+    if (searchQuery && searchQuery.trim() !== '') {
+      params.append('searchQuery', searchQuery.trim());
+    }
+    const queryString = params.toString();
+    const url = `${API_URL}/files${queryString ? `?${queryString}` : ''}`;
     
     const response = await fetch(url, {
       headers: {

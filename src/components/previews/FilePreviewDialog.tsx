@@ -32,33 +32,61 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
   fileType,
 }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [textString, setTextString] = useState<string | null>(null);
   const [numPdfPages, setNumPdfPages] = useState<number | null>(null);
   const [pdfPageNumber, setPdfPageNumber] = useState<number>(1);
 
   useEffect(() => {
-    // Cleanup previous states when fileContent changes or dialog closes
+    // Initial cleanup for all states that might hold onto previous file data
     setImageUrl(null);
+    setVideoUrl(null);
+    setAudioUrl(null);
     setTextString(null);
     setNumPdfPages(null);
     setPdfPageNumber(1);
 
-    if (!fileContent) return;
+    if (!fileContent || !isOpen) { // Ensure dialog is open and content exists
+      return;
+    }
+
+    let objectUrlToRevoke: string | null = null;
 
     if (fileType.startsWith('image/')) {
       const blob = new Blob([fileContent], { type: fileType });
-      const objectUrl = URL.createObjectURL(blob);
-      setImageUrl(objectUrl);
-
-      return () => {
-        URL.revokeObjectURL(objectUrl);
-        setImageUrl(null);
-      };
+      objectUrlToRevoke = URL.createObjectURL(blob);
+      setImageUrl(objectUrlToRevoke);
+    } else if (fileType.startsWith('video/')) {
+      const blob = new Blob([fileContent], { type: fileType });
+      objectUrlToRevoke = URL.createObjectURL(blob);
+      setVideoUrl(objectUrlToRevoke);
+    } else if (fileType.startsWith('audio/')) {
+      const blob = new Blob([fileContent], { type: fileType });
+      objectUrlToRevoke = URL.createObjectURL(blob);
+      setAudioUrl(objectUrlToRevoke);
     } else if (fileType === 'text/plain' || fileType === 'text/markdown') {
       const decoder = new TextDecoder();
       setTextString(decoder.decode(fileContent));
+      // No object URL for text, so nothing to revoke here
+    } else if (fileType === 'application/pdf') {
+      // PDF handling is different, react-pdf manages its own blob/data URLs internally
+      // but we should ensure pages are reset.
+      // numPdfPages and pdfPageNumber are reset at the start of the effect.
     }
-  }, [fileContent, fileType, isOpen]); // Add isOpen to trigger cleanup when dialog closes
+
+    // Consolidated cleanup function
+    return () => {
+      if (objectUrlToRevoke) {
+        URL.revokeObjectURL(objectUrlToRevoke);
+      }
+      // Reset states again on cleanup to be sure, especially if not covered by initial cleanup
+      // This is mostly for the object URLs, text/pdf states are reset at the top of useEffect
+      setImageUrl(null); 
+      setVideoUrl(null);
+      setAudioUrl(null);
+    };
+  }, [fileContent, fileType, isOpen]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPdfPages(numPages);
@@ -130,6 +158,14 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
           )}
         </div>
       );
+    }
+
+    if (fileType.startsWith('video/') && videoUrl) {
+      return <video controls src={videoUrl} className="max-w-full max-h-[70vh] object-contain" />;
+    }
+
+    if (fileType.startsWith('audio/') && audioUrl) {
+      return <audio controls src={audioUrl} className="w-full mt-4" />;
     }
 
     return <p>Preview not available for this file type: {fileType}</p>;

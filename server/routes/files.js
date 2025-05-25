@@ -82,24 +82,34 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
 router.get('/', auth, async (req, res) => {
   try {
     const folderId = req.query.folderId || null;
-    
+    const searchQuery = req.query.searchQuery; // Add this
+
     // Try to get files from cache
-    const cacheKey = `files:${req.user._id}:${folderId || 'root'}`;
+    let cacheKey = `files:${req.user._id}:${folderId || 'root'}`;
+    if (searchQuery) {
+      cacheKey += `:search:${searchQuery}`;
+    }
     const cachedFiles = await req.redisClient.get(cacheKey);
-    
+
     if (cachedFiles) {
       return res.json(JSON.parse(cachedFiles));
     }
-    
+
     // If not in cache, get from database
-    const files = await File.find({ 
+    const query = {
       userId: req.user._id,
       folderId: folderId
-    });
-    
+    };
+
+    if (searchQuery && searchQuery.trim() !== '') {
+      query.name = { $regex: searchQuery.trim(), $options: 'i' }; // 'i' for case-insensitive
+    }
+
+    const files = await File.find(query);
+
     // Cache files data
     await req.redisClient.set(cacheKey, JSON.stringify(files), { EX: 300 }); // Cache for 5 minutes
-    
+
     res.json(files);
   } catch (error) {
     console.error('Get files error:', error);

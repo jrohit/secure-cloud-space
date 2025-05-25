@@ -110,7 +110,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const register = async (name: string, email: string, password: string, encryptedMasterKeyString: string) => {
     setLoading(true);
     try {
-      const response = await authApi.register(name, email, password, encryptedMasterKeyString);
+      const response = await authApi.register({ name, email, password, encryptedMasterKey: encryptedMasterKeyString });
       setUser(response.user);
       setToken(response.token);
       localStorage.setItem("token", response.token);

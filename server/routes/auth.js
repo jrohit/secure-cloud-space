@@ -31,7 +31,8 @@ router.post('/register', async (req, res) => {
       name,
       email,
       password,
-      bucketId
+      bucketId,
+      encryptedMasterKey // Add this line
     });
     
     await user.save();
