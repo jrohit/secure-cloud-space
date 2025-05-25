@@ -5,7 +5,9 @@ export interface User {
   email: string;
   createdAt: string;
   updatedAt: string;
-  encryptedMasterKeyString?: string;
+  encryptedMasterKey?: string; // Renamed and aligned with server
+  storageLimit?: number;     // New
+  storageUsed?: number;      // New
 }
 
 export interface File {

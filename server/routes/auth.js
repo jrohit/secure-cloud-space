@@ -25,6 +25,8 @@ router.post('/register', async (req, res) => {
     // Create the user's storage bucket
     const userBucketPath = path.join(process.env.STORAGE_PATH, bucketId);
     await fs.ensureDir(userBucketPath);
+
+    const FIVE_GB_IN_BYTES = 5 * 1024 * 1024 * 1024;
     
     // Create new user
     user = new User({
@@ -32,7 +34,8 @@ router.post('/register', async (req, res) => {
       email,
       password,
       bucketId,
-      encryptedMasterKey // Add this line
+      encryptedMasterKey,
+      storageLimit: FIVE_GB_IN_BYTES // Explicitly set storageLimit
     });
     
     await user.save();

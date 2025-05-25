@@ -27,6 +27,16 @@ const UserSchema = new mongoose.Schema({
   encryptedMasterKey: {
     type: String,
     default: null
+  },
+  storageLimit: {
+    type: Number,
+    required: true,
+    default: 5 * 1024 * 1024 * 1024 // 5 GB
+  },
+  storageUsed: {
+    type: Number,
+    required: true,
+    default: 0 // 0 bytes
   }
 }, { timestamps: true });
 

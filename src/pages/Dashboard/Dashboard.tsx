@@ -10,6 +10,8 @@ import FileGrid from "@/components/files/FileGrid";
 import FilesEmptyState from "@/components/files/FilesEmptyState";
 import FilesToolbar from "@/components/files/FilesToolbar";
 import FilePreviewDialog from "@/components/previews/FilePreviewDialog";
+import UpgradeStorageDialog from '@/components/dialogs/UpgradeStorageDialog'; // Added
+import { ToastAction } from "@/components/ui/toast"; // Added
 
 // Helper function for MIME type inference
 const getAccurateMimeType = (file: globalThis.File): string => {
@@ -87,7 +89,8 @@ const Dashboard = () => {
   const [previewFileContent, setPreviewFileContent] = useState<ArrayBuffer | null>(null);
   const [previewFileMetadata, setPreviewFileMetadata] = useState<File | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(''); // Add this line
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isUpgradeStorageDialogOpen, setIsUpgradeStorageDialogOpen] = useState(false); // Added state for dialog
 
   useEffect(() => {
     if (token) {
@@ -258,11 +261,31 @@ const Dashboard = () => {
       });
     } catch (error) {
       console.error("Error uploading files:", error);
-      toast({
-        title: "Error",
-        description: "Failed to upload files",
-        variant: "destructive",
-      });
+    
+      // Check if it's an ApiError and has status 413
+      if (typeof error === 'object' && error !== null && 'status' in error && (error as any).status === 413) {
+        const apiError = error as { message: string, status: number, storageUsed?: number, storageLimit?: number, fileName?: string };
+        toast({
+          title: "Upload Failed: Insufficient Storage",
+          description: apiError.message || `Not enough space to upload. Please manage your storage.`,
+          variant: "destructive",
+          action: <ToastAction altText="Upgrade" onClick={() => setIsUpgradeStorageDialogOpen(true)}>Upgrade Storage</ToastAction>,
+        });
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        // Handle other ApiErrors
+        toast({
+          title: "Error Uploading Files",
+          description: (error as { message: string }).message,
+          variant: "destructive",
+        });
+      } else {
+        // Handle generic errors
+        toast({
+          title: "Error Uploading Files",
+          description: "An unexpected error occurred during upload.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsUploading(false);
     }
@@ -384,6 +407,11 @@ const Dashboard = () => {
           fileType={previewFileMetadata.type}
         />
       )}
+
+      <UpgradeStorageDialog 
+        isOpen={isUpgradeStorageDialogOpen}
+        onOpenChange={setIsUpgradeStorageDialogOpen}
+      />
     </div>
   );
 };

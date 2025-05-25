@@ -5,7 +5,13 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
 const File = require('../models/File');
+const User = require('../models/User'); // Import User model
 const auth = require('../middleware/auth');
+
+// Helper function to escape special regex characters
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+}
 
 // Configure multer for file storage
 const storage = multer.diskStorage({
@@ -41,33 +47,61 @@ const upload = multer({
 // Upload file
 router.post('/upload', auth, upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+    // User and file validation (req.user from auth, req.file from multer)
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not authenticated.' });
     }
-    
-    // Determine the final MIME type
-    let finalMimeType = req.file.mimetype; // Default to multer's detected type for the blob
-    if (req.body.originalMimeType && req.body.originalMimeType.includes('/')) {
-      // Basic validation: check if it contains a '/' like a valid MIME type
-      finalMimeType = req.body.originalMimeType;
+    if (!req.file) { // This means multer didn't successfully process a file to req.file
+      return res.status(400).json({ message: 'No file uploaded or file processing error by middleware.' });
     }
 
-    // Create file record in database
+    // Storage check
+    const user = await User.findById(req.user._id).select('storageLimit storageUsed');
+    if (!user) {
+      // This should ideally not happen if user is authenticated
+      await fs.remove(req.file.path); // Clean up uploaded file by multer
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const newFileSize = req.file.size;
+    if (user.storageUsed + newFileSize > user.storageLimit) {
+      await fs.remove(req.file.path); // Clean up uploaded file by multer
+      return res.status(413).json({
+        message: 'Insufficient storage space. Upload denied.',
+        storageUsed: user.storageUsed,
+        storageLimit: user.storageLimit,
+        fileName: req.file.originalname
+      });
+    }
+
+    // Determine the final MIME type (moved from original logic, refined)
+    const finalMimeType = req.body.originalMimeType && req.body.originalMimeType.includes('/') 
+                           ? req.body.originalMimeType 
+                           : req.file.mimetype;
+
+    // Original logic for saving file record and updating storageUsed:
     const newFile = new File({
       name: req.file.originalname,
-      type: finalMimeType, // Use the determined finalMimeType
-      size: req.file.size,
+      type: finalMimeType,
+      size: newFileSize, // Use newFileSize
       path: req.file.path,
       folderId: req.body.folderId || null,
       userId: req.user._id
     });
-    
     await newFile.save();
-    
-    // Invalidate cache for file listing
+
+    // Update storageUsed (important: do this *after* successful save and all checks)
+    await User.findByIdAndUpdate(req.user._id, { 
+      $inc: { storageUsed: newFileSize } 
+    });
+
+    // Invalidate cache
     const cacheKey = `files:${req.user._id}:${req.body.folderId || 'root'}`;
-    await req.redisClient.del(cacheKey);
-    
+    if (req.redisClient) { // Check if redisClient is available on req
+       await req.redisClient.del(cacheKey);
+    }
+
+
     res.status(201).json({
       id: newFile._id,
       name: newFile.name,
@@ -79,9 +113,21 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
       createdAt: newFile.createdAt,
       updatedAt: newFile.updatedAt
     });
+
   } catch (error) {
     console.error('File upload error:', error);
-    res.status(500).json({ message: 'Server error' });
+    // If an error occurs *after* multer saved the file but before response, try to clean up.
+    if (req.file && req.file.path) {
+      // Check if file still exists before trying to remove
+      try {
+        if (await fs.pathExists(req.file.path)) {
+          await fs.remove(req.file.path);
+        }
+      } catch (cleanupError) {
+        console.error('Cleanup error:', cleanupError);
+      }
+    }
+    res.status(500).json({ message: 'Server error during file upload.' });
   }
 });
 
@@ -109,7 +155,9 @@ router.get('/', auth, async (req, res) => {
     };
 
     if (searchQuery && searchQuery.trim() !== '') {
-      query.name = { $regex: searchQuery.trim(), $options: 'i' }; // 'i' for case-insensitive
+      const trimmedSearchQuery = searchQuery.trim();
+      const escapedSearchQuery = escapeRegex(trimmedSearchQuery); // Apply escaping
+      query.name = { $regex: escapedSearchQuery, $options: 'i' };
     }
 
     const files = await File.find(query);
@@ -141,6 +189,13 @@ router.delete('/:id', auth, async (req, res) => {
     
     // Delete the file document
     await File.deleteOne({ _id: file._id });
+
+    // Update user's storageUsed
+    if (file && file.size > 0) {
+      await User.findByIdAndUpdate(req.user._id, { 
+        $inc: { storageUsed: -file.size } 
+      });
+    }
     
     // Invalidate cache
     const cacheKey = `files:${req.user._id}:${file.folderId || 'root'}`;
