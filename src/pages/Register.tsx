@@ -1,19 +1,25 @@
-
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  generateSalt,
-  deriveKeyFromPassword,
-  generateMasterKey,
-  base64ToArrayBuffer,
-  encryptMasterKey,
-  arrayBufferToBase64,
-} from "../lib/cryptoUtils";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/Spinner";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  arrayBufferToBase64,
+  base64ToArrayBuffer,
+  deriveKeyFromPassword,
+  encryptMasterKey,
+  generateMasterKey,
+  generateSalt,
+} from "../lib/cryptoUtils";
 
 const Register = () => {
   const [name, setName] = useState("");
@@ -40,14 +46,14 @@ const Register = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validatePasswords()) return;
-    
+
     setIsSubmitting(true);
 
     try {
       // 1. Generate a raw master key
-      const rawMasterKey = generateMasterKey();
+      const rawMasterKey = await generateMasterKey();
 
       // 2. Generate a salt
       const salt = generateSalt(16);
@@ -72,9 +78,9 @@ const Register = () => {
       );
 
       // 7. Concatenate the base64 strings
-      const encryptedMasterKeyString = `${saltBase64}:${ivBase64}:${ciphertextBase64}`;
+      const encryptedMasterKey = `${saltBase64}:${ivBase64}:${ciphertextBase64}`;
 
-      await register(name, email, password, encryptedMasterKeyString);
+      await register(name, email, password, encryptedMasterKey);
       navigate("/dashboard");
     } catch (error) {
       console.error(error);
@@ -146,7 +152,10 @@ const Register = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="confirm-password" className="text-sm font-medium">
+                <label
+                  htmlFor="confirm-password"
+                  className="text-sm font-medium"
+                >
                   Confirm Password
                 </label>
                 <Input

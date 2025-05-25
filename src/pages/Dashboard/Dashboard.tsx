@@ -1,15 +1,14 @@
-
-import { useEffect, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/components/ui/use-toast";
-import { File, Folder } from "@/types";
-import { filesApi, foldersApi } from "@/services/api";
-import { encryptFile, decryptFile } from "@/lib/cryptoUtils";
-import { Spinner } from "@/components/ui/Spinner";
 import FileGrid from "@/components/files/FileGrid";
 import FilesEmptyState from "@/components/files/FilesEmptyState";
 import FilesToolbar from "@/components/files/FilesToolbar";
 import FilePreviewDialog from "@/components/previews/FilePreviewDialog";
+import { Spinner } from "@/components/ui/Spinner";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { decryptFile, encryptFile } from "@/lib/cryptoUtils";
+import { filesApi, foldersApi } from "@/services/api";
+import { File, Folder } from "@/types";
+import { useEffect, useState } from "react";
 
 const Dashboard = () => {
   const { user, token, getMasterCryptoKey } = useAuth(); // Changed
@@ -21,10 +20,13 @@ const Dashboard = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
-  const [previewFileContent, setPreviewFileContent] = useState<ArrayBuffer | null>(null);
-  const [previewFileMetadata, setPreviewFileMetadata] = useState<File | null>(null);
+  const [previewFileContent, setPreviewFileContent] =
+    useState<ArrayBuffer | null>(null);
+  const [previewFileMetadata, setPreviewFileMetadata] = useState<File | null>(
+    null
+  );
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(''); // Add this line
+  const [searchQuery, setSearchQuery] = useState(""); // Add this line
 
   useEffect(() => {
     if (token) {
@@ -38,8 +40,8 @@ const Dashboard = () => {
       if (token) {
         // Pass searchQuery only to getFiles
         const [filesData, foldersData] = await Promise.all([
-          filesApi.getFiles(token, currentFolder?.id || null, searchQuery), 
-          foldersApi.getFolders(token, currentFolder?.id || null)
+          filesApi.getFiles(token, currentFolder?._id || null, searchQuery),
+          foldersApi.getFolders(token, currentFolder?._id || null),
         ]);
         setFiles(filesData);
         setFolders(foldersData);
@@ -57,32 +59,43 @@ const Dashboard = () => {
   };
 
   const handleFilePreview = async (fileToPreview: File) => {
-    if (!token) { // Check for token first
+    if (!token) {
+      // Check for token first
       toast({
         title: "Preview Error",
         description: "Cannot preview file: Not authenticated.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
 
     try {
       setIsPreviewLoading(true);
-      toast({ title: "Loading preview...", description: `Fetching and decrypting ${fileToPreview.name}.` });
+      toast({
+        title: "Loading preview...",
+        description: `Fetching and decrypting ${fileToPreview.name}.`,
+      });
 
-      const encryptedBlob = await filesApi.downloadFile(token, fileToPreview.id);
+      const encryptedBlob = await filesApi.downloadFile(
+        token,
+        fileToPreview._id
+      );
       const encryptedBuffer = await encryptedBlob.arrayBuffer();
 
       // Check if encryptedBuffer is empty or too small (as an extra precaution)
-      if (encryptedBuffer.byteLength < 12) { // Minimum size for IV
-        throw new Error("Downloaded file data is too short to be valid encrypted content.");
+      if (encryptedBuffer.byteLength < 12) {
+        // Minimum size for IV
+        throw new Error(
+          "Downloaded file data is too short to be valid encrypted content."
+        );
       }
 
       const cryptoKey = await getMasterCryptoKey(); // Call the async function from context
       if (!cryptoKey) {
         toast({
           title: "Decryption Key Error",
-          description: "Decryption key is not available. You might need to log in again or ensure your session is active.",
+          description:
+            "Decryption key is not available. You might need to log in again or ensure your session is active.",
           variant: "destructive",
         });
         setIsPreviewLoading(false); // Ensure loading state is reset
@@ -94,13 +107,14 @@ const Dashboard = () => {
       setPreviewFileContent(decryptedBuffer);
       setPreviewFileMetadata(fileToPreview);
       setIsPreviewing(true); // This will be used to trigger the dialog open state
-
     } catch (error) {
       console.error("Error preparing file preview:", error);
       toast({
         title: "Preview Error",
-        description: `Could not load file for preview. ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
+        description: `Could not load file for preview. ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+        variant: "destructive",
       });
       setPreviewFileContent(null); // Clear any stale preview data
       setPreviewFileMetadata(null);
@@ -112,10 +126,14 @@ const Dashboard = () => {
 
   const handleCreateFolder = async (name: string) => {
     if (!token) return;
-    
+
     try {
-      const newFolder = await foldersApi.createFolder(token, name, currentFolder?.id || null);
-      setFolders(prev => [...prev, newFolder]);
+      const newFolder = await foldersApi.createFolder(
+        token,
+        name,
+        currentFolder?._id || null
+      );
+      setFolders((prev) => [...prev, newFolder]);
       toast({
         title: "Success",
         description: `Folder "${name}" created successfully`,
@@ -131,7 +149,10 @@ const Dashboard = () => {
   };
 
   const handleUploadFiles = async (files: FileList) => {
-    if (!token) { // Check for token first
+    const filesArray = Array.from(files);
+
+    if (!token) {
+      // Check for token first
       toast({
         title: "Upload Error",
         description: "Cannot upload files: Not authenticated.",
@@ -145,22 +166,23 @@ const Dashboard = () => {
     if (!cryptoKey) {
       toast({
         title: "Upload Error",
-        description: "Encryption key is not available. You might need to log in again or ensure your session is active.",
+        description:
+          "Encryption key is not available. You might need to log in again or ensure your session is active.",
         variant: "destructive",
       });
       setIsUploading(false);
       return;
     }
-    
+
     setIsUploading(true);
     setUploadProgress(0);
-    
-    const totalFiles = files.length;
+
+    const totalFiles = filesArray.length;
     let completedFiles = 0;
-    
+
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i];
 
         // Read file to ArrayBuffer
         const fileReader = new FileReader();
@@ -175,19 +197,26 @@ const Dashboard = () => {
 
         // Create the combined Blob
         const encryptedBlob = new Blob([iv, ciphertext]);
-        
+
         // Call the updated filesApi.uploadFile
-        await filesApi.uploadFile(token, encryptedBlob, file.name, currentFolder?.id || null); 
-        
+        await filesApi.uploadFile(
+          token,
+          encryptedBlob,
+          file.name,
+          currentFolder?._id || null
+        );
+
         completedFiles++;
         setUploadProgress(Math.round((completedFiles / totalFiles) * 100));
       }
-      
+
       loadFilesAndFolders();
-      
+
       toast({
         title: "Success",
-        description: `${totalFiles} ${totalFiles === 1 ? "file" : "files"} uploaded successfully`,
+        description: `${totalFiles} ${
+          totalFiles === 1 ? "file" : "files"
+        } uploaded successfully`,
       });
     } catch (error) {
       console.error("Error uploading files:", error);
@@ -203,10 +232,10 @@ const Dashboard = () => {
 
   const handleDeleteFile = async (fileId: string) => {
     if (!token) return;
-    
+
     try {
       await filesApi.deleteFile(token, fileId);
-      setFiles(prev => prev.filter(file => file.id !== fileId));
+      setFiles((prev) => prev.filter((file) => file._id !== fileId));
       toast({
         title: "Success",
         description: "File deleted successfully",
@@ -223,10 +252,10 @@ const Dashboard = () => {
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!token) return;
-    
+
     try {
       await foldersApi.deleteFolder(token, folderId);
-      setFolders(prev => prev.filter(folder => folder.id !== folderId));
+      setFolders((prev) => prev.filter((folder) => folder._id !== folderId));
       toast({
         title: "Success",
         description: "Folder deleted successfully",
@@ -250,10 +279,12 @@ const Dashboard = () => {
       setCurrentFolder(null);
       return;
     }
-    
+
     try {
       const parentFolders = await foldersApi.getFolders(token);
-      const parentFolder = parentFolders.find(f => f.id === currentFolder.parentId);
+      const parentFolder = parentFolders.find(
+        (f) => f._id === currentFolder.parentId
+      );
       setCurrentFolder(parentFolder || null);
     } catch (error) {
       console.error("Error navigating up:", error);
@@ -269,8 +300,8 @@ const Dashboard = () => {
         </h2>
       </div>
 
-      <FilesToolbar 
-        currentFolder={currentFolder} 
+      <FilesToolbar
+        currentFolder={currentFolder}
         onNavigateUp={handleNavigateUp}
         onCreateFolder={handleCreateFolder}
         onUploadFiles={handleUploadFiles}
@@ -288,9 +319,9 @@ const Dashboard = () => {
       ) : folders.length === 0 && files.length === 0 ? (
         <FilesEmptyState />
       ) : (
-        <FileGrid 
-          folders={folders} 
-          files={files} 
+        <FileGrid
+          folders={folders}
+          files={files}
           onFolderClick={handleNavigateToFolder}
           onFileDelete={handleDeleteFile}
           onFolderDelete={handleDeleteFolder}
@@ -299,7 +330,9 @@ const Dashboard = () => {
       )}
 
       {isPreviewLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]"> {/* Ensure high z-index */}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+          {" "}
+          {/* Ensure high z-index */}
           <Spinner className="h-12 w-12 text-white" />
         </div>
       )}

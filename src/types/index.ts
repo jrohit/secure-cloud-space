@@ -1,15 +1,14 @@
-
 export interface User {
   id: string;
   name: string;
   email: string;
   createdAt: string;
   updatedAt: string;
-  encryptedMasterKeyString?: string;
+  encryptedMasterKey?: string;
 }
 
 export interface File {
-  id: string;
+  _id: string;
   name: string;
   type: string;
   size: number;
@@ -21,7 +20,7 @@ export interface File {
 }
 
 export interface Folder {
-  id: string;
+  _id: string;
   name: string;
   parentId: string | null;
   userId: string;
