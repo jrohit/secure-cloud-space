@@ -20,6 +20,7 @@ export interface File {
   userId: string;
   createdAt: string;
   updatedAt: string;
+  isStarred?: boolean; // New field
 }
 
 export interface Folder {

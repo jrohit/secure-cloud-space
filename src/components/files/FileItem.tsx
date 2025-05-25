@@ -12,16 +12,20 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { filesApi } from "@/services/api";
 import { formatDistanceToNow } from "date-fns";
-import { FileText, Download, Trash2, MoreVertical, Image, File as FileIcon } from "lucide-react";
+import { FileText, Download, Trash2, MoreVertical, Image, File as FileIcon, Star } from "lucide-react"; // Added Star
+import { useToast } from "@/components/ui/use-toast"; // Added useToast
+import { cn } from "@/lib/utils"; // Added cn
 
 interface FileItemProps {
   file: File;
   onDelete: () => void;
   onPreview: (file: File) => void;
+  onStarToggle?: (fileId: string, newIsStarred: boolean) => void; // Added
 }
 
-const FileItem: React.FC<FileItemProps> = ({ file, onDelete, onPreview }) => {
+const FileItem: React.FC<FileItemProps> = ({ file, onDelete, onPreview, onStarToggle }) => {
   const { token } = useAuth();
+  const { toast } = useToast(); // Added
   const [isDownloading, setIsDownloading] = useState(false);
   
   const fileIcon = getFileIcon(file.type);
@@ -103,9 +107,21 @@ const FileItem: React.FC<FileItemProps> = ({ file, onDelete, onPreview }) => {
               {formatFileSize(file.size)}
             </p>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+          <div className="flex items-center"> {/* Container for star and dropdown */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 mr-1" // Added margin for spacing
+              onClick={handleStarClick}
+              aria-label={file.isStarred ? "Unstar file" : "Star file"}
+            >
+              <Star 
+                className={cn("h-5 w-5", file.isStarred ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground hover:text-yellow-400")} 
+              />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

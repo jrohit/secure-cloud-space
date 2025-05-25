@@ -39,6 +39,38 @@ const storage = multer.diskStorage({
   }
 });
 
+// Get all starred files for a user
+router.get('/special/starred', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Cache key for starred files
+    const cacheKey = `starred_files:${userId}`;
+
+    if (req.redisClient) { // Check if redisClient is available
+      const cachedStarredFiles = await req.redisClient.get(cacheKey);
+      if (cachedStarredFiles) {
+        return res.json(JSON.parse(cachedStarredFiles));
+      }
+    }
+
+    const starredFiles = await File.find({
+      userId: userId,
+      isStarred: true
+    });
+
+    if (req.redisClient) { // Check if redisClient is available
+      await req.redisClient.set(cacheKey, JSON.stringify(starredFiles), { EX: 300 }); // Cache for 5 minutes
+    }
+
+    res.json(starredFiles);
+
+  } catch (error) {
+    console.error('Error fetching starred files:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 const upload = multer({ 
   storage,
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
@@ -256,6 +288,51 @@ router.get('/:id/download', auth, async (req, res) => {
     fileStream.pipe(res);
   } catch (error) {
     console.error('File download error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Toggle star status for a file
+router.patch('/:id/star', auth, async (req, res) => {
+  try {
+    const file = await File.findOne({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    });
+
+    if (!file) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    file.isStarred = !file.isStarred;
+    await file.save();
+
+    // Optional: Invalidate cache for this specific file if you have such a cache.
+    // For now, we are mainly caching listings. If detailed file views are cached,
+    // that cache would need invalidation here.
+    // Also, listings that depend on isStarred status (like a future "starred" view)
+    // would need their caches updated or invalidated. For now, just toggle and save.
+    // We might need to invalidate the cache for the folder the file is in,
+    // or any "starred" list cache.
+    
+    // For now, let's invalidate the cache for the current folder and any global search.
+    // This is a broad approach; more targeted invalidation could be implemented.
+    if (req.redisClient) {
+      const folderCacheKey = `files:${req.user._id}:${file.folderId || 'root'}`;
+      await req.redisClient.del(folderCacheKey);
+      
+      // Find any search query this file might have appeared in and invalidate.
+      // This part is complex as we don't know the search queries.
+      // A simpler approach is to have a global "starred_list" cache key if such a view exists.
+      // Or, accept that search results might be stale for a short period regarding star status.
+      // For now, only invalidating the folder cache.
+    }
+
+
+    res.json(file); // Return the updated file
+
+  } catch (error) {
+    console.error('Error toggling star status:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

@@ -107,7 +107,29 @@ export const filesApi = {
       },
     });
     return response.blob();
-  }
+  },
+
+  toggleStarFile: async (token: string, fileId: string): Promise<File> => {
+    const response = await fetch(`${API_URL}/files/${fileId}/star`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json' // Though no body is sent, it's good practice
+      },
+      // No body is needed for a simple toggle
+    });
+    return handleResponse<File>(response); // Assuming handleResponse is a generic helper
+  },
+
+  getStarredFiles: async (token: string): Promise<File[]> => {
+    const response = await fetch(`${API_URL}/files/special/starred`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse<File[]>(response);
+  },
 };
 
 // Folders API

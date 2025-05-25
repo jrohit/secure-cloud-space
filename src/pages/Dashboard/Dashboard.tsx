@@ -356,6 +356,18 @@ const Dashboard = () => {
     }
   };
 
+  const handleFileStarToggled = (fileId: string, newIsStarred: boolean) => {
+    setFiles(prevFiles => 
+      prevFiles.map(f => 
+        f.id === fileId ? { ...f, isStarred: newIsStarred } : f
+      )
+    );
+    // Note: This updates the local state for the main file list.
+    // If the user is currently viewing a "Starred Files" list (to be implemented),
+    // that list might also need a separate update or refetch.
+    // For now, this handles the main `files` array.
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -392,6 +404,7 @@ const Dashboard = () => {
           onFileDelete={handleDeleteFile}
           onFolderDelete={handleDeleteFolder}
           onFilePreview={handleFilePreview}
+          onStarToggle={handleFileStarToggled} // Add this prop
         />
       )}
 
