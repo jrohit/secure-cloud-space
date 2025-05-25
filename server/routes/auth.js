@@ -128,14 +128,16 @@ router.get('/me', auth, async (req, res) => {
     const user = await User.findById(req.user._id).select('-password');
     
     // Cache user data
-    await redisClient.set(`user:${user._id}`, JSON.stringify({
+    await req.redisClient.set(`user:${user._id}`, JSON.stringify({ // Assuming req.redisClient
       id: user._id,
       name: user.name,
       email: user.email,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      encryptedMasterKey: user.encryptedMasterKey // Add this
-    }), { EX: 3600 }); // Cache for 1 hour
+      encryptedMasterKey: user.encryptedMasterKey,
+      storageLimit: user.storageLimit, // Add this
+      storageUsed: user.storageUsed    // Add this
+    }), { EX: 3600 });
     
     res.json({
       id: user._id,
@@ -143,7 +145,9 @@ router.get('/me', auth, async (req, res) => {
       email: user.email,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      encryptedMasterKey: user.encryptedMasterKey // Add this
+      encryptedMasterKey: user.encryptedMasterKey,
+      storageLimit: user.storageLimit, // Add this
+      storageUsed: user.storageUsed    // Add this
     });
   } catch (error) {
     console.error('Get current user error:', error);
