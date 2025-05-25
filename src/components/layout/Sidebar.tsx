@@ -22,12 +22,53 @@ interface SidebarProps {
 }
 
 // Helper function (can be in utils.ts or locally in Sidebar.tsx)
-const formatBytes = (bytes: number, decimals = 2) => {
-  if (bytes === 0) return '0 Bytes';
+const formatBytes = (bytes: number | null | undefined, decimals = 2): string => {
+  if (bytes === null || bytes === undefined || typeof bytes !== 'number' || isNaN(bytes)) {
+    return 'N/A'; // Handles null, undefined, non-numbers, NaN
+  }
+
+  if (bytes < 0) { // Specifically handle negative numbers
+    return '0 Bytes'; // Or 'N/A', or 'Invalid Value' depending on desired display for negative
+  }
+
+  if (bytes === 0) {
+    return '0 Bytes';
+  }
+
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']; // Added more sizes
+
+  // Prevent errors from Math.log(0) or Math.log(negative)
+  // The initial checks for bytes === 0 and bytes < 0 already handle these.
+  
   const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  // Handle cases where bytes is < 1 (but not 0 or negative), making i negative
+  // This shouldn't happen with storage sizes but makes the function generally robust.
+  if (i < 0) { 
+    // This case implies bytes is > 0 but < 1.
+    // For storage, this is unlikely. We can just show it as Bytes.
+    // Or, if we want to be super precise for small fractional bytes (not typical for this app):
+    // return parseFloat(bytes.toFixed(dm)) + ' Bytes'; 
+    // Given the context, if it ever reached here for storage, it's likely a data anomaly.
+    // Returning "N/A" or "Error" might be better if i is unexpectedly negative.
+    // However, for positive bytes < 1, Math.log(bytes) is negative, so i would be negative.
+    // e.g. 0.5 bytes. log(0.5) / log(1024) = negative. sizes[negative_index] is error.
+    // Let's return Bytes for any value < 1KB but > 0.
+    if (bytes > 0 && bytes < k) {
+       return parseFloat(bytes.toFixed(dm)) + ' Bytes';
+    }
+    // If it's still negative 'i' for other reasons (highly unlikely with prior checks)
+    return 'N/A';
+  }
+  
+  // Ensure 'i' is within the bounds of the 'sizes' array
+  if (i >= sizes.length) {
+      // Handle extremely large numbers beyond Yottabytes
+      return parseFloat((bytes / Math.pow(k, sizes.length - 1)).toFixed(dm)) + ' ' + sizes[sizes.length - 1];
+  }
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
@@ -63,6 +104,12 @@ export const Sidebar = ({ collapsed }: SidebarProps) => {
   const storagePercentage = user && typeof user.storageUsed === 'number' && typeof user.storageLimit === 'number' && user.storageLimit > 0
     ? (user.storageUsed / user.storageLimit) * 100
     : 0;
+
+  // Inside Sidebar component, before the return statement or storage section:
+  if (user) {
+    console.log('Sidebar - user.storageUsed:', user.storageUsed, 'type:', typeof user.storageUsed);
+    console.log('Sidebar - user.storageLimit:', user.storageLimit, 'type:', typeof user.storageLimit);
+  }
 
   return (
     <div

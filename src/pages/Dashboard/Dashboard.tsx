@@ -333,11 +333,14 @@ const Dashboard = () => {
 
   const handleNavigateToFolder = (folder: Folder) => {
     setCurrentFolder(folder);
+    setSearchQuery(''); // Clear search when navigating to a folder
   };
 
   const handleNavigateUp = async () => {
+    setSearchQuery(''); // Clear search when navigating up
     if (!currentFolder || !currentFolder.parentId || !token) {
       setCurrentFolder(null);
+      // setSearchQuery(''); // Already cleared at the top of function
       return;
     }
     
@@ -345,9 +348,11 @@ const Dashboard = () => {
       const parentFolders = await foldersApi.getFolders(token);
       const parentFolder = parentFolders.find(f => f.id === currentFolder.parentId);
       setCurrentFolder(parentFolder || null);
+      // setSearchQuery(''); // Already cleared
     } catch (error) {
       console.error("Error navigating up:", error);
       setCurrentFolder(null);
+      // setSearchQuery(''); // Already cleared
     }
   };
 
@@ -355,7 +360,9 @@ const Dashboard = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight">
-          {currentFolder ? currentFolder.name : "My Drive"}
+          {searchQuery 
+            ? `Search results for "${searchQuery}"` 
+            : (currentFolder ? currentFolder.name : "My Drive")}
         </h2>
       </div>
 

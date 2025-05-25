@@ -135,13 +135,24 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
 router.get('/', auth, async (req, res) => {
   try {
     const folderId = req.query.folderId || null;
-    const searchQuery = req.query.searchQuery; // Add this
+    const searchQuery = req.query.searchQuery;
+
+    const trimmedSearchQuery = searchQuery ? searchQuery.trim() : "";
+
+    // Adjust Cache Key Generation
+    let cacheKeySegmentForFolder = folderId || 'root';
+    if (trimmedSearchQuery !== '') {
+      cacheKeySegmentForFolder = 'global_search'; // Indicator for global search
+    }
+    
+    let cacheKey = `files:${req.user._id}:${cacheKeySegmentForFolder}`;
+    if (trimmedSearchQuery !== '') {
+      // Using a consistent structure for search cache keys
+      // Escape the search query for the cache key as well to prevent issues with special characters
+      cacheKey += `:search:${escapeRegex(trimmedSearchQuery)}`; 
+    }
 
     // Try to get files from cache
-    let cacheKey = `files:${req.user._id}:${folderId || 'root'}`;
-    if (searchQuery) {
-      cacheKey += `:search:${searchQuery}`;
-    }
     const cachedFiles = await req.redisClient.get(cacheKey);
 
     if (cachedFiles) {
@@ -149,15 +160,17 @@ router.get('/', auth, async (req, res) => {
     }
 
     // If not in cache, get from database
-    const query = {
-      userId: req.user._id,
-      folderId: folderId
+    let query = { // Changed from const to let
+      userId: req.user._id
     };
 
-    if (searchQuery && searchQuery.trim() !== '') {
-      const trimmedSearchQuery = searchQuery.trim();
-      const escapedSearchQuery = escapeRegex(trimmedSearchQuery); // Apply escaping
+    if (trimmedSearchQuery !== '') {
+      const escapedSearchQuery = escapeRegex(trimmedSearchQuery);
       query.name = { $regex: escapedSearchQuery, $options: 'i' };
+      // For global search, DO NOT add folderId to the 'query' object.
+    } else {
+      // If no search query, then filter by folderId (for normal folder navigation)
+      query.folderId = folderId; 
     }
 
     const files = await File.find(query);
@@ -192,9 +205,19 @@ router.delete('/:id', auth, async (req, res) => {
 
     // Update user's storageUsed
     if (file && file.size > 0) {
-      await User.findByIdAndUpdate(req.user._id, { 
-        $inc: { storageUsed: -file.size } 
-      });
+      const user = await User.findById(req.user._id).select('storageUsed');
+      if (user) {
+        let newStorageUsed = user.storageUsed - file.size;
+        if (newStorageUsed < 0) {
+          newStorageUsed = 0;
+        }
+        await User.updateOne({ _id: req.user._id }, { 
+          $set: { storageUsed: newStorageUsed } 
+        });
+      } else {
+        // Log if user not found, though this shouldn't happen if file.userId was valid
+        console.error(`User not found while trying to update storageUsed for userId: ${req.user._id}`);
+      }
     }
     
     // Invalidate cache

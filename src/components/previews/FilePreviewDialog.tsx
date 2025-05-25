@@ -14,7 +14,7 @@ import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 // Configure pdfjs worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.js`; // Changed to local path
 
 interface FilePreviewDialogProps {
   isOpen: boolean;
@@ -118,6 +118,17 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     }
 
     if (fileType === 'application/pdf') {
+      console.log('FilePreviewDialog: Attempting to render PDF.');
+      if (fileContent) {
+        console.log('FilePreviewDialog: PDF fileContent byteLength:', fileContent.byteLength);
+        // Optionally, log the first few bytes to see if it looks like a PDF header (e.g., %PDF-)
+        // const firstBytes = new Uint8Array(fileContent.slice(0, 20));
+        // console.log('FilePreviewDialog: PDF first bytes:', firstBytes);
+      } else {
+        console.log('FilePreviewDialog: PDF fileContent is null or undefined.');
+      }
+
+      // The actual <Document> rendering follows:
       return (
         <div className="flex flex-col items-center">
           <Document
