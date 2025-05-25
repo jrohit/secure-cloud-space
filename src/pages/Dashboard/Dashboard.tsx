@@ -11,6 +11,69 @@ import FilesEmptyState from "@/components/files/FilesEmptyState";
 import FilesToolbar from "@/components/files/FilesToolbar";
 import FilePreviewDialog from "@/components/previews/FilePreviewDialog";
 
+// Helper function for MIME type inference
+const getAccurateMimeType = (file: globalThis.File): string => {
+  const browserType = file.type;
+  const fileName = file.name;
+
+  // If browserType is specific and not generic, trust it
+  if (browserType && browserType !== 'application/octet-stream' && !browserType.endsWith('/unknown')) {
+    return browserType;
+  }
+
+  const extensionToMimeType: { [key: string]: string } = {
+    // Images
+    'jpeg': 'image/jpeg',
+    'jpg': 'image/jpeg',
+    'png': 'image/png',
+    'gif': 'image/gif',
+    'bmp': 'image/bmp',
+    'webp': 'image/webp',
+    'svg': 'image/svg+xml',
+    // Text
+    'txt': 'text/plain',
+    'html': 'text/html',
+    'css': 'text/css',
+    'js': 'application/javascript',
+    'json': 'application/json',
+    'xml': 'application/xml',
+    'md': 'text/markdown',
+    // Documents
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'xls': 'application/vnd.ms-excel',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    // Audio
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav',
+    'ogg': 'audio/ogg',
+    // Video
+    'mp4': 'video/mp4',
+    'webm': 'video/webm',
+    'avi': 'video/x-msvideo',
+    // Archives
+    'zip': 'application/zip',
+    'rar': 'application/vnd.rar',
+  };
+
+  const extension = fileName.split('.').pop()?.toLowerCase() || '';
+  
+  // Prioritize extension map result if browserType was generic
+  if (extension && extensionToMimeType[extension]) {
+    return extensionToMimeType[extension];
+  }
+  
+  // Fallback logic:
+  // 1. Use browserType if it exists and wasn't 'application/octet-stream' (already handled by first if)
+  //    or if it was 'application/octet-stream' but extension lookup failed.
+  // 2. If browserType is empty and extension lookup failed, use 'application/octet-stream'.
+  return browserType || 'application/octet-stream';
+};
+
+
 const Dashboard = () => {
   const { user, token, getMasterCryptoKey } = useAuth(); // Changed
   const { toast } = useToast();
@@ -162,6 +225,10 @@ const Dashboard = () => {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
 
+        // New: Determine originalMimeType using the helper function
+        const originalMimeType = getAccurateMimeType(file);
+        // console.log(`File: ${file.name}, Browser MIME: ${file.type}, Accurate MIME: ${originalMimeType}`); // For debugging
+
         // Read file to ArrayBuffer
         const fileReader = new FileReader();
         const fileBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
@@ -177,7 +244,7 @@ const Dashboard = () => {
         const encryptedBlob = new Blob([iv, ciphertext]);
         
         // Call the updated filesApi.uploadFile
-        await filesApi.uploadFile(token, encryptedBlob, file.name, currentFolder?.id || null); 
+        await filesApi.uploadFile(token, encryptedBlob, file.name, originalMimeType, currentFolder?.id || null); 
         
         completedFiles++;
         setUploadProgress(Math.round((completedFiles / totalFiles) * 100));

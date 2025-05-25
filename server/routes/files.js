@@ -45,10 +45,17 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
     
+    // Determine the final MIME type
+    let finalMimeType = req.file.mimetype; // Default to multer's detected type for the blob
+    if (req.body.originalMimeType && req.body.originalMimeType.includes('/')) {
+      // Basic validation: check if it contains a '/' like a valid MIME type
+      finalMimeType = req.body.originalMimeType;
+    }
+
     // Create file record in database
     const newFile = new File({
       name: req.file.originalname,
-      type: req.file.mimetype,
+      type: finalMimeType, // Use the determined finalMimeType
       size: req.file.size,
       path: req.file.path,
       folderId: req.body.folderId || null,
