@@ -173,6 +173,7 @@ const Dashboard = () => {
       }
 
       const decryptedBuffer = await decryptFile(encryptedBuffer, cryptoKey); // Use the obtained cryptoKey
+      const stableDecryptedBuffer = decryptedBuffer.slice(0);
 
       console.log(
         "[Dashboard] After decryptFile - decryptedBuffer.byteLength:",
@@ -194,7 +195,7 @@ const Dashboard = () => {
         // If this error occurs, the buffer is likely already detached or invalid from decryptFile.
       }
 
-      setPreviewFileContent(decryptedBuffer);
+      setPreviewFileContent(stableDecryptedBuffer);
       setPreviewFileMetadata(fileToPreview);
       setIsPreviewing(true); // This will be used to trigger the dialog open state
     } catch (error) {
