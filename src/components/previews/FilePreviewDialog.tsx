@@ -219,7 +219,7 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-screen h-screen max-w-screen max-h-screen p-0 flex flex-col">
+      <DialogContent className="w-screen h-screen max-w-screen max-h-screen p-4 flex flex-col">
         <DialogHeader>
           <DialogTitle className="truncate pr-6">{fileName}</DialogTitle>
           {/* <DialogDescription>Type: {fileType}</DialogDescription> */}
