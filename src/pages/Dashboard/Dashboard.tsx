@@ -97,6 +97,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isUpgradeStorageDialogOpen, setIsUpgradeStorageDialogOpen] =
     useState(false); // Added state for dialog
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -197,6 +198,15 @@ const Dashboard = () => {
 
       setPreviewFileContent(stableDecryptedBuffer);
       setPreviewFileMetadata(fileToPreview);
+      const fileIndex = files.findIndex(f => f._id === fileToPreview._id);
+      if (fileIndex !== -1) {
+          setCurrentPreviewIndex(fileIndex);
+      } else {
+          // This case should ideally not happen if previewing from the current 'files' list.
+          // Consider how to handle if it does, e.g., log an error or disable navigation.
+          setCurrentPreviewIndex(null);
+          console.warn("Previewed file not found in current files list for navigation indexing.");
+      }
       setIsPreviewing(true); // This will be used to trigger the dialog open state
     } catch (error) {
       console.error("Error preparing file preview:", error);
@@ -447,6 +457,29 @@ const Dashboard = () => {
     // For now, this handles the main `files` array.
   };
 
+  const handleNavigateNext = async () => {
+    if (currentPreviewIndex !== null && currentPreviewIndex < files.length - 1) {
+        const nextIndex = currentPreviewIndex + 1;
+        const nextFileToPreview = files[nextIndex];
+        // Re-use the core logic of handleFilePreview.
+        // This assumes handleFilePreview can be called directly.
+        // If handleFilePreview has side effects like showing initial toasts that are undesirable on navigate,
+        // then its core (fetching, decrypting, setting state) needs to be refactored into a helper.
+        // For now, let's assume direct call is okay for a first pass.
+        await handleFilePreview(nextFileToPreview);
+        // setCurrentPreviewIndex will be updated by the handleFilePreview call.
+    }
+  };
+
+  const handleNavigatePrevious = async () => {
+    if (currentPreviewIndex !== null && currentPreviewIndex > 0) {
+        const prevIndex = currentPreviewIndex - 1;
+        const prevFileToPreview = files[prevIndex];
+        await handleFilePreview(prevFileToPreview);
+        // setCurrentPreviewIndex will be updated by the handleFilePreview call.
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -504,10 +537,15 @@ const Dashboard = () => {
             setIsPreviewing(false);
             setPreviewFileContent(null); // Clear content to free memory
             setPreviewFileMetadata(null); // Clear metadata
+            setCurrentPreviewIndex(null); // Reset preview index
           }}
           fileContent={previewFileContent}
           fileName={previewFileMetadata.name}
           fileType={previewFileMetadata.type}
+          onNext={handleNavigateNext}
+          onPrevious={handleNavigatePrevious}
+          canNavigateNext={currentPreviewIndex !== null && currentPreviewIndex < files.length - 1}
+          canNavigatePrevious={currentPreviewIndex !== null && currentPreviewIndex > 0}
         />
       )}
 

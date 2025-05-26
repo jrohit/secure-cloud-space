@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/Spinner'; // Assuming you have a Spinner component
 import { marked } from 'marked';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
@@ -23,6 +24,10 @@ interface FilePreviewDialogProps {
   fileContent: ArrayBuffer | null;
   fileName: string;
   fileType: string;
+  onNext?: () => void;
+  onPrevious?: () => void;
+  canNavigateNext?: boolean;
+  canNavigatePrevious?: boolean;
 }
 
 const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
@@ -31,6 +36,10 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
   fileContent,
   fileName,
   fileType,
+  onNext,
+  onPrevious,
+  canNavigateNext,
+  canNavigatePrevious,
 }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -230,6 +239,27 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
         <DialogFooter>
           <button onClick={onClose} className="px-4 py-2 bg-primary text-primary-foreground rounded">Close</button>
         </DialogFooter>
+        {/* Navigation Arrows */}
+        {onPrevious && canNavigatePrevious && (
+            <button
+                onClick={onPrevious}
+                disabled={!canNavigatePrevious}
+                className="absolute left-4 top-1/2 -translate-y-1/2 z-50 p-2 bg-black/30 hover:bg-black/50 text-white rounded-full disabled:opacity-50 disabled:pointer-events-none transition-opacity"
+                aria-label="Previous file"
+            >
+                <ChevronLeft size={32} />
+            </button>
+        )}
+        {onNext && canNavigateNext && (
+            <button
+                onClick={onNext}
+                disabled={!canNavigateNext}
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-50 p-2 bg-black/30 hover:bg-black/50 text-white rounded-full disabled:opacity-50 disabled:pointer-events-none transition-opacity"
+                aria-label="Next file"
+            >
+                <ChevronRight size={32} />
+            </button>
+        )}
       </DialogContent>
     </Dialog>
   );
