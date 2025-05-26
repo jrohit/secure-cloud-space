@@ -398,7 +398,7 @@ router.get('/:id/thumbnail', auth, async (req, res) => {
         }
 
         const thumbnailDir = path.join(process.env.STORAGE_PATH, req.user.bucketId, '.thumbnails');
-        const absoluteThumbnailPath = path.join(thumbnailDir, file.thumbnailPath);
+        const absoluteThumbnailPath = path.resolve(thumbnailDir, file.thumbnailPath);
 
         if (!await fs.pathExists(absoluteThumbnailPath)) {
             console.error(`Thumbnail file not found at path: ${absoluteThumbnailPath} (DB entry was ${file.thumbnailPath})`);
