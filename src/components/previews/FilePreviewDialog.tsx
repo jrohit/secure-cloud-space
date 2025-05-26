@@ -130,14 +130,20 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
       }
 
       // The actual <Document> rendering follows:
+
+      // Clone the ArrayBuffer before passing it to Document
+      // Ensure fileContent is not null before slicing
+      const pdfData = fileContent ? fileContent.slice(0) : null;
+
       return (
         <div className="flex flex-col items-center">
           <Document
-            file={{ data: fileContent }}
-            onLoadSuccess={onDocumentLoadSuccess}
+            file={{ data: pdfData }} // Use the cloned ArrayBuffer
+            onLoadSuccess={onDocumentLoadSuccess} // Make sure existing props are kept
             onLoadError={(error) => {
               console.error('PDF load error:', error);
-              return <p>Error loading PDF file. It may be corrupted or unsupported.</p>;
+              // It's good to have a more specific error display here too
+              return <p>Error loading PDF file. It may be corrupted, unsupported, or an issue with the worker.</p>; 
             }}
             loading={<Spinner className="h-8 w-8 my-4" />}
             className="max-w-full"
@@ -146,10 +152,10 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
               pageNumber={pdfPageNumber} 
               renderTextLayer={true}
               renderAnnotationLayer={true}
-              width={Math.min(window.innerWidth * 0.8, 800)} // Adjust width as needed
+              width={Math.min(window.innerWidth * 0.8, 800)} // Adjust width as needed, kept existing logic
             />
           </Document>
-          {numPdfPages && (
+          {numPdfPages && ( // Keep existing pagination logic
             <div className="flex items-center gap-2 mt-2">
               <button 
                 onClick={() => setPdfPageNumber(prev => Math.max(1, prev - 1))} 
