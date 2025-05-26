@@ -12,9 +12,10 @@ import { marked } from 'marked';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
+import pdfWorkerEntryPoint from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url'; // New import
 
 // Configure pdfjs worker
-pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.js`; // Changed to local path
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerEntryPoint; // Changed to use Vite's worker URL
 
 interface FilePreviewDialogProps {
   isOpen: boolean;
