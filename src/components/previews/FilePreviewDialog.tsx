@@ -132,18 +132,18 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     }
 
     if (fileType.startsWith('image/') && imageUrl) {
-      return <img src={imageUrl} alt={fileName} className="max-w-full max-h-[70vh] object-contain" />;
+      return <img src={imageUrl} alt={fileName} className="w-full h-full object-contain" />;
     }
 
     if (fileType === 'text/plain' && textString !== null) {
-      return <pre className="whitespace-pre-wrap break-all overflow-auto max-h-[70vh] p-2 bg-muted rounded">{textString}</pre>;
+      return <pre className="whitespace-pre-wrap break-all h-full overflow-auto p-4 bg-muted">{textString}</pre>;
     }
 
     if (fileType === 'text/markdown' && textString !== null) {
       // For this subtask, assuming marked's default sanitization is sufficient.
       // In a production app, consider a more robust HTML sanitizer like DOMPurify if markdown source is untrusted.
       const rawMarkup = marked.parse(textString);
-      return <div dangerouslySetInnerHTML={{ __html: rawMarkup }} className="prose dark:prose-invert overflow-auto max-h-[70vh]" />;
+      return <div dangerouslySetInnerHTML={{ __html: rawMarkup }} className="prose dark:prose-invert h-full overflow-auto p-4" />;
     }
 
     if (fileType === 'application/pdf') {
@@ -164,7 +164,7 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
         console.log('FilePreviewDialog: Attempting to render PDF using object URL:', pdfObjectUrl);
 
         return (
-            <div className="flex flex-col items-center">
+            <div className="w-full h-full flex flex-col items-center overflow-auto">
                 <Document
                     file={pdfObjectUrl} // Use the object URL from state
                     onLoadSuccess={onDocumentLoadSuccess}
@@ -180,7 +180,7 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
                         pageNumber={pdfPageNumber}
                         renderTextLayer={true}
                         renderAnnotationLayer={true}
-                        width={Math.round(window.innerWidth * 0.80)}
+                        width={window.innerWidth}
                     />
                 </Document>
                 {numPdfPages && (
@@ -207,7 +207,7 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     }
 
     if (fileType.startsWith('video/') && videoUrl) {
-      return <video controls src={videoUrl} className="max-w-full max-h-[70vh] object-contain" />;
+      return <video controls src={videoUrl} className="w-full h-full object-contain" />;
     }
 
     if (fileType.startsWith('audio/') && audioUrl) {
@@ -219,12 +219,12 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[90vw] max-w-[90vw] max-h-[90vh] flex flex-col">
+      <DialogContent className="w-screen h-screen max-w-screen max-h-screen p-0 flex flex-col">
         <DialogHeader>
           <DialogTitle className="truncate pr-6">{fileName}</DialogTitle>
           {/* <DialogDescription>Type: {fileType}</DialogDescription> */}
         </DialogHeader>
-        <div className="flex-grow overflow-auto py-4">
+        <div className="flex-grow overflow-auto">
           {renderContent()}
         </div>
         <DialogFooter>
