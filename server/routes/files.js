@@ -380,4 +380,55 @@ router.patch('/:id/star', auth, async (req, res) => {
   }
 });
 
+// Serve file thumbnail
+router.get('/:id/thumbnail', auth, async (req, res) => {
+    try {
+        const file = await File.findOne({ 
+            _id: req.params.id, 
+            userId: req.user._id 
+        });
+
+        if (!file) {
+            return res.status(404).json({ message: 'File not found' });
+        }
+
+        if (!file.thumbnailPath) {
+            // No thumbnail recorded for this file
+            return res.status(404).json({ message: 'Thumbnail not available for this file' });
+        }
+
+        const thumbnailDir = path.join(process.env.STORAGE_PATH, req.user.bucketId, '.thumbnails');
+        const absoluteThumbnailPath = path.join(thumbnailDir, file.thumbnailPath);
+
+        if (!await fs.pathExists(absoluteThumbnailPath)) {
+            console.error(`Thumbnail file not found at path: ${absoluteThumbnailPath} (DB entry was ${file.thumbnailPath})`);
+            return res.status(404).json({ message: 'Thumbnail file not found on server' });
+        }
+
+        // Assuming client-generated thumbnails are JPEGs as per our current client-side util.
+        // If other types were possible, we'd need to store/derive MIME type for thumbnail.
+        res.setHeader('Content-Type', 'image/jpeg'); 
+        
+        // Optional: Content-Disposition to suggest filename, though often not needed for display images
+        // res.setHeader('Content-Disposition', `inline; filename="${file.thumbnailPath}"`);
+
+        res.sendFile(absoluteThumbnailPath, (err) => {
+            if (err) {
+                console.error('Error sending thumbnail file:', err);
+                // Avoid sending another response if headers already sent or stream started.
+                // Check if res.headersSent before trying to send a status.
+                if (!res.headersSent) {
+                    res.status(500).json({ message: 'Error serving thumbnail' });
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Thumbnail serving error:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ message: 'Server error while serving thumbnail' });
+        }
+    }
+});
+
 module.exports = router;

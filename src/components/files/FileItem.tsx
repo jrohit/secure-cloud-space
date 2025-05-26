@@ -21,7 +21,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react"; // Added Star
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface FileItemProps {
   file: File;
@@ -39,6 +39,11 @@ const FileItem: React.FC<FileItemProps> = ({
   const { token } = useAuth();
   const { toast } = useToast(); // Added
   const [isDownloading, setIsDownloading] = useState(false);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
+  useEffect(() => {
+    setThumbnailFailed(false); // Reset on file change
+  }, [file]);
 
   const fileIcon = getFileIcon(file.type);
   const fileColor = getFileColor(file.type);
@@ -109,10 +114,24 @@ const FileItem: React.FC<FileItemProps> = ({
             if (e.key === "Enter" || e.key === " ") onPreview(file);
           }}
         >
-          <FileIconComponent
-            style={{ color: fileColor }}
-            className="h-16 w-16 opacity-80"
-          />
+          {/* Conditional rendering for thumbnail or icon */}
+          {file.type.startsWith('image/') && !thumbnailFailed ? (
+            <img
+              src={`/api/files/${file._id}/thumbnail`} // Assuming API endpoint structure
+              alt={`Thumbnail for ${file.name}`}
+              className="w-full h-full object-contain" // 'object-contain' to see whole image, 'object-cover' to fill
+              onError={() => {
+                console.warn(`Thumbnail failed to load for ${file.name} (ID: ${file._id})`);
+                setThumbnailFailed(true);
+              }}
+              // Optionally, add loading="lazy" for performance with many images
+            />
+          ) : (
+            <FileIconComponent
+              style={{ color: fileColor }} // fileColor should be defined as in existing code
+              className="h-16 w-16 opacity-80"
+            />
+          )}
         </div>
       </CardContent>
       <CardFooter className="p-2 flex-col items-start gap-1">
