@@ -8,6 +8,7 @@ import { ToastAction } from "@/components/ui/toast"; // Added
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { decryptFile, encryptFile } from "@/lib/cryptoUtils";
+import { generateImageThumbnail } from '@/lib/imageUtils'; // Adjust path if needed
 import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
 import { useEffect, useState } from "react";
@@ -301,13 +302,30 @@ const Dashboard = () => {
         // Create the combined Blob
         const encryptedBlob = new Blob([iv, ciphertext]);
 
+        let thumbnailBlob: Blob | null = null;
+        if (originalMimeType.startsWith('image/') && file.size > 0) { // Ensure file is not empty
+            try {
+                console.log(`[Thumbnail] Generating thumbnail for: ${file.name}`);
+                thumbnailBlob = await generateImageThumbnail(file, 256, 256, 'image/jpeg', 0.7);
+                if (thumbnailBlob) {
+                    console.log(`[Thumbnail] Generated thumbnail blob size: ${thumbnailBlob.size} for ${file.name}`);
+                } else {
+                    console.warn(`[Thumbnail] Thumbnail generation returned null for ${file.name}`);
+                }
+            } catch (thumbError) {
+                console.error(`[Thumbnail] Error generating thumbnail for ${file.name}:`, thumbError);
+                thumbnailBlob = null; // Ensure it's null on error
+            }
+        }
+
         // Call the updated filesApi.uploadFile
         await filesApi.uploadFile(
           token,
           encryptedBlob,
           file.name,
           originalMimeType,
-          currentFolder?._id || null
+          currentFolder?._id || null,
+          thumbnailBlob // Add this new argument
         );
 
         completedFiles++;

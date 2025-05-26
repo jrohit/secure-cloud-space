@@ -4,7 +4,6 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
-const sharp = require('sharp');
 // fs.ensureDir is available via fs-extra, which is already imported as 'fs'.
 // So, you can use fs.ensureDir directly.
 const File = require('../models/File');
@@ -80,97 +79,85 @@ const upload = multer({
 });
 
 // Upload file
-router.post('/upload', auth, upload.single('file'), async (req, res) => {
+router.post('/upload', auth, upload.fields([{ name: 'file', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]), async (req, res) => {
   try {
-    // User and file validation (req.user from auth, req.file from multer)
+    // User and file validation (req.user from auth, req.files from multer)
     if (!req.user) {
       return res.status(401).json({ message: 'User not authenticated.' });
     }
-    if (!req.file) { // This means multer didn't successfully process a file to req.file
+    // Adjust req.file access to req.files.file[0]
+    if (!req.files || !req.files.file || !req.files.file[0]) { 
       return res.status(400).json({ message: 'No file uploaded or file processing error by middleware.' });
     }
+
+    const mainFile = req.files.file[0]; // Convenience variable for the main file
 
     // Storage check
     const user = await User.findById(req.user._id).select('storageLimit storageUsed');
     if (!user) {
       // This should ideally not happen if user is authenticated
-      await fs.remove(req.file.path); // Clean up uploaded file by multer
+      await fs.remove(mainFile.path); // Clean up uploaded file by multer
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    const newFileSize = req.file.size;
+    const newFileSize = mainFile.size;
     if (user.storageUsed + newFileSize > user.storageLimit) {
-      await fs.remove(req.file.path); // Clean up uploaded file by multer
+      await fs.remove(mainFile.path); // Clean up uploaded file by multer
       return res.status(413).json({
         message: 'Insufficient storage space. Upload denied.',
         storageUsed: user.storageUsed,
         storageLimit: user.storageLimit,
-        fileName: req.file.originalname
+        fileName: mainFile.originalname
       });
     }
 
-    let thumbnailFilename = null; // Initialize thumbnailFilename
+    let thumbnailFilename = null; 
+    // const mainFile = req.files.file[0]; // Assuming mainFile is already defined from previous step (it is, just above)
 
-    const mimeTypeForThumbnailCheck = req.body.originalMimeType && req.body.originalMimeType.includes('/') 
-                                      ? req.body.originalMimeType 
-                                      : (req.file ? req.file.mimetype : '');
-    // Check if the uploaded file is an image
-    const supportedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (req.file && supportedImageTypes.includes(mimeTypeForThumbnailCheck)) {
+    if (req.files.thumbnail && req.files.thumbnail[0]) {
+        const uploadedThumbnail = req.files.thumbnail[0];
         try {
-            // Define thumbnail properties
-            const uniqueThumbSuffix = Date.now() + '-' + Math.round(Math.random() * 1E8); // Shorter suffix for thumb
-            thumbnailFilename = `thumb_${uniqueThumbSuffix}.jpeg`;
-            
+            // Define a unique filename for the stored thumbnail
+            const uniqueThumbSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const thumbExtension = path.extname(uploadedThumbnail.originalname) || '.jpg'; // Default to .jpg if no ext
+            thumbnailFilename = `thumb_${uniqueThumbSuffix}${thumbExtension}`;
+
             const thumbnailStorageDir = path.join(process.env.STORAGE_PATH, req.user.bucketId, '.thumbnails');
-            await fs.ensureDir(thumbnailStorageDir); // Ensure the .thumbnails directory exists
+            await fs.ensureDir(thumbnailStorageDir);
 
-            const absoluteThumbnailPath = path.join(thumbnailStorageDir, thumbnailFilename);
+            const finalThumbnailPath = path.join(thumbnailStorageDir, thumbnailFilename);
 
-            // Diagnostic logging before sharp call
-            console.log(`[SharpDebug] Attempting to process file for thumbnail. Path: ${req.file.path}, MIME for check: ${mimeTypeForThumbnailCheck}`);
-            let sharpInputPath = req.file.path.replace(/\\/g, "/");
-            console.log(`[SharpDebug] Normalized path for sharp: ${sharpInputPath}`);
-            const fileExists = await fs.pathExists(sharpInputPath); // fs.pathExists is from fs-extra
-            console.log(`[SharpDebug] File exists at path (${sharpInputPath}): ${fileExists}`);
-            if (!fileExists) {
-                throw new Error(`[SharpDebug] Critical: File not found at path for sharp: ${sharpInputPath}`);
-            }
+            // Move the uploaded thumbnail (from multer's temp path) to the final destination
+            await fs.move(uploadedThumbnail.path, finalThumbnailPath); 
+            // fs.move is part of fs-extra, ensures directory exists and overwrites if needed.
+            // If not using fs-extra's move, fs.rename would work if fs.ensureDir was called before.
 
-            console.log(`[SharpDebug] Reading file content into buffer from: ${sharpInputPath}`);
-            const imageBuffer = await fs.readFile(sharpInputPath); // fs.readFile is from fs-extra or built-in fs
-            console.log(`[SharpDebug] Successfully read file into buffer. Buffer length: ${imageBuffer.length}`);
-            if (imageBuffer.length === 0) {
-                throw new Error(`[SharpDebug] Critical: File buffer is empty for path: ${sharpInputPath}`);
-            }
-
-            // Generate thumbnail using sharp
-            await sharp(imageBuffer)
-                .resize({ width: 256, height: 256, fit: 'inside', withoutEnlargement: true })
-                .toFormat('jpeg', { quality: 80 })
-                .toFile(absoluteThumbnailPath);
-            
-            console.log('Thumbnail generated:', absoluteThumbnailPath); // For logging
+            console.log('Client-generated thumbnail saved:', finalThumbnailPath);
 
         } catch (thumbError) {
-            console.error('Error generating thumbnail:', thumbError);
-            // Decide if you want to fail the upload or just proceed without a thumbnail.
-            // For now, we'll just log the error and proceed without a thumbnail.
-            thumbnailFilename = null; // Ensure it's null if thumbnailing failed
+            console.error('Error processing client-generated thumbnail:', thumbError);
+            // If saving the client thumbnail fails, nullify its name so it's not saved in DB
+            thumbnailFilename = null;
+            // Optionally, try to clean up uploadedThumbnail.path if it still exists
+            if (uploadedThumbnail && uploadedThumbnail.path) {
+                try { await fs.remove(uploadedThumbnail.path); } catch (e) { console.error('Failed to clean up temp thumbnail', e); }
+            }
         }
     }
 
     // Determine the final MIME type (moved from original logic, refined)
+    // Adjust req.file.mimetype access to mainFile.mimetype
     const finalMimeType = req.body.originalMimeType && req.body.originalMimeType.includes('/') 
                            ? req.body.originalMimeType 
-                           : req.file.mimetype;
+                           : mainFile.mimetype;
 
     // Original logic for saving file record and updating storageUsed:
+    // Adjust req.file.originalname and req.file.path to mainFile properties
     const newFile = new File({
-      name: req.file.originalname,
+      name: mainFile.originalname,
       type: finalMimeType,
-      size: newFileSize, // Use newFileSize
-      path: req.file.path,
+      size: newFileSize, // Use newFileSize (derived from mainFile.size)
+      path: mainFile.path,
       folderId: req.body.folderId || null,
       userId: req.user._id,
       thumbnailPath: thumbnailFilename // Add this line
@@ -204,11 +191,12 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
   } catch (error) {
     console.error('File upload error:', error);
     // If an error occurs *after* multer saved the file but before response, try to clean up.
-    if (req.file && req.file.path) {
+    // Adjust req.file access to req.files.file[0] or mainFile
+    if (req.files && req.files.file && req.files.file[0] && req.files.file[0].path) {
       // Check if file still exists before trying to remove
       try {
-        if (await fs.pathExists(req.file.path)) {
-          await fs.remove(req.file.path);
+        if (await fs.pathExists(req.files.file[0].path)) {
+          await fs.remove(req.files.file[0].path);
         }
       } catch (cleanupError) {
         console.error('Cleanup error:', cleanupError);
