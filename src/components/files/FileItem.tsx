@@ -21,7 +21,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react"; // Added Star
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface FileItemProps {
   file: File;
@@ -37,13 +37,65 @@ const FileItem: React.FC<FileItemProps> = ({
   onStarToggle,
 }) => {
   const { token } = useAuth();
+  const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(null);
+  const currentObjectUrlRef = useRef<string | null>(null); // To manage cleanup for the Object URL
   const { toast } = useToast(); // Added
   const [isDownloading, setIsDownloading] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   useEffect(() => {
-    setThumbnailFailed(false); // Reset on file change
-  }, [file]);
+    // Cleanup previous object URL before starting new load or if file/token changes
+    if (currentObjectUrlRef.current) {
+        URL.revokeObjectURL(currentObjectUrlRef.current);
+        currentObjectUrlRef.current = null;
+    }
+    setThumbnailObjectUrl(null); // Reset object URL state
+    setThumbnailFailed(false);   // Reset failed state
+
+    // Only proceed if it's an image and we have a token
+    if (file.type.startsWith('image/') && token) {
+        const loadThumbnail = async () => {
+            try {
+                const response = await fetch(`/api/files/${file._id}/thumbnail`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const objectUrl = URL.createObjectURL(blob);
+                    setThumbnailObjectUrl(objectUrl);
+                    currentObjectUrlRef.current = objectUrl; // Store for cleanup
+                } else {
+                    console.warn(`Failed to load thumbnail for ${file.name} (ID: ${file._id}): Server responded with ${response.status} ${response.statusText}`);
+                    setThumbnailFailed(true);
+                }
+            } catch (error) {
+                console.error(`Error fetching thumbnail for ${file.name} (ID: ${file._id}):`, error);
+                setThumbnailFailed(true);
+            }
+        };
+
+        loadThumbnail();
+    } else if (!file.type.startsWith('image/')) {
+        // Not an image, so no thumbnail to attempt loading.
+        // Setting thumbnailFailed to true will ensure the icon fallback is shown.
+        setThumbnailFailed(true); 
+    } else if (!token && file.type.startsWith('image/')) {
+        // It's an image, but no token is available (e.g., user logged out).
+        console.warn(`No token available to fetch thumbnail for ${file.name} (ID: ${file._id})`);
+        setThumbnailFailed(true);
+    }
+    
+    // Cleanup function for when component unmounts or dependencies (file, token) change before next run
+    return () => {
+        if (currentObjectUrlRef.current) {
+            URL.revokeObjectURL(currentObjectUrlRef.current);
+            currentObjectUrlRef.current = null;
+        }
+    };
+  }, [file, token]); // Dependencies for the effect
 
   const fileIcon = getFileIcon(file.type);
   const fileColor = getFileColor(file.type);
@@ -115,22 +167,28 @@ const FileItem: React.FC<FileItemProps> = ({
           }}
         >
           {/* Conditional rendering for thumbnail or icon */}
-          {file.type.startsWith('image/') && !thumbnailFailed ? (
-            <img
-              src={`/api/files/${file._id}/thumbnail`} // Assuming API endpoint structure
-              alt={`Thumbnail for ${file.name}`}
-              className="w-full h-full object-contain" // 'object-contain' to see whole image, 'object-cover' to fill
-              onError={() => {
-                console.warn(`Thumbnail failed to load for ${file.name} (ID: ${file._id})`);
-                setThumbnailFailed(true);
-              }}
-              // Optionally, add loading="lazy" for performance with many images
-            />
+          {file.type.startsWith('image/') && thumbnailObjectUrl && !thumbnailFailed ? (
+              <img
+                  src={thumbnailObjectUrl} // Use object URL from state
+                  alt={`Thumbnail for ${file.name}`}
+                  className="w-full h-full object-contain" // Or object-cover if preferred
+                  onError={() => {
+                      // This is a secondary fallback, e.g. if the object URL itself is somehow invalid
+                      console.warn(`Object URL or image rendering failed for ${file.name}`);
+                      setThumbnailFailed(true);
+                      // Attempt to clean up the potentially problematic object URL
+                      if (thumbnailObjectUrl && currentObjectUrlRef.current === thumbnailObjectUrl) {
+                          URL.revokeObjectURL(thumbnailObjectUrl);
+                          currentObjectUrlRef.current = null; // Clear ref as it's revoked
+                          setThumbnailObjectUrl(null);      // Clear state
+                      }
+                  }}
+              />
           ) : (
-            <FileIconComponent
-              style={{ color: fileColor }} // fileColor should be defined as in existing code
-              className="h-16 w-16 opacity-80"
-            />
+              <FileIconComponent
+                  style={{ color: fileColor }} // Ensure fileColor is defined as in original code
+                  className="h-16 w-16 opacity-80"
+              />
           )}
         </div>
       </CardContent>
