@@ -111,9 +111,12 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
 
     let thumbnailFilename = null; // Initialize thumbnailFilename
 
+    const mimeTypeForThumbnailCheck = req.body.originalMimeType && req.body.originalMimeType.includes('/') 
+                                      ? req.body.originalMimeType 
+                                      : (req.file ? req.file.mimetype : '');
     // Check if the uploaded file is an image
     const supportedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (req.file && supportedImageTypes.includes(req.file.mimetype)) {
+    if (req.file && supportedImageTypes.includes(mimeTypeForThumbnailCheck)) {
         try {
             // Define thumbnail properties
             const uniqueThumbSuffix = Date.now() + '-' + Math.round(Math.random() * 1E8); // Shorter suffix for thumb
