@@ -129,14 +129,16 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
 
             // Diagnostic logging before sharp call
             console.log(`[SharpDebug] Attempting to process file for thumbnail. Path: ${req.file.path}, MIME for check: ${mimeTypeForThumbnailCheck}`);
-            const fileExists = await fs.pathExists(req.file.path); // fs.pathExists is from fs-extra
-            console.log(`[SharpDebug] File exists at path (${req.file.path}): ${fileExists}`);
+            let sharpInputPath = req.file.path.replace(/\\/g, "/");
+            console.log(`[SharpDebug] Normalized path for sharp: ${sharpInputPath}`);
+            const fileExists = await fs.pathExists(sharpInputPath); // fs.pathExists is from fs-extra
+            console.log(`[SharpDebug] File exists at path (${sharpInputPath}): ${fileExists}`);
             if (!fileExists) {
-                throw new Error(`[SharpDebug] Critical: File not found at path for sharp: ${req.file.path}`);
+                throw new Error(`[SharpDebug] Critical: File not found at path for sharp: ${sharpInputPath}`);
             }
 
             // Generate thumbnail using sharp
-            await sharp(req.file.path)
+            await sharp(sharpInputPath)
                 .resize({ width: 256, height: 256, fit: 'inside', withoutEnlargement: true })
                 .toFormat('jpeg', { quality: 80 })
                 .toFile(absoluteThumbnailPath);
