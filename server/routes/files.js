@@ -137,8 +137,15 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
                 throw new Error(`[SharpDebug] Critical: File not found at path for sharp: ${sharpInputPath}`);
             }
 
+            console.log(`[SharpDebug] Reading file content into buffer from: ${sharpInputPath}`);
+            const imageBuffer = await fs.readFile(sharpInputPath); // fs.readFile is from fs-extra or built-in fs
+            console.log(`[SharpDebug] Successfully read file into buffer. Buffer length: ${imageBuffer.length}`);
+            if (imageBuffer.length === 0) {
+                throw new Error(`[SharpDebug] Critical: File buffer is empty for path: ${sharpInputPath}`);
+            }
+
             // Generate thumbnail using sharp
-            await sharp(sharpInputPath)
+            await sharp(imageBuffer)
                 .resize({ width: 256, height: 256, fit: 'inside', withoutEnlargement: true })
                 .toFormat('jpeg', { quality: 80 })
                 .toFile(absoluteThumbnailPath);
