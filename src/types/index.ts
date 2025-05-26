@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   name: string;
@@ -6,12 +5,12 @@ export interface User {
   createdAt: string;
   updatedAt: string;
   encryptedMasterKey?: string; // Renamed and aligned with server
-  storageLimit?: number;     // New
-  storageUsed?: number;      // New
+  storageLimit?: number; // New
+  storageUsed?: number; // New
 }
 
 export interface File {
-  id: string;
+  _id: string;
   name: string;
   type: string;
   size: number;
@@ -24,7 +23,7 @@ export interface File {
 }
 
 export interface Folder {
-  id: string;
+  _id: string;
   name: string;
   parentId: string | null;
   userId: string;
