@@ -1,27 +1,20 @@
-import { useToast } from "@/components/ui/use-toast"; // Added useToast
-import { useAuth } from "@/contexts/AuthContext";
-import { cn } from "@/lib/utils";
-import { filesApi } from "@/services/api";
-import { File } from "@/types";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@radix-ui/react-dropdown-menu";
-import { formatDistanceToNow } from "date-fns";
-import {
-  Download,
-  File as FileIcon,
-  FileText,
-  Image,
-  MoreVertical,
-  Star,
-  Trash2,
-} from "lucide-react"; // Added Star
+
 import { useState } from "react";
-import { Button } from "../ui/button";
-import { Card, CardContent, CardFooter } from "../ui/card";
+import { File } from "@/types";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/AuthContext";
+import { filesApi } from "@/services/api";
+import { formatDistanceToNow } from "date-fns";
+import { FileText, Download, Trash2, MoreVertical, Image, File as FileIcon, Star } from "lucide-react"; // Added Star
+import { useToast } from "@/components/ui/use-toast"; // Added useToast
+import { cn } from "@/lib/utils"; // Added cn
 
 interface FileItemProps {
   file: File;
@@ -30,22 +23,17 @@ interface FileItemProps {
   onStarToggle?: (fileId: string, newIsStarred: boolean) => void; // Added
 }
 
-const FileItem: React.FC<FileItemProps> = ({
-  file,
-  onDelete,
-  onPreview,
-  onStarToggle,
-}) => {
+const FileItem: React.FC<FileItemProps> = ({ file, onDelete, onPreview, onStarToggle }) => {
   const { token } = useAuth();
   const { toast } = useToast(); // Added
   const [isDownloading, setIsDownloading] = useState(false);
-
+  
   const fileIcon = getFileIcon(file.type);
   const fileColor = getFileColor(file.type);
-
+  
   const handleDownload = async () => {
     if (!token) return;
-
+    
     setIsDownloading(true);
     try {
       const blob = await filesApi.downloadFile(token, file.id);
@@ -61,21 +49,17 @@ const FileItem: React.FC<FileItemProps> = ({
       setIsDownloading(false);
     }
   };
-
+  
   function getFileIcon(type: string) {
     if (type.startsWith("image/")) {
       return Image;
-    } else if (
-      type.includes("pdf") ||
-      type.includes("document") ||
-      type.includes("text")
-    ) {
+    } else if (type.includes("pdf") || type.includes("document") || type.includes("text")) {
       return FileText;
     } else {
       return FileIcon;
     }
   }
-
+  
   function getFileColor(type: string) {
     if (type.startsWith("image/")) {
       return "#34A853"; // Green
@@ -87,31 +71,29 @@ const FileItem: React.FC<FileItemProps> = ({
       return "#FBBC05"; // Yellow
     }
   }
-
+  
   function formatFileSize(bytes: number): string {
     if (bytes < 1024) return bytes + " B";
     else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
     else if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " MB";
     else return (bytes / 1073741824).toFixed(1) + " GB";
   }
-
+  
   const FileIconComponent = fileIcon;
-
+  
   return (
     <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
       <CardContent className="p-0">
-        <div
+        <div 
           className="aspect-square flex items-center justify-center bg-muted/30 cursor-pointer"
           onClick={() => onPreview(file)}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") onPreview(file);
-          }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onPreview(file); }}
         >
-          <FileIconComponent
-            style={{ color: fileColor }}
-            className="h-16 w-16 opacity-80"
+          <FileIconComponent 
+            style={{ color: fileColor }} 
+            className="h-16 w-16 opacity-80" 
           />
         </div>
       </CardContent>
@@ -125,55 +107,38 @@ const FileItem: React.FC<FileItemProps> = ({
               {formatFileSize(file.size)}
             </p>
           </div>
-          <div className="flex items-center">
-            {" "}
-            {/* Container for star and dropdown */}
+          <div className="flex items-center"> {/* Container for star and dropdown */}
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8 mr-1" // Added margin for spacing
-              onClick={() => {
-                // onStarToggle()
-              }}
+              onClick={handleStarClick}
               aria-label={file.isStarred ? "Unstar file" : "Star file"}
             >
-              <Star
-                className={cn(
-                  "h-5 w-5",
-                  file.isStarred
-                    ? "text-yellow-400 fill-yellow-400"
-                    : "text-muted-foreground hover:text-yellow-400"
-                )}
+              <Star 
+                className={cn("h-5 w-5", file.isStarred ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground hover:text-yellow-400")} 
               />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={handleDownload}
-                  disabled={isDownloading}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  <span>Download</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={onDelete}
-                  className="text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  <span>Delete</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleDownload} disabled={isDownloading}>
+                <Download className="mr-2 h-4 w-4" />
+                <span>Download</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                <span>Delete</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <p className="text-xs text-muted-foreground">
-          Modified{" "}
-          {formatDistanceToNow(new Date(file.updatedAt), { addSuffix: true })}
+          Modified {formatDistanceToNow(new Date(file.updatedAt), { addSuffix: true })}
         </p>
       </CardFooter>
     </Card>

@@ -95,6 +95,17 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
   };
 
   const renderContent = () => {
+    // At the beginning of renderContent or just before the main if/else chain for types
+    if (fileContent && fileType === 'application/pdf') {
+      console.log('[PreviewDialog] Entry - fileContent.byteLength:', fileContent.byteLength);
+      try {
+        const sliceTestAtEntry = fileContent.slice(0);
+        console.log('[PreviewDialog] Entry - fileContent slice test successful, new buffer byteLength:', sliceTestAtEntry.byteLength);
+      } catch (e) {
+        console.error('[PreviewDialog] Entry - Error trying to slice fileContent upon receiving in dialog:', e);
+      }
+    }
+
     if (!fileContent) {
       return (
         <div className="flex justify-center items-center h-64">
@@ -119,15 +130,33 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     }
 
     if (fileType === 'application/pdf') {
+      // Existing console logs from previous step (will be kept)
       console.log('FilePreviewDialog: Attempting to render PDF.');
       if (fileContent) {
-        console.log('FilePreviewDialog: PDF fileContent byteLength:', fileContent.byteLength);
+        console.log('FilePreviewDialog: PDF fileContent byteLength (first log point in block):', fileContent.byteLength);
         // Optionally, log the first few bytes to see if it looks like a PDF header (e.g., %PDF-)
         // const firstBytes = new Uint8Array(fileContent.slice(0, 20));
         // console.log('FilePreviewDialog: PDF first bytes:', firstBytes);
       } else {
-        console.log('FilePreviewDialog: PDF fileContent is null or undefined.');
+        console.log('FilePreviewDialog: PDF fileContent is null or undefined (first log point in block).');
       }
+
+      // Add this new logging block:
+      if (fileContent) { // Ensure fileContent is not null before logging/slicing
+          console.log('[PreviewDialog] PDF Block - fileContent.byteLength before existing slice:', fileContent.byteLength);
+          try {
+            const sliceTestInPdfBlock = fileContent.slice(0);
+            console.log('[PreviewDialog] PDF Block - fileContent slice test successful, new buffer byteLength:', sliceTestInPdfBlock.byteLength);
+          } catch (e) {
+            console.error('[PreviewDialog] PDF Block - Error trying to slice fileContent just before Document data prep:', e);
+          }
+      } else {
+          console.log('[PreviewDialog] PDF Block - fileContent is null or undefined before existing slice.');
+      }
+
+      // Existing line (or similar):
+      // const pdfData = fileContent ? fileContent.slice(0) : null; 
+      // ... rest of the PDF rendering logic
 
       // The actual <Document> rendering follows:
 

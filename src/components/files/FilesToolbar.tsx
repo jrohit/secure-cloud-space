@@ -1,4 +1,8 @@
+
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -8,11 +12,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
+import { Folder, ArrowUp, Upload, FolderPlus } from "lucide-react";
 import { Folder as FolderType } from "@/types";
-import { ArrowUp, FolderPlus, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 
 interface FilesToolbarProps {
   currentFolder: FolderType | null;
@@ -54,7 +55,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
     return () => {
       clearTimeout(handler);
     };
-  }, [localSearchQuery]);
+  }, [localSearchQuery, onSearchQueryChange, onSearchSubmit]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,9 +76,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        {" "}
-        {/* Added items-center for better alignment */}
+      <div className="flex flex-wrap items-center gap-2"> {/* Added items-center for better alignment */}
         <Input
           type="search"
           placeholder="Search files by name..."
@@ -88,11 +87,16 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
           className="max-w-xs h-9" // Adjusted styling
         />
         {currentFolder && (
-          <Button variant="outline" size="sm" onClick={onNavigateUp}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onNavigateUp}
+          >
             <ArrowUp className="h-4 w-4 mr-2" />
             Up
           </Button>
         )}
+        
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
@@ -122,6 +126,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        
         <input
           type="file"
           multiple
@@ -129,6 +134,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
           ref={fileInputRef}
           onChange={handleFileUpload}
         />
+        
         <Button
           variant="outline"
           size="sm"
@@ -139,7 +145,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
           Upload Files
         </Button>
       </div>
-
+      
       {isUploading && (
         <div className="space-y-1">
           <div className="text-sm flex justify-between">
