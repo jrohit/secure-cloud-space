@@ -32,6 +32,10 @@ const FileSchema = new mongoose.Schema({
   isStarred: {
     type: Boolean,
     default: false
+  },
+  thumbnailPath: {
+    type: String,
+    required: false
   }
 }, { timestamps: true });
 

@@ -4,6 +4,9 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
+const sharp = require('sharp');
+// fs.ensureDir is available via fs-extra, which is already imported as 'fs'.
+// So, you can use fs.ensureDir directly.
 const File = require('../models/File');
 const User = require('../models/User'); // Import User model
 const auth = require('../middleware/auth');
@@ -106,6 +109,37 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
       });
     }
 
+    let thumbnailFilename = null; // Initialize thumbnailFilename
+
+    // Check if the uploaded file is an image
+    const supportedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (req.file && supportedImageTypes.includes(req.file.mimetype)) {
+        try {
+            // Define thumbnail properties
+            const uniqueThumbSuffix = Date.now() + '-' + Math.round(Math.random() * 1E8); // Shorter suffix for thumb
+            thumbnailFilename = `thumb_${uniqueThumbSuffix}.jpeg`;
+            
+            const thumbnailStorageDir = path.join(process.env.STORAGE_PATH, req.user.bucketId, '.thumbnails');
+            await fs.ensureDir(thumbnailStorageDir); // Ensure the .thumbnails directory exists
+
+            const absoluteThumbnailPath = path.join(thumbnailStorageDir, thumbnailFilename);
+
+            // Generate thumbnail using sharp
+            await sharp(req.file.path)
+                .resize({ width: 256, height: 256, fit: 'inside', withoutEnlargement: true })
+                .toFormat('jpeg', { quality: 80 })
+                .toFile(absoluteThumbnailPath);
+            
+            console.log('Thumbnail generated:', absoluteThumbnailPath); // For logging
+
+        } catch (thumbError) {
+            console.error('Error generating thumbnail:', thumbError);
+            // Decide if you want to fail the upload or just proceed without a thumbnail.
+            // For now, we'll just log the error and proceed without a thumbnail.
+            thumbnailFilename = null; // Ensure it's null if thumbnailing failed
+        }
+    }
+
     // Determine the final MIME type (moved from original logic, refined)
     const finalMimeType = req.body.originalMimeType && req.body.originalMimeType.includes('/') 
                            ? req.body.originalMimeType 
@@ -118,7 +152,8 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
       size: newFileSize, // Use newFileSize
       path: req.file.path,
       folderId: req.body.folderId || null,
-      userId: req.user._id
+      userId: req.user._id,
+      thumbnailPath: thumbnailFilename // Add this line
     });
     await newFile.save();
 
