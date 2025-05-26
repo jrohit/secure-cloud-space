@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react'; // Ensure useRef is imported
 import {
   Dialog,
   DialogContent,
@@ -38,56 +38,73 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
   const [textString, setTextString] = useState<string | null>(null);
   const [numPdfPages, setNumPdfPages] = useState<number | null>(null);
   const [pdfPageNumber, setPdfPageNumber] = useState<number>(1);
+  const [pdfObjectUrl, setPdfObjectUrl] = useState<string | null>(null);
+  const pdfObjectUrlRef = useRef<string | null>(null); // Ref to manage lifecycle for revoke
 
   useEffect(() => {
-    // Initial cleanup for all states that might hold onto previous file data
+    // Initial cleanup for image, video, audio URLs and text
     setImageUrl(null);
     setVideoUrl(null);
     setAudioUrl(null);
     setTextString(null);
-    setNumPdfPages(null);
-    setPdfPageNumber(1);
+    setNumPdfPages(null); // Reset PDF pages
+    setPdfPageNumber(1);  // Reset PDF page number
 
-    if (!fileContent || !isOpen) { // Ensure dialog is open and content exists
-      return;
+    // Revoke previous PDF object URL if it exists (using the ref)
+    if (pdfObjectUrlRef.current) {
+        URL.revokeObjectURL(pdfObjectUrlRef.current);
+        pdfObjectUrlRef.current = null;
+    }
+    setPdfObjectUrl(null); // Clear the state
+
+    if (!fileContent || !isOpen) {
+        return;
     }
 
-    let objectUrlToRevoke: string | null = null;
+    let localImageVideoAudioUrlToRevoke: string | null = null;
 
     if (fileType.startsWith('image/')) {
-      const blob = new Blob([fileContent], { type: fileType });
-      objectUrlToRevoke = URL.createObjectURL(blob);
-      setImageUrl(objectUrlToRevoke);
+        const blob = new Blob([fileContent], { type: fileType });
+        localImageVideoAudioUrlToRevoke = URL.createObjectURL(blob);
+        setImageUrl(localImageVideoAudioUrlToRevoke);
     } else if (fileType.startsWith('video/')) {
-      const blob = new Blob([fileContent], { type: fileType });
-      objectUrlToRevoke = URL.createObjectURL(blob);
-      setVideoUrl(objectUrlToRevoke);
+        const blob = new Blob([fileContent], { type: fileType });
+        localImageVideoAudioUrlToRevoke = URL.createObjectURL(blob);
+        setVideoUrl(localImageVideoAudioUrlToRevoke);
     } else if (fileType.startsWith('audio/')) {
-      const blob = new Blob([fileContent], { type: fileType });
-      objectUrlToRevoke = URL.createObjectURL(blob);
-      setAudioUrl(objectUrlToRevoke);
+        const blob = new Blob([fileContent], { type: fileType });
+        localImageVideoAudioUrlToRevoke = URL.createObjectURL(blob);
+        setAudioUrl(localImageVideoAudioUrlToRevoke);
     } else if (fileType === 'text/plain' || fileType === 'text/markdown') {
-      const decoder = new TextDecoder();
-      setTextString(decoder.decode(fileContent));
-      // No object URL for text, so nothing to revoke here
-    } else if (fileType === 'application/pdf') {
-      // PDF handling is different, react-pdf manages its own blob/data URLs internally
-      // but we should ensure pages are reset.
-      // numPdfPages and pdfPageNumber are reset at the start of the effect.
+        const decoder = new TextDecoder();
+        setTextString(decoder.decode(fileContent));
+    } else if (fileType === 'application/pdf' && fileContent) {
+        // Create Blob and Object URL for PDF
+        const blob = new Blob([fileContent], { type: 'application/pdf' });
+        const newUrl = URL.createObjectURL(blob);
+        setPdfObjectUrl(newUrl);
+        pdfObjectUrlRef.current = newUrl; // Store in ref for precise cleanup
     }
 
-    // Consolidated cleanup function
+    // Cleanup for local image/video/audio URLs created in this effect run
     return () => {
-      if (objectUrlToRevoke) {
-        URL.revokeObjectURL(objectUrlToRevoke);
-      }
-      // Reset states again on cleanup to be sure, especially if not covered by initial cleanup
-      // This is mostly for the object URLs, text/pdf states are reset at the top of useEffect
-      setImageUrl(null); 
-      setVideoUrl(null);
-      setAudioUrl(null);
+        if (localImageVideoAudioUrlToRevoke) {
+            URL.revokeObjectURL(localImageVideoAudioUrlToRevoke);
+        }
+        // PDF Object URL is managed by the ref and will be cleaned up
+        // at the start of the next effect cycle or on unmount.
     };
   }, [fileContent, fileType, isOpen]);
+
+  useEffect(() => {
+    // This effect runs only on mount and its cleanup runs only on unmount
+    return () => {
+        if (pdfObjectUrlRef.current) {
+            URL.revokeObjectURL(pdfObjectUrlRef.current);
+            pdfObjectUrlRef.current = null;
+        }
+    };
+  }, []); // Empty dependency array
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPdfPages(numPages);
@@ -130,81 +147,63 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     }
 
     if (fileType === 'application/pdf') {
-      // Existing console logs from previous step (will be kept)
-      console.log('FilePreviewDialog: Attempting to render PDF.');
-      if (fileContent) {
-        console.log('FilePreviewDialog: PDF fileContent byteLength (first log point in block):', fileContent.byteLength);
-        // Optionally, log the first few bytes to see if it looks like a PDF header (e.g., %PDF-)
-        // const firstBytes = new Uint8Array(fileContent.slice(0, 20));
-        // console.log('FilePreviewDialog: PDF first bytes:', firstBytes);
-      } else {
-        console.log('FilePreviewDialog: PDF fileContent is null or undefined (first log point in block).');
-      }
+        // Your existing console logs related to fileContent.byteLength can be kept if desired for debugging,
+        // but they are not directly used for the <Document file={...}> prop anymore.
+        // For example:
+        // console.log('[PreviewDialog] PDF Block - fileContent.byteLength before object URL:', fileContent?.byteLength);
 
-      // Add this new logging block:
-      if (fileContent) { // Ensure fileContent is not null before logging/slicing
-          console.log('[PreviewDialog] PDF Block - fileContent.byteLength before existing slice:', fileContent.byteLength);
-          try {
-            const sliceTestInPdfBlock = fileContent.slice(0);
-            console.log('[PreviewDialog] PDF Block - fileContent slice test successful, new buffer byteLength:', sliceTestInPdfBlock.byteLength);
-          } catch (e) {
-            console.error('[PreviewDialog] PDF Block - Error trying to slice fileContent just before Document data prep:', e);
-          }
-      } else {
-          console.log('[PreviewDialog] PDF Block - fileContent is null or undefined before existing slice.');
-      }
+        if (!pdfObjectUrl) {
+            // Show spinner or a loading message if the object URL isn't ready yet
+            return (
+                <div className="flex justify-center items-center h-64">
+                    <Spinner className="h-12 w-12" />
+                </div>
+            );
+        }
+        
+        console.log('FilePreviewDialog: Attempting to render PDF using object URL:', pdfObjectUrl);
 
-      // Existing line (or similar):
-      // const pdfData = fileContent ? fileContent.slice(0) : null; 
-      // ... rest of the PDF rendering logic
-
-      // The actual <Document> rendering follows:
-
-      // Clone the ArrayBuffer before passing it to Document
-      // Ensure fileContent is not null before slicing
-      const pdfData = fileContent ? fileContent.slice(0) : null;
-
-      return (
-        <div className="flex flex-col items-center">
-          <Document
-            file={{ data: pdfData }} // Use the cloned ArrayBuffer
-            onLoadSuccess={onDocumentLoadSuccess} // Make sure existing props are kept
-            onLoadError={(error) => {
-              console.error('PDF load error:', error);
-              // It's good to have a more specific error display here too
-              return <p>Error loading PDF file. It may be corrupted, unsupported, or an issue with the worker.</p>; 
-            }}
-            loading={<Spinner className="h-8 w-8 my-4" />}
-            className="max-w-full"
-          >
-            <Page 
-              pageNumber={pdfPageNumber} 
-              renderTextLayer={true}
-              renderAnnotationLayer={true}
-              width={Math.min(window.innerWidth * 0.8, 800)} // Adjust width as needed, kept existing logic
-            />
-          </Document>
-          {numPdfPages && ( // Keep existing pagination logic
-            <div className="flex items-center gap-2 mt-2">
-              <button 
-                onClick={() => setPdfPageNumber(prev => Math.max(1, prev - 1))} 
-                disabled={pdfPageNumber <= 1}
-                className="px-2 py-1 border rounded disabled:opacity-50"
-              >
-                Prev
-              </button>
-              <span>Page {pdfPageNumber} of {numPdfPages}</span>
-              <button 
-                onClick={() => setPdfPageNumber(prev => Math.min(numPdfPages, prev + 1))} 
-                disabled={pdfPageNumber >= numPdfPages}
-                className="px-2 py-1 border rounded disabled:opacity-50"
-              >
-                Next
-              </button>
+        return (
+            <div className="flex flex-col items-center">
+                <Document
+                    file={pdfObjectUrl} // Use the object URL from state
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    onLoadError={(error) => {
+                        console.error('PDF load error:', error);
+                        // Consider displaying a more user-friendly error message in the UI here
+                        return <p>Error loading PDF file. It may be corrupted or unsupported.</p>;
+                    }}
+                    loading={<Spinner className="h-8 w-8 my-4" />}
+                    className="max-w-full"
+                >
+                    <Page
+                        pageNumber={pdfPageNumber}
+                        renderTextLayer={true}
+                        renderAnnotationLayer={true}
+                        width={Math.min(window.innerWidth * 0.8, 800)}
+                    />
+                </Document>
+                {numPdfPages && (
+                    <div className="flex items-center gap-2 mt-2">
+                        <button
+                            onClick={() => setPdfPageNumber(prev => Math.max(1, prev - 1))}
+                            disabled={pdfPageNumber <= 1}
+                            className="px-2 py-1 border rounded disabled:opacity-50"
+                        >
+                            Prev
+                        </button>
+                        <span>Page {pdfPageNumber} of {numPdfPages}</span>
+                        <button
+                            onClick={() => setPdfPageNumber(prev => Math.min(numPdfPages, prev + 1))}
+                            disabled={pdfPageNumber >= numPdfPages}
+                            className="px-2 py-1 border rounded disabled:opacity-50"
+                        >
+                            Next
+                        </button>
+                    </div>
+                )}
             </div>
-          )}
-        </div>
-      );
+        );
     }
 
     if (fileType.startsWith('video/') && videoUrl) {
