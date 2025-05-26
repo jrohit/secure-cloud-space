@@ -65,6 +65,7 @@ const FileItem: React.FC<FileItemProps> = ({
                 if (response.ok) {
                     const blob = await response.blob();
                     const objectUrl = URL.createObjectURL(blob);
+                    console.log(`[ImgTagDebug] Created object URL: ${objectUrl} for ${file.name} (blob size: ${blob.size}, blob type: ${blob.type})`);
                     setThumbnailObjectUrl(objectUrl);
                     currentObjectUrlRef.current = objectUrl; // Store for cleanup
                 } else {
@@ -173,15 +174,14 @@ const FileItem: React.FC<FileItemProps> = ({
                   alt={`Thumbnail for ${file.name}`}
                   className="w-full h-full object-contain" // Or object-cover if preferred
                   onError={() => {
-                      // This is a secondary fallback, e.g. if the object URL itself is somehow invalid
-                      console.warn(`Object URL or image rendering failed for ${file.name}`);
-                      setThumbnailFailed(true);
-                      // Attempt to clean up the potentially problematic object URL
-                      if (thumbnailObjectUrl && currentObjectUrlRef.current === thumbnailObjectUrl) {
-                          URL.revokeObjectURL(thumbnailObjectUrl);
-                          currentObjectUrlRef.current = null; // Clear ref as it's revoked
-                          setThumbnailObjectUrl(null);      // Clear state
-                      }
+                      console.warn(`[ImgTagDebug] onError triggered for file: ${file.name}.`);
+                      // Log the state of relevant variables at the moment onError is called
+                      console.log(`[ImgTagDebug] At time of img.onError - thumbnailObjectUrl (state): ${thumbnailObjectUrl}`);
+                      console.log(`[ImgTagDebug] At time of img.onError - currentObjectUrlRef.current: ${currentObjectUrlRef.current}`);
+                      
+                      setThumbnailFailed(true); 
+                      // For this diagnostic step, we are intentionally not revoking the object URL here
+                      // to see if it persists and was valid. The main useEffect cleanup will handle it.
                   }}
               />
           ) : (
