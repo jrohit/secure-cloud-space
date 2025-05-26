@@ -180,7 +180,7 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
                         pageNumber={pdfPageNumber}
                         renderTextLayer={true}
                         renderAnnotationLayer={true}
-                        width={Math.min(window.innerWidth * 0.8, 800)}
+                        width={Math.round(window.innerWidth * 0.80)}
                     />
                 </Document>
                 {numPdfPages && (
@@ -219,7 +219,7 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl w-full max-h-[90vh] flex flex-col">
+      <DialogContent className="w-[90vw] max-w-[90vw] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="truncate pr-6">{fileName}</DialogTitle>
           {/* <DialogDescription>Type: {fileType}</DialogDescription> */}
