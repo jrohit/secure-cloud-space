@@ -82,24 +82,31 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
     if (fileType.startsWith('image/')) {
       if (fileType === 'image/heic' || fileType === 'image/heif') {
+        const originalHeicBlob = new Blob([fileContent], { type: fileType });
         (async () => {
           try {
-            const heicBlob = new Blob([fileContent], { type: fileType });
             const conversionResult = await heic2any({
-              blob: heicBlob,
-              toType: 'image/jpeg', // This might be ignored if strict: false and blob is already JPEG
-              quality: 0.9,       // Or your desired quality for actual conversions
-              strict: false,      // Add this line
+              blob: originalHeicBlob,
+              toType: 'image/jpeg',
+              quality: 0.9,
+              strict: false, // Keep strict: false as per previous instruction
             });
             const convertedBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
             const objectUrl = URL.createObjectURL(convertedBlob);
             setImageUrl(objectUrl);
-          } catch (conversionError) {
-            console.error('HEIC to JPEG conversion failed for preview:', conversionError);
-            setImageUrl(null);
+          } catch (conversionError: any) {
+            console.error('[PreviewDialog] HEIC conversion attempt failed:', conversionError);
+            if (conversionError && conversionError.message && conversionError.message.includes('Image is already browser readable')) {
+                console.log('[PreviewDialog] Fallback: HEIC error indicates image was already readable. Using original blob for preview.');
+                const objectUrl = URL.createObjectURL(originalHeicBlob);
+                setImageUrl(objectUrl);
+            } else {
+                console.warn('[PreviewDialog] Fallback: True HEIC conversion error. Preview may not be available.');
+                setImageUrl(null); // Or set a placeholder/error image URL
+            }
           }
         })();
-      } else {
+      } else { // For other image types
         const blob = new Blob([fileContent], { type: fileType });
         const objectUrl = URL.createObjectURL(blob);
         setImageUrl(objectUrl);
