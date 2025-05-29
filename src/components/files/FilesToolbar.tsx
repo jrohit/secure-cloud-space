@@ -128,6 +128,7 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
           className="hidden"
           ref={fileInputRef}
           onChange={handleFileUpload}
+          accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,application/pdf,text/plain,text/markdown,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/heic,image/heif,.heic,.heif"
         />
         <Button
           variant="outline"

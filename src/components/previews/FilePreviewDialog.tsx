@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react'; // Ensure useRef is imported
+import React, { useEffect, useState, useRef } from 'react';
+import heic2any from 'heic2any';
 import {
   Dialog,
   DialogContent,
@@ -48,72 +49,105 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
   const [numPdfPages, setNumPdfPages] = useState<number | null>(null);
   const [pdfPageNumber, setPdfPageNumber] = useState<number>(1);
   const [pdfObjectUrl, setPdfObjectUrl] = useState<string | null>(null);
-  const pdfObjectUrlRef = useRef<string | null>(null); // Ref to manage lifecycle for revoke
+  const pdfObjectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Initial cleanup for image, video, audio URLs and text
+    // Revoke old object URLs before creating new ones or if component is not open
+    if (imageUrl && imageUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(imageUrl);
+    }
+    if (videoUrl && videoUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(videoUrl);
+    }
+    if (audioUrl && audioUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(audioUrl);
+    }
+    if (pdfObjectUrlRef.current) {
+      URL.revokeObjectURL(pdfObjectUrlRef.current);
+      pdfObjectUrlRef.current = null;
+    }
+
+    // Reset states
     setImageUrl(null);
     setVideoUrl(null);
     setAudioUrl(null);
     setTextString(null);
-    setNumPdfPages(null); // Reset PDF pages
-    setPdfPageNumber(1);  // Reset PDF page number
-
-    // Revoke previous PDF object URL if it exists (using the ref)
-    if (pdfObjectUrlRef.current) {
-        URL.revokeObjectURL(pdfObjectUrlRef.current);
-        pdfObjectUrlRef.current = null;
-    }
-    setPdfObjectUrl(null); // Clear the state
+    setNumPdfPages(null);
+    setPdfPageNumber(1);
+    setPdfObjectUrl(null);
 
     if (!fileContent || !isOpen) {
-        return;
+      return;
     }
-
-    let localImageVideoAudioUrlToRevoke: string | null = null;
 
     if (fileType.startsWith('image/')) {
+      if (fileType === 'image/heic' || fileType === 'image/heif') {
+        (async () => {
+          try {
+            const heicBlob = new Blob([fileContent], { type: fileType });
+            const conversionResult = await heic2any({
+              blob: heicBlob,
+              toType: 'image/jpeg',
+              quality: 0.9,
+            });
+            const convertedBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
+            const objectUrl = URL.createObjectURL(convertedBlob);
+            setImageUrl(objectUrl);
+          } catch (conversionError) {
+            console.error('HEIC to JPEG conversion failed for preview:', conversionError);
+            setImageUrl(null);
+          }
+        })();
+      } else {
         const blob = new Blob([fileContent], { type: fileType });
-        localImageVideoAudioUrlToRevoke = URL.createObjectURL(blob);
-        setImageUrl(localImageVideoAudioUrlToRevoke);
+        const objectUrl = URL.createObjectURL(blob);
+        setImageUrl(objectUrl);
+      }
     } else if (fileType.startsWith('video/')) {
-        const blob = new Blob([fileContent], { type: fileType });
-        localImageVideoAudioUrlToRevoke = URL.createObjectURL(blob);
-        setVideoUrl(localImageVideoAudioUrlToRevoke);
+      const blob = new Blob([fileContent], { type: fileType });
+      const objectUrl = URL.createObjectURL(blob);
+      setVideoUrl(objectUrl);
     } else if (fileType.startsWith('audio/')) {
-        const blob = new Blob([fileContent], { type: fileType });
-        localImageVideoAudioUrlToRevoke = URL.createObjectURL(blob);
-        setAudioUrl(localImageVideoAudioUrlToRevoke);
+      const blob = new Blob([fileContent], { type: fileType });
+      const objectUrl = URL.createObjectURL(blob);
+      setAudioUrl(objectUrl);
     } else if (fileType === 'text/plain' || fileType === 'text/markdown') {
-        const decoder = new TextDecoder();
-        setTextString(decoder.decode(fileContent));
+      const decoder = new TextDecoder();
+      setTextString(decoder.decode(fileContent));
     } else if (fileType === 'application/pdf' && fileContent) {
-        // Create Blob and Object URL for PDF
-        const blob = new Blob([fileContent], { type: 'application/pdf' });
-        const newUrl = URL.createObjectURL(blob);
-        setPdfObjectUrl(newUrl);
-        pdfObjectUrlRef.current = newUrl; // Store in ref for precise cleanup
+      const blob = new Blob([fileContent], { type: 'application/pdf' });
+      const newUrl = URL.createObjectURL(blob);
+      setPdfObjectUrl(newUrl);
+      pdfObjectUrlRef.current = newUrl;
     }
 
-    // Cleanup for local image/video/audio URLs created in this effect run
     return () => {
-        if (localImageVideoAudioUrlToRevoke) {
-            URL.revokeObjectURL(localImageVideoAudioUrlToRevoke);
-        }
-        // PDF Object URL is managed by the ref and will be cleaned up
-        // at the start of the next effect cycle or on unmount.
+      // This cleanup runs when dependencies change or component unmounts
+      if (imageUrl && imageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(imageUrl);
+      }
+      if (videoUrl && videoUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(videoUrl);
+      }
+      if (audioUrl && audioUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      if (pdfObjectUrlRef.current) {
+        URL.revokeObjectURL(pdfObjectUrlRef.current);
+        pdfObjectUrlRef.current = null;
+      }
+      // Reset states as part of cleanup too, ensuring a clean slate for next preview
+      setImageUrl(null);
+      setVideoUrl(null);
+      setAudioUrl(null);
+      setTextString(null); // Not an object URL, but good to reset
+      setPdfObjectUrl(null);
+      // numPdfPages and pdfPageNumber are reset at the start of the effect
     };
   }, [fileContent, fileType, isOpen]);
 
-  useEffect(() => {
-    // This effect runs only on mount and its cleanup runs only on unmount
-    return () => {
-        if (pdfObjectUrlRef.current) {
-            URL.revokeObjectURL(pdfObjectUrlRef.current);
-            pdfObjectUrlRef.current = null;
-        }
-    };
-  }, []); // Empty dependency array
+  // Removed the second useEffect that was solely for pdfObjectUrlRef cleanup,
+  // as its logic is now integrated into the main useEffect's cleanup.
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPdfPages(numPages);

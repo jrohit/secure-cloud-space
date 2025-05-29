@@ -1,12 +1,37 @@
-export function generateImageThumbnail(
+import heic2any from 'heic2any';
+
+export async function generateImageThumbnail(
   file: File,
   maxWidth: number,
   maxHeight: number,
   mimeType: string = 'image/jpeg',
   quality: number = 0.8
 ): Promise<Blob | null> {
-  return new Promise((resolve, reject) => {
-    // Ensure the file is an image
+  return new Promise(async (resolve, reject) => {
+    // Handle HEIC/HEIF conversion first
+    if (file.type === 'image/heic' || file.type === 'image/heif') {
+      try {
+        const conversionResult = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.9, // Or your desired quality for the intermediate JPEG
+        });
+        // heic2any returns a single Blob if only one conversion is done
+        const convertedBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
+        
+        // IMPORTANT: The rest of the function expects a File object for the reader,
+        // or we need to adjust how img.src is set.
+        // For simplicity, let's create a new File object from the converted Blob.
+        // We'll need to give it a name, the original name is fine.
+        file = new File([convertedBlob], file.name, { type: 'image/jpeg' });
+      } catch (conversionError) {
+        console.error('HEIC to JPEG conversion failed for thumbnail:', conversionError);
+        resolve(null); // Resolve with null on conversion error
+        return;
+      }
+    }
+
+    // Ensure the file is an image (could be the original or the converted one)
     if (!file.type.startsWith('image/')) {
       console.warn('File is not an image, skipping thumbnail generation:', file.name);
       resolve(null);

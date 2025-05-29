@@ -36,6 +36,8 @@ const getAccurateMimeType = (file: globalThis.File): string => {
     bmp: "image/bmp",
     webp: "image/webp",
     svg: "image/svg+xml",
+    heic: "image/heic",
+    heif: "image/heif",
     // Text
     txt: "text/plain",
     html: "text/html",
