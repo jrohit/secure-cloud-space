@@ -87,8 +87,9 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
             const heicBlob = new Blob([fileContent], { type: fileType });
             const conversionResult = await heic2any({
               blob: heicBlob,
-              toType: 'image/jpeg',
-              quality: 0.9,
+              toType: 'image/jpeg', // This might be ignored if strict: false and blob is already JPEG
+              quality: 0.9,       // Or your desired quality for actual conversions
+              strict: false,      // Add this line
             });
             const convertedBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
             const objectUrl = URL.createObjectURL(convertedBlob);
