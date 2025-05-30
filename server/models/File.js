@@ -36,6 +36,16 @@ const FileSchema = new mongoose.Schema({
   thumbnailPath: {
     type: String,
     required: false
+  },
+  // New fields for Trash functionality
+  isTrashed: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  trashedAt: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 

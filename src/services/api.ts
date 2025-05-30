@@ -1,3 +1,4 @@
+
 import { ApiError, AuthResponse, File, Folder, User } from "@/types";
 
 const API_URL = "http://localhost:5000/api";
@@ -27,12 +28,7 @@ export const authApi = {
     return handleResponse<AuthResponse>(response);
   },
 
-  register: async (userData: {
-    name: string;
-    email: string;
-    password: string;
-    encryptedMasterKey: string;
-  }): Promise<AuthResponse> => {
+  register: async (userData: { name: string; email: string; password: string; encryptedMasterKey: string }): Promise<AuthResponse> => {
     const response = await fetch(`${API_URL}/auth/register`, {
       method: "POST",
       headers: {
@@ -55,21 +51,17 @@ export const authApi = {
 
 // Files API
 export const filesApi = {
-  getFiles: async (
-    token: string,
-    folderId: string | null = null,
-    searchQuery?: string
-  ): Promise<File[]> => {
+  getFiles: async (token: string, folderId: string | null = null, searchQuery?: string): Promise<File[]> => {
     const params = new URLSearchParams();
     if (folderId) {
-      params.append("folderId", folderId);
+      params.append('folderId', folderId);
     }
-    if (searchQuery && searchQuery.trim() !== "") {
-      params.append("searchQuery", searchQuery.trim());
+    if (searchQuery && searchQuery.trim() !== '') {
+      params.append('searchQuery', searchQuery.trim());
     }
     const queryString = params.toString();
-    const url = `${API_URL}/files${queryString ? `?${queryString}` : ""}`;
-
+    const url = `${API_URL}/files${queryString ? `?${queryString}` : ''}`;
+    
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -78,27 +70,20 @@ export const filesApi = {
     return handleResponse<File[]>(response);
   },
 
-  uploadFile: async (
-    token: string,
-    encryptedFileBlob: Blob,
-    fileName: string,
-    originalMimeType: string,
-    folderId: string | null = null,
-    thumbnailBlob?: Blob | null
-  ): Promise<File> => {
+  uploadFile: async (token: string, encryptedFileBlob: Blob, fileName: string, originalMimeType: string, folderId: string | null = null, thumbnailBlob?: Blob | null): Promise<File> => {
     const formData = new FormData();
-    formData.append("file", encryptedFileBlob, fileName);
-    formData.append("originalMimeType", originalMimeType); // Add this line
+    formData.append('file', encryptedFileBlob, fileName);
+    formData.append('originalMimeType', originalMimeType); // Add this line
 
     if (folderId) {
       formData.append("folderId", folderId);
     }
 
     if (thumbnailBlob) {
-      const thumbnailFilename = `thumb_${fileName}`;
-      formData.append("thumbnail", thumbnailBlob, thumbnailFilename);
+        const thumbnailFilename = `thumb_${fileName}`; 
+        formData.append('thumbnail', thumbnailBlob, thumbnailFilename);
     }
-
+    
     const response = await fetch(`${API_URL}/files/upload`, {
       method: "POST",
       headers: {
@@ -110,14 +95,55 @@ export const filesApi = {
     return handleResponse<File>(response);
   },
 
-  deleteFile: async (token: string, fileId: string): Promise<void> => {
+  // Renamed from deleteFile to trashFile to reflect soft delete
+  trashFile: async (token: string, fileId: string): Promise<void> => {
     const response = await fetch(`${API_URL}/files/${fileId}`, {
-      method: "DELETE",
+      method: 'DELETE', // This is the soft delete endpoint now
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Authorization': `Bearer ${token}`,
       },
     });
     return handleResponse<void>(response);
+  },
+
+  restoreFile: async (token: string, fileId: string): Promise<File> => {
+    const response = await fetch(`${API_URL}/files/${fileId}/restore`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse<File>(response);
+  },
+
+  getTrashedFiles: async (token: string): Promise<File[]> => {
+    const response = await fetch(`${API_URL}/files/trash`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse<File[]>(response);
+  },
+
+  deleteFilePermanently: async (token: string, fileId: string): Promise<void> => {
+    const response = await fetch(`${API_URL}/files/${fileId}/permanent`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse<void>(response);
+  },
+
+  emptyTrash: async (token: string): Promise<{ message: string; count: number; freedSpace: number }> => {
+    const response = await fetch(`${API_URL}/files/trash/empty`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse<{ message: string; count: number; freedSpace: number }>(response);
   },
 
   downloadFile: async (token: string, fileId: string): Promise<Blob> => {
@@ -129,21 +155,12 @@ export const filesApi = {
     return response.blob();
   },
 
-  loadThumbnails: async (fileId: string, token: string): Promise<File> => {
-    const response = await fetch(`${API_URL}/files/${fileId}/thumbnail`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return handleResponse<File>(response);
-  },
-
   toggleStarFile: async (token: string, fileId: string): Promise<File> => {
     const response = await fetch(`${API_URL}/files/${fileId}/star`, {
-      method: "PATCH",
+      method: 'PATCH',
       headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json", // Though no body is sent, it's good practice
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json' // Though no body is sent, it's good practice
       },
       // No body is needed for a simple toggle
     });
@@ -152,9 +169,9 @@ export const filesApi = {
 
   getStarredFiles: async (token: string): Promise<File[]> => {
     const response = await fetch(`${API_URL}/files/special/starred`, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Authorization': `Bearer ${token}`,
       },
     });
     return handleResponse<File[]>(response);
@@ -163,14 +180,11 @@ export const filesApi = {
 
 // Folders API
 export const foldersApi = {
-  getFolders: async (
-    token: string,
-    parentId: string | null = null
-  ): Promise<Folder[]> => {
-    const url = parentId
-      ? `${API_URL}/folders?parentId=${parentId}`
-      : `${API_URL}/folders`;
-
+  getFolders: async (token: string, parentId: string | null = null): Promise<Folder[]> => {
+    const url = parentId ? 
+      `${API_URL}/folders?parentId=${parentId}` : 
+      `${API_URL}/folders`;
+    
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -179,11 +193,7 @@ export const foldersApi = {
     return handleResponse<Folder[]>(response);
   },
 
-  createFolder: async (
-    token: string,
-    name: string,
-    parentId: string | null = null
-  ): Promise<Folder> => {
+  createFolder: async (token: string, name: string, parentId: string | null = null): Promise<Folder> => {
     const response = await fetch(`${API_URL}/folders`, {
       method: "POST",
       headers: {

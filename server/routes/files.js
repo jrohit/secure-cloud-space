@@ -41,6 +41,161 @@ const storage = multer.diskStorage({
   }
 });
 
+// Empty Trash
+router.post('/trash/empty', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // 1. Find all trashed files for the user
+    const trashedFiles = await File.find({
+      userId: userId,
+      isTrashed: true
+    });
+
+    if (trashedFiles.length === 0) {
+      return res.status(200).json({ message: 'Trash is already empty' });
+    }
+
+    let totalFreedSpace = 0;
+
+    // 2. For each trashed file:
+    for (const file of trashedFiles) {
+      // a. Physically delete the main file from storage
+      if (file.path && await fs.pathExists(file.path)) {
+        await fs.remove(file.path);
+      } else {
+        console.warn(`File path ${file.path} not found for file ID ${file._id} during empty trash. Record will still be deleted.`);
+      }
+
+      // b. Physically delete its associated thumbnail
+      if (file.thumbnailPath) {
+        const thumbnailDir = path.join(process.env.STORAGE_PATH, req.user.bucketId, '.thumbnails');
+        const absoluteThumbnailPath = path.resolve(thumbnailDir, file.thumbnailPath);
+        if (await fs.pathExists(absoluteThumbnailPath)) {
+          await fs.remove(absoluteThumbnailPath);
+        } else {
+          console.warn(`Thumbnail path ${absoluteThumbnailPath} not found for file ID ${file._id} during empty trash.`);
+        }
+      }
+      
+      totalFreedSpace += file.size;
+    }
+
+    // 3. Delete all these file records from the database for the user
+    await File.deleteMany({
+      userId: userId,
+      isTrashed: true
+    });
+
+    // 4. Update user's storageUsed
+    if (totalFreedSpace > 0) {
+      await User.findByIdAndUpdate(userId, {
+        $inc: { storageUsed: -totalFreedSpace }
+      });
+    }
+
+    // 5. Invalidate relevant caches
+    if (req.redisClient) {
+      const trashCacheKey = `files_trash:${userId}`;
+      await req.redisClient.del(trashCacheKey);
+    }
+
+    res.json({ message: 'Trash emptied successfully', count: trashedFiles.length, freedSpace: totalFreedSpace });
+  } catch (error) {
+    console.error('Error emptying trash:', error);
+    res.status(500).json({ message: 'Server error while emptying trash' });
+  }
+});
+
+// Delete Permanently (from trash)
+router.delete('/:id/permanent', auth, async (req, res) => {
+  try {
+    const file = await File.findOne({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+
+    if (!file) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    if (!file.isTrashed) {
+      return res.status(400).json({ message: 'File is not in trash. Please move it to trash before permanent deletion.' });
+    }
+
+    // 1. Physically delete the file from storage
+    if (file.path && await fs.pathExists(file.path)) {
+      await fs.remove(file.path);
+    } else {
+      console.warn(`File path ${file.path} not found for file ID ${file._id} during permanent delete. Record will still be deleted.`);
+    }
+    
+    // 2. Delete client-generated thumbnail if it exists
+    if (file.thumbnailPath) {
+        const thumbnailDir = path.join(process.env.STORAGE_PATH, req.user.bucketId, '.thumbnails');
+        const absoluteThumbnailPath = path.resolve(thumbnailDir, file.thumbnailPath);
+        if (await fs.pathExists(absoluteThumbnailPath)) {
+            await fs.remove(absoluteThumbnailPath);
+        } else {
+            console.warn(`Thumbnail path ${absoluteThumbnailPath} not found for file ID ${file._id} during permanent delete.`);
+        }
+    }
+
+    // 3. Delete the file record from the database
+    await File.deleteOne({ _id: file._id });
+
+    // 4. Update user's storageUsed
+    if (file.size > 0) {
+      await User.findByIdAndUpdate(req.user._id, {
+        $inc: { storageUsed: -file.size }
+      });
+    }
+
+    // 5. Invalidate relevant caches
+    if (req.redisClient) {
+      const trashCacheKey = `files_trash:${req.user._id}`;
+      await req.redisClient.del(trashCacheKey);
+    }
+
+    res.json({ message: 'File permanently deleted' });
+  } catch (error) {
+    console.error('Error permanently deleting file:', error);
+    res.status(500).json({ message: 'Server error while permanently deleting file' });
+  }
+});
+
+// List Trashed Files
+router.get('/trash', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const cacheKey = `files_trash:${userId}`; // Consistent with restore endpoint
+
+    // Try to get from cache first
+    if (req.redisClient) {
+      const cachedTrashedFiles = await req.redisClient.get(cacheKey);
+      if (cachedTrashedFiles) {
+        return res.json(JSON.parse(cachedTrashedFiles));
+      }
+    }
+
+    // If not in cache, fetch from database
+    const trashedFiles = await File.find({
+      userId: userId,
+      isTrashed: true
+    }).sort({ trashedAt: -1 }); // Optional: sort by when they were trashed, newest first
+
+    // Cache the result
+    if (req.redisClient) {
+      await req.redisClient.set(cacheKey, JSON.stringify(trashedFiles), { EX: 300 }); // Cache for 5 minutes
+    }
+
+    res.json(trashedFiles);
+  } catch (error) {
+    console.error('Error fetching trashed files:', error);
+    res.status(500).json({ message: 'Server error while fetching trashed files' });
+  }
+});
+
 // Get all starred files for a user
 router.get('/special/starred', auth, async (req, res) => {
   try {
@@ -236,7 +391,8 @@ router.get('/', auth, async (req, res) => {
 
     // If not in cache, get from database
     let query = { // Changed from const to let
-      userId: req.user._id
+      userId: req.user._id,
+      isTrashed: false // Exclude trashed files
     };
 
     if (trimmedSearchQuery !== '') {
@@ -271,38 +427,29 @@ router.delete('/:id', auth, async (req, res) => {
     if (!file) {
       return res.status(404).json({ message: 'File not found' });
     }
-    
-    // Delete the file from storage
-    await fs.remove(file.path);
-    
-    // Delete the file document
-    await File.deleteOne({ _id: file._id });
 
-    // Update user's storageUsed
-    if (file && file.size > 0) {
-      const user = await User.findById(req.user._id).select('storageUsed');
-      if (user) {
-        let newStorageUsed = user.storageUsed - file.size;
-        if (newStorageUsed < 0) {
-          newStorageUsed = 0;
+    // Soft delete: Mark as trashed
+    file.isTrashed = true;
+    file.trashedAt = new Date();
+    await file.save(); // Make sure to await the save
+
+    // Invalidate cache for the folder the file was in
+    // (and potentially other relevant caches like starred lists if applicable)
+    if (req.redisClient) {
+        const cacheKey = `files:${req.user._id}:${file.folderId || 'root'}`;
+        await req.redisClient.del(cacheKey);
+        // If you have a global search cache that might include this file, invalidate it too.
+        // Example: await req.redisClient.del(`files:${req.user._id}:global_search`); (if applicable)
+        // Also, if there's a specific cache for starred files that needs updating:
+        if (file.isStarred) {
+             await req.redisClient.del(`starred_files:${req.user._id}`);
         }
-        await User.updateOne({ _id: req.user._id }, { 
-          $set: { storageUsed: newStorageUsed } 
-        });
-      } else {
-        // Log if user not found, though this shouldn't happen if file.userId was valid
-        console.error(`User not found while trying to update storageUsed for userId: ${req.user._id}`);
-      }
     }
     
-    // Invalidate cache
-    const cacheKey = `files:${req.user._id}:${file.folderId || 'root'}`;
-    await req.redisClient.del(cacheKey);
-    
-    res.json({ message: 'File deleted' });
+    res.json({ message: 'File moved to trash' });
   } catch (error) {
-    console.error('File delete error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error moving file to trash:', error); // Update error message
+    res.status(500).json({ message: 'Server error while moving file to trash' });
   }
 });
 
@@ -429,6 +576,47 @@ router.get('/:id/thumbnail', auth, async (req, res) => {
             res.status(500).json({ message: 'Server error while serving thumbnail' });
         }
     }
+});
+
+// Restore File from Trash
+router.post('/:id/restore', auth, async (req, res) => {
+  try {
+    const file = await File.findOne({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+
+    if (!file) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    if (!file.isTrashed) {
+      return res.status(400).json({ message: 'File is not in trash' });
+    }
+
+    // Restore the file
+    file.isTrashed = false;
+    file.trashedAt = null;
+    await file.save();
+
+    // Invalidate relevant caches
+    if (req.redisClient) {
+        const folderCacheKey = `files:${req.user._id}:${file.folderId || 'root'}`;
+        await req.redisClient.del(folderCacheKey);
+        
+        const trashCacheKey = `files_trash:${req.user._id}`; 
+        await req.redisClient.del(trashCacheKey);
+
+        if (file.isStarred) {
+             await req.redisClient.del(`starred_files:${req.user._id}`);
+        }
+    }
+
+    res.json({ message: 'File restored successfully', file });
+  } catch (error) {
+    console.error('Error restoring file:', error);
+    res.status(500).json({ message: 'Server error while restoring file' });
+  }
 });
 
 module.exports = router;
