@@ -21,7 +21,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react"; // Added Star
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface FileItemProps {
   file: File;
@@ -37,7 +37,9 @@ const FileItem: React.FC<FileItemProps> = ({
   onStarToggle,
 }) => {
   const { token } = useAuth();
-  const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(null);
+  const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(
+    null
+  );
   const currentObjectUrlRef = useRef<string | null>(null); // To manage cleanup for the Object URL
   const { toast } = useToast(); // Added
   const [isDownloading, setIsDownloading] = useState(false);
@@ -46,57 +48,69 @@ const FileItem: React.FC<FileItemProps> = ({
   useEffect(() => {
     // Cleanup previous object URL before starting new load or if file/token changes
     if (currentObjectUrlRef.current) {
-        URL.revokeObjectURL(currentObjectUrlRef.current);
-        currentObjectUrlRef.current = null;
+      URL.revokeObjectURL(currentObjectUrlRef.current);
+      currentObjectUrlRef.current = null;
     }
     setThumbnailObjectUrl(null); // Reset object URL state
-    setThumbnailFailed(false);   // Reset failed state
+    setThumbnailFailed(false); // Reset failed state
 
     // Only proceed if it's an image and we have a token
-    if (file.type.startsWith('image/') && token) {
-        const loadThumbnail = async () => {
-            try {
-                const response = await fetch(`/api/files/${file._id}/thumbnail`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    },
-                });
-
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const objectUrl = URL.createObjectURL(blob);
-                    console.log(`[ImgTagDebug] Created object URL: ${objectUrl} for ${file.name} (blob size: ${blob.size}, blob type: ${blob.type})`);
-                    setThumbnailObjectUrl(objectUrl);
-                    currentObjectUrlRef.current = objectUrl; // Store for cleanup
-                } else {
-                    console.warn(`Failed to load thumbnail for ${file.name} (ID: ${file._id}): Server responded with ${response.status} ${response.statusText}`);
-                    setThumbnailFailed(true);
-                }
-            } catch (error) {
-                console.error(`Error fetching thumbnail for ${file.name} (ID: ${file._id}):`, error);
-                setThumbnailFailed(true);
+    if (file.type.startsWith("image/") && token) {
+      const loadThumbnail = async () => {
+        try {
+          const response = await fetch(
+            `http://localhost:5000/api/files/${file._id}/thumbnail`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
             }
-        };
+          );
 
-        loadThumbnail();
-    } else if (!file.type.startsWith('image/')) {
-        // Not an image, so no thumbnail to attempt loading.
-        // Setting thumbnailFailed to true will ensure the icon fallback is shown.
-        setThumbnailFailed(true); 
-    } else if (!token && file.type.startsWith('image/')) {
-        // It's an image, but no token is available (e.g., user logged out).
-        console.warn(`No token available to fetch thumbnail for ${file.name} (ID: ${file._id})`);
-        setThumbnailFailed(true);
+          if (response.ok) {
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            console.log(
+              `[ImgTagDebug] Created object URL: ${objectUrl} for ${file.name} (blob size: ${blob.size}, blob type: ${blob.type})`
+            );
+            setThumbnailObjectUrl(objectUrl);
+            currentObjectUrlRef.current = objectUrl; // Store for cleanup
+          } else {
+            console.warn(
+              `Failed to load thumbnail for ${file.name} (ID: ${file._id}): Server responded with ${response.status} ${response.statusText}`
+            );
+            setThumbnailFailed(true);
+          }
+        } catch (error) {
+          console.error(
+            `Error fetching thumbnail for ${file.name} (ID: ${file._id}):`,
+            error
+          );
+          setThumbnailFailed(true);
+        }
+      };
+
+      loadThumbnail();
+    } else if (!file.type.startsWith("image/")) {
+      // Not an image, so no thumbnail to attempt loading.
+      // Setting thumbnailFailed to true will ensure the icon fallback is shown.
+      setThumbnailFailed(true);
+    } else if (!token && file.type.startsWith("image/")) {
+      // It's an image, but no token is available (e.g., user logged out).
+      console.warn(
+        `No token available to fetch thumbnail for ${file.name} (ID: ${file._id})`
+      );
+      setThumbnailFailed(true);
     }
-    
+
     // Cleanup function for when component unmounts or dependencies (file, token) change before next run
     return () => {
-        if (currentObjectUrlRef.current) {
-            URL.revokeObjectURL(currentObjectUrlRef.current);
-            currentObjectUrlRef.current = null;
-        }
+      if (currentObjectUrlRef.current) {
+        URL.revokeObjectURL(currentObjectUrlRef.current);
+        currentObjectUrlRef.current = null;
+      }
     };
-  }, [file, token]); // Dependencies for the effect
+  }, [file._id, token]); // Dependencies for the effect
 
   const fileIcon = getFileIcon(file.type);
   const fileColor = getFileColor(file.type);
@@ -168,27 +182,35 @@ const FileItem: React.FC<FileItemProps> = ({
           }}
         >
           {/* Conditional rendering for thumbnail or icon */}
-          {file.type.startsWith('image/') && thumbnailObjectUrl && !thumbnailFailed ? (
-              <img
-                  src={thumbnailObjectUrl} // Use object URL from state
-                  alt={`Thumbnail for ${file.name}`}
-                  className="w-full h-full object-contain" // Or object-cover if preferred
-                  onError={() => {
-                      console.warn(`[ImgTagDebug] onError triggered for file: ${file.name}.`);
-                      // Log the state of relevant variables at the moment onError is called
-                      console.log(`[ImgTagDebug] At time of img.onError - thumbnailObjectUrl (state): ${thumbnailObjectUrl}`);
-                      console.log(`[ImgTagDebug] At time of img.onError - currentObjectUrlRef.current: ${currentObjectUrlRef.current}`);
-                      
-                      setThumbnailFailed(true); 
-                      // For this diagnostic step, we are intentionally not revoking the object URL here
-                      // to see if it persists and was valid. The main useEffect cleanup will handle it.
-                  }}
-              />
+          {file.type.startsWith("image/") &&
+          thumbnailObjectUrl &&
+          !thumbnailFailed ? (
+            <img
+              src={thumbnailObjectUrl} // Use object URL from state
+              alt={`Thumbnail for ${file.name}`}
+              className="w-full h-full object-contain" // Or object-cover if preferred
+              onError={() => {
+                console.warn(
+                  `[ImgTagDebug] onError triggered for file: ${file.name}.`
+                );
+                // Log the state of relevant variables at the moment onError is called
+                console.log(
+                  `[ImgTagDebug] At time of img.onError - thumbnailObjectUrl (state): ${thumbnailObjectUrl}`
+                );
+                console.log(
+                  `[ImgTagDebug] At time of img.onError - currentObjectUrlRef.current: ${currentObjectUrlRef.current}`
+                );
+
+                setThumbnailFailed(true);
+                // For this diagnostic step, we are intentionally not revoking the object URL here
+                // to see if it persists and was valid. The main useEffect cleanup will handle it.
+              }}
+            />
           ) : (
-              <FileIconComponent
-                  style={{ color: fileColor }} // Ensure fileColor is defined as in original code
-                  className="h-16 w-16 opacity-80"
-              />
+            <FileIconComponent
+              style={{ color: fileColor }} // Ensure fileColor is defined as in original code
+              className="h-16 w-16 opacity-80"
+            />
           )}
         </div>
       </CardContent>
