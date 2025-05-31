@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/use-toast"; // Added useToast
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils"; // Added cn
 import { filesApi } from "@/services/api";
-import { File } from "@/types";
+import { File } from "../../types";
 import { formatDistanceToNow } from "date-fns";
 import {
   Download,
