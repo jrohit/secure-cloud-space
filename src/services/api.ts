@@ -70,18 +70,13 @@ export const filesApi = {
     return handleResponse<File[]>(response);
   },
 
-  uploadFile: async (token: string, encryptedFileBlob: Blob, fileName: string, originalMimeType: string, folderId: string | null = null, thumbnailBlob?: Blob | null): Promise<File> => {
+  uploadFile: async (token: string, encryptedFileBlob: Blob, fileName: string, originalMimeType: string, folderId: string | null = null): Promise<File> => {
     const formData = new FormData();
     formData.append('file', encryptedFileBlob, fileName);
     formData.append('originalMimeType', originalMimeType); // Add this line
 
     if (folderId) {
       formData.append("folderId", folderId);
-    }
-
-    if (thumbnailBlob) {
-        const thumbnailFilename = `thumb_${fileName}`; 
-        formData.append('thumbnail', thumbnailBlob, thumbnailFilename);
     }
     
     const response = await fetch(`${API_URL}/files/upload`, {

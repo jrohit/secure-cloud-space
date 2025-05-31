@@ -22,6 +22,8 @@ import {
   Trash2,
 } from "lucide-react"; // Added Star
 import { useState, useEffect, useRef } from "react";
+import { generateImageThumbnail } from "@/lib/imageUtils";
+import { decryptFile, base64ToArrayBuffer } from "@/lib/cryptoUtils";
 
 interface FileItemProps {
   file: File;
@@ -36,67 +38,123 @@ const FileItem: React.FC<FileItemProps> = ({
   onPreview,
   onStarToggle,
 }) => {
-  const { token } = useAuth();
+  const { token, masterKey: masterKeyString } = useAuth(); // masterKeyString might be base64
   const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(null);
-  const currentObjectUrlRef = useRef<string | null>(null); // To manage cleanup for the Object URL
-  const { toast } = useToast(); // Added
+  const currentObjectUrlRef = useRef<string | null>(null);
+  const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   useEffect(() => {
-    // Cleanup previous object URL before starting new load or if file/token changes
+    // 1. Initial Cleanup
     if (currentObjectUrlRef.current) {
+      URL.revokeObjectURL(currentObjectUrlRef.current);
+      currentObjectUrlRef.current = null;
+    }
+    setThumbnailObjectUrl(null);
+    setThumbnailFailed(false);
+
+    // 2. Check if it's an image
+    if (!file.type.startsWith("image/")) {
+      setThumbnailFailed(true);
+      return;
+    }
+
+    // 3. Local Storage Cache Key
+    const cacheKey = `thumbnail_${file._id}`;
+
+    // 4. Check Local Storage
+    const cachedThumbnailDataUrl = localStorage.getItem(cacheKey);
+    if (cachedThumbnailDataUrl) {
+      fetch(cachedThumbnailDataUrl)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const objectUrl = URL.createObjectURL(blob);
+          setThumbnailObjectUrl(objectUrl);
+          currentObjectUrlRef.current = objectUrl;
+        })
+        .catch((error) => {
+          console.error("Error creating blob from cached data URL:", error);
+          localStorage.removeItem(cacheKey); // Remove corrupted cache
+          setThumbnailFailed(true); // Proceed to generate if cache fails
+        });
+      return; // Return if cache hit and successfully processed
+    }
+
+    // 5. If not in Local Storage (and is an image and token/masterKeyString exist)
+    if (!token || !masterKeyString) {
+        console.warn("Token or master key not available for thumbnail generation.");
+        setThumbnailFailed(true);
+        return;
+    }
+
+    const generateAndCacheThumbnail = async () => {
+      try {
+        // 5.1 Fetch Encrypted File
+        const encryptedFileBlob = await filesApi.downloadFile(token, file._id);
+
+        // 5.2 Decryption
+        const masterCryptoKey = await window.crypto.subtle.importKey(
+          "raw",
+          base64ToArrayBuffer(masterKeyString),
+          { name: "AES-GCM", length: 256 },
+          true,
+          ["encrypt", "decrypt"]
+        );
+
+        const encryptedFileArrayBuffer = await encryptedFileBlob.arrayBuffer();
+        const decryptedArrayBuffer = await decryptFile(
+          encryptedFileArrayBuffer,
+          masterCryptoKey
+        );
+
+        // 5.3 Thumbnail Generation
+        const decryptedFile = new File(
+          [decryptedArrayBuffer],
+          file.name,
+          { type: file.type }
+        );
+        const thumbnailBlob = await generateImageThumbnail(decryptedFile, 100, 100); // Adjust dimensions as needed
+
+        // 5.4 Caching and Display
+        if (thumbnailBlob) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64data = reader.result as string;
+            try {
+              localStorage.setItem(cacheKey, base64data); // Store Base64 string
+            } catch (e) {
+              console.error("Error saving thumbnail to localStorage:", e);
+              // Could be due to storage limit
+            }
+            const objectUrl = URL.createObjectURL(thumbnailBlob);
+            setThumbnailObjectUrl(objectUrl);
+            currentObjectUrlRef.current = objectUrl;
+          };
+          reader.onerror = () => {
+            console.error("FileReader error while converting blob to base64");
+            setThumbnailFailed(true);
+          };
+          reader.readAsDataURL(thumbnailBlob);
+        } else {
+          setThumbnailFailed(true);
+        }
+      } catch (error) {
+        console.error(`Error generating thumbnail for ${file.name}:`, error);
+        setThumbnailFailed(true);
+      }
+    };
+
+    generateAndCacheThumbnail();
+
+    // Cleanup function
+    return () => {
+      if (currentObjectUrlRef.current) {
         URL.revokeObjectURL(currentObjectUrlRef.current);
         currentObjectUrlRef.current = null;
-    }
-    setThumbnailObjectUrl(null); // Reset object URL state
-    setThumbnailFailed(false);   // Reset failed state
-
-    // Only proceed if it's an image and we have a token
-    if (file.type.startsWith('image/') && token) {
-        const loadThumbnail = async () => {
-            try {
-                const response = await fetch(`/api/files/${file._id}/thumbnail`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    },
-                });
-
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const objectUrl = URL.createObjectURL(blob);
-                    console.log(`[ImgTagDebug] Created object URL: ${objectUrl} for ${file.name} (blob size: ${blob.size}, blob type: ${blob.type})`);
-                    setThumbnailObjectUrl(objectUrl);
-                    currentObjectUrlRef.current = objectUrl; // Store for cleanup
-                } else {
-                    console.warn(`Failed to load thumbnail for ${file.name} (ID: ${file._id}): Server responded with ${response.status} ${response.statusText}`);
-                    setThumbnailFailed(true);
-                }
-            } catch (error) {
-                console.error(`Error fetching thumbnail for ${file.name} (ID: ${file._id}):`, error);
-                setThumbnailFailed(true);
-            }
-        };
-
-        loadThumbnail();
-    } else if (!file.type.startsWith('image/')) {
-        // Not an image, so no thumbnail to attempt loading.
-        // Setting thumbnailFailed to true will ensure the icon fallback is shown.
-        setThumbnailFailed(true); 
-    } else if (!token && file.type.startsWith('image/')) {
-        // It's an image, but no token is available (e.g., user logged out).
-        console.warn(`No token available to fetch thumbnail for ${file.name} (ID: ${file._id})`);
-        setThumbnailFailed(true);
-    }
-    
-    // Cleanup function for when component unmounts or dependencies (file, token) change before next run
-    return () => {
-        if (currentObjectUrlRef.current) {
-            URL.revokeObjectURL(currentObjectUrlRef.current);
-            currentObjectUrlRef.current = null;
-        }
+      }
     };
-  }, [file, token]); // Dependencies for the effect
+  }, [file, token, masterKeyString]); // Dependencies
 
   const fileIcon = getFileIcon(file.type);
   const fileColor = getFileColor(file.type);
@@ -106,15 +164,55 @@ const FileItem: React.FC<FileItemProps> = ({
 
     setIsDownloading(true);
     try {
-      const blob = await filesApi.downloadFile(token, file._id);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file.name;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      const encryptedBlob = await filesApi.downloadFile(token, file._id);
+
+      if (!masterKeyString) {
+        toast({
+          title: "Error",
+          description: "Master key not found. Cannot decrypt file.",
+          variant: "destructive",
+        });
+        setIsDownloading(false);
+        return;
+      }
+
+      try {
+        const masterCryptoKey = await window.crypto.subtle.importKey(
+          'raw',
+          base64ToArrayBuffer(masterKeyString),
+          { name: 'AES-GCM', length: 256 },
+          true,
+          ['encrypt', 'decrypt']
+        );
+
+        const encryptedBuffer = await encryptedBlob.arrayBuffer();
+        const decryptedBuffer = await decryptFile(encryptedBuffer, masterCryptoKey);
+
+        const decryptedBlob = new Blob([decryptedBuffer], { type: file.type });
+
+        const url = window.URL.createObjectURL(decryptedBlob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a); // Required for Firefox
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a); // Clean up
+      } catch (decryptionError) {
+        console.error("Error decrypting file for download:", decryptionError);
+        toast({
+          title: "Decryption Failed",
+          description: "Could not decrypt the file. Please check your master key.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Error downloading file:", error);
+      toast({
+        title: "Download Failed",
+        description: "An error occurred while trying to download the file.",
+        variant: "destructive",
+      });
     } finally {
       setIsDownloading(false);
     }
