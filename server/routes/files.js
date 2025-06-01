@@ -77,7 +77,7 @@ router.post('/trash/empty', auth, async (req, res) => {
           console.warn(`Thumbnail path ${absoluteThumbnailPath} not found for file ID ${file._id} during empty trash.`);
         }
       }
-      
+
       totalFreedSpace += file.size;
     }
 
@@ -129,7 +129,7 @@ router.delete('/:id/permanent', auth, async (req, res) => {
     } else {
       console.warn(`File path ${file.path} not found for file ID ${file._id} during permanent delete. Record will still be deleted.`);
     }
-    
+
     // 2. Delete client-generated thumbnail if it exists
     if (file.thumbnailPath) {
         const thumbnailDir = path.join(process.env.STORAGE_PATH, req.user.bucketId, '.thumbnails');
@@ -603,8 +603,8 @@ router.post('/:id/restore', auth, async (req, res) => {
     if (req.redisClient) {
         const folderCacheKey = `files:${req.user._id}:${file.folderId || 'root'}`;
         await req.redisClient.del(folderCacheKey);
-        
-        const trashCacheKey = `files_trash:${req.user._id}`; 
+
+        const trashCacheKey = `files_trash:${req.user._id}`;
         await req.redisClient.del(trashCacheKey);
 
         if (file.isStarred) {
