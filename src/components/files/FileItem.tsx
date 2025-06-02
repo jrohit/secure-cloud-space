@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast"; // Added useToast
 import { useAuth } from "@/contexts/AuthContext";
+import { decryptFile } from "@/lib/cryptoUtils"; // Added
+import { generateImageThumbnail } from "@/lib/imageUtils"; // Added
 import { cn } from "@/lib/utils"; // Added cn
 import { filesApi } from "@/services/api";
 import { File } from "@/types";
@@ -36,7 +38,7 @@ const FileItem: React.FC<FileItemProps> = ({
   onPreview,
   onStarToggle,
 }) => {
-  const { token } = useAuth();
+  const { token, masterKey } = useAuth(); // Added masterKey
   const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(
     null
   );
@@ -44,6 +46,9 @@ const FileItem: React.FC<FileItemProps> = ({
   const { toast } = useToast(); // Added
   const [isDownloading, setIsDownloading] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  const [encryptedFileBuffer, setEncryptedFileBuffer] =
+    useState<ArrayBuffer | null>(null);
+  const [isLoadingFullFile, setIsLoadingFullFile] = useState(false);
 
   useEffect(() => {
     // Cleanup previous object URL before starting new load or if file/token changes
@@ -53,52 +58,35 @@ const FileItem: React.FC<FileItemProps> = ({
     }
     setThumbnailObjectUrl(null); // Reset object URL state
     setThumbnailFailed(false); // Reset failed state
+    setEncryptedFileBuffer(null); // Reset encrypted file buffer
 
-    // Only proceed if it's an image and we have a token
     if (file.type.startsWith("image/") && token) {
-      const loadThumbnail = async () => {
+      setIsLoadingFullFile(true);
+      const loadEncryptedFile = async () => {
         try {
-          const response = await fetch(
-            `http://localhost:5000/api/files/${file._id}/thumbnail`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-
-          if (response.ok) {
-            const blob = await response.blob();
-            const objectUrl = URL.createObjectURL(blob);
-            console.log(
-              `[ImgTagDebug] Created object URL: ${objectUrl} for ${file.name} (blob size: ${blob.size}, blob type: ${blob.type})`
-            );
-            setThumbnailObjectUrl(objectUrl);
-            currentObjectUrlRef.current = objectUrl; // Store for cleanup
-          } else {
-            console.warn(
-              `Failed to load thumbnail for ${file.name} (ID: ${file._id}): Server responded with ${response.status} ${response.statusText}`
-            );
-            setThumbnailFailed(true);
-          }
+          const blob = await filesApi.downloadFile(token, file._id);
+          const buffer = await blob.arrayBuffer();
+          setEncryptedFileBuffer(buffer);
         } catch (error) {
           console.error(
-            `Error fetching thumbnail for ${file.name} (ID: ${file._id}):`,
+            `Error fetching encrypted file for ${file.name} (ID: ${file._id}):`,
             error
           );
-          setThumbnailFailed(true);
+          setThumbnailFailed(true); // Use thumbnailFailed to indicate error for now
+        } finally {
+          setIsLoadingFullFile(false);
         }
       };
 
-      loadThumbnail();
+      loadEncryptedFile();
     } else if (!file.type.startsWith("image/")) {
       // Not an image, so no thumbnail to attempt loading.
       // Setting thumbnailFailed to true will ensure the icon fallback is shown.
       setThumbnailFailed(true);
-    } else if (!token && file.type.startsWith("image/")) {
-      // It's an image, but no token is available (e.g., user logged out).
+    } else if (!token) {
+      // No token is available (e.g., user logged out).
       console.warn(
-        `No token available to fetch thumbnail for ${file.name} (ID: ${file._id})`
+        `No token available to fetch data for ${file.name} (ID: ${file._id})`
       );
       setThumbnailFailed(true);
     }
@@ -108,9 +96,84 @@ const FileItem: React.FC<FileItemProps> = ({
       if (currentObjectUrlRef.current) {
         URL.revokeObjectURL(currentObjectUrlRef.current);
         currentObjectUrlRef.current = null;
+        // Note: encryptedFileBuffer is managed by state and doesn't need manual cleanup here
+        // as it's not a URL.
       }
     };
   }, [file, token]); // Dependencies for the effect
+
+  // New useEffect for decryption and thumbnail generation
+  useEffect(() => {
+    // Cleanup previous object URL before starting new processing or if dependencies change
+    if (currentObjectUrlRef.current) {
+      URL.revokeObjectURL(currentObjectUrlRef.current);
+      currentObjectUrlRef.current = null;
+    }
+    setThumbnailObjectUrl(null); // Reset object URL state
+
+    if (
+      encryptedFileBuffer &&
+      masterKey &&
+      file.type.startsWith("image/")
+    ) {
+      setThumbnailFailed(false); // Reset failure state before attempting
+
+      const processFile = async () => {
+        try {
+          const decryptedBuffer = await decryptFile(
+            encryptedFileBuffer,
+            masterKey
+          );
+          if (decryptedBuffer) {
+            const decryptedBlob = new Blob([decryptedBuffer], {
+              type: file.type,
+            });
+            const tempFileForThumbnail = new File(
+              [decryptedBlob],
+              file.name,
+              { type: file.type }
+            );
+
+            const thumbnailBlob = await generateImageThumbnail(
+              tempFileForThumbnail,
+              100,
+              100,
+              file.type
+            );
+
+            if (thumbnailBlob) {
+              const objectUrl = URL.createObjectURL(thumbnailBlob);
+              setThumbnailObjectUrl(objectUrl);
+              currentObjectUrlRef.current = objectUrl; // Store for cleanup
+            } else {
+              console.error(
+                `generateImageThumbnail returned null for ${file.name}`
+              );
+              setThumbnailFailed(true);
+            }
+          } else {
+            // This case should ideally be caught by the catch block in decryptFile
+            console.error(`Decryption returned null for ${file.name}`);
+            setThumbnailFailed(true);
+          }
+        } catch (error) {
+          console.error(
+            `Error during decryption or thumbnail generation for ${file.name}:`,
+            error
+          );
+          setThumbnailFailed(true);
+        }
+      };
+
+      processFile();
+    } else if (!file.type.startsWith("image/")) {
+      // This check might be redundant if the first useEffect already handles it,
+      // but ensures icon fallback for non-images.
+      setThumbnailFailed(true);
+    }
+    // No specific cleanup for encryptedFileBuffer here as it's managed by the first useEffect
+    // when file or token changes. This effect focuses on object URL from the buffer.
+  }, [encryptedFileBuffer, masterKey, file.name, file.type]); // Added file.name and file.type for consistency
 
   const fileIcon = getFileIcon(file.type);
   const fileColor = getFileColor(file.type);

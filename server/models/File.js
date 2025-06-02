@@ -33,10 +33,6 @@ const FileSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  thumbnailPath: {
-    type: String,
-    required: false
-  },
   // New fields for Trash functionality
   isTrashed: {
     type: Boolean,
