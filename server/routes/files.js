@@ -212,18 +212,18 @@ const upload = multer({
 });
 
 // Upload file
-router.post('/upload', auth, upload.single('file'), async (req, res) => {
+router.post('/upload', auth, upload.fields([{ name: 'file', maxCount: 1 }]), async (req, res) => {
   try {
-    // User and file validation (req.user from auth, req.file from multer)
+    // User and file validation (req.user from auth, req.files from multer)
     if (!req.user) {
       return res.status(401).json({ message: 'User not authenticated.' });
     }
-    // Access req.file directly
-    if (!req.file) {
+    // Adjust req.file access to req.files.file[0]
+    if (!req.files || !req.files.file || !req.files.file[0]) { 
       return res.status(400).json({ message: 'No file uploaded or file processing error by middleware.' });
     }
 
-    const mainFile = req.file; // Convenience variable for the main file
+    const mainFile = req.files.file[0]; // Convenience variable for the main file
 
     // Storage check
     const user = await User.findById(req.user._id).select('storageLimit storageUsed');
@@ -244,8 +244,11 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
       });
     }
 
+    let thumbnailFilename = null; 
+    // const mainFile = req.files.file[0]; // Assuming mainFile is already defined from previous step (it is, just above)
+
     // Determine the final MIME type (moved from original logic, refined)
-    // Access mainFile.mimetype directly
+    // Adjust req.file.mimetype access to mainFile.mimetype
     const finalMimeType = req.body.originalMimeType && req.body.originalMimeType.includes('/') 
                            ? req.body.originalMimeType 
                            : mainFile.mimetype;
@@ -258,7 +261,8 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
       size: newFileSize, // Use newFileSize (derived from mainFile.size)
       path: mainFile.path,
       folderId: req.body.folderId || null,
-      userId: req.user._id
+      userId: req.user._id,
+      thumbnailPath: null // Ensure thumbnailPath is null
     });
     await newFile.save();
 
@@ -289,12 +293,12 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
   } catch (error) {
     console.error('File upload error:', error);
     // If an error occurs *after* multer saved the file but before response, try to clean up.
-    // Access req.file directly or mainFile
-    if (mainFile && mainFile.path) {
+    // Adjust req.file access to req.files.file[0] or mainFile
+    if (req.files && req.files.file && req.files.file[0] && req.files.file[0].path) {
       // Check if file still exists before trying to remove
       try {
-        if (await fs.pathExists(mainFile.path)) {
-          await fs.remove(mainFile.path);
+        if (await fs.pathExists(req.files.file[0].path)) {
+          await fs.remove(req.files.file[0].path);
         }
       } catch (cleanupError) {
         console.error('Cleanup error:', cleanupError);

@@ -1,4 +1,3 @@
-
 import { File, Folder } from "@/types";
 import FileItem from "./FileItem";
 import FolderItem from "./FolderItem";
@@ -27,19 +26,19 @@ const FileGrid: React.FC<FileGridProps> = ({
       {/* Render folders first */}
       {folders.map((folder) => (
         <FolderItem
-          key={folder.id}
+          key={folder._id}
           folder={folder}
           onClick={() => onFolderClick(folder)}
-          onDelete={() => onFolderDelete(folder.id)}
+          onDelete={() => onFolderDelete(folder._id)}
         />
       ))}
 
       {/* Then render files */}
       {files.map((file) => (
-        <FileItem 
-          key={file.id} 
-          file={file} 
-          onDelete={() => onFileDelete(file.id)}
+        <FileItem
+          key={file._id}
+          file={file}
+          onDelete={() => onFileDelete(file._id)}
           onPreview={onFilePreview}
           onStarToggle={onStarToggle} // Pass it down
         />

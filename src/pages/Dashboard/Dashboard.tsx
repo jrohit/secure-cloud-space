@@ -8,7 +8,7 @@ import { ToastAction } from "@/components/ui/toast"; // Added
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { decryptFile, encryptFile } from "@/lib/cryptoUtils";
-import { generateImageThumbnail } from '@/lib/imageUtils'; // Adjust path if needed
+import { generateImageThumbnail } from "@/lib/imageUtils"; // Adjust path if needed
 import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
 import { useEffect, useState } from "react";
@@ -100,7 +100,9 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isUpgradeStorageDialogOpen, setIsUpgradeStorageDialogOpen] =
     useState(false); // Added state for dialog
-  const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number | null>(null);
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     if (token) {
@@ -201,14 +203,16 @@ const Dashboard = () => {
 
       setPreviewFileContent(stableDecryptedBuffer);
       setPreviewFileMetadata(fileToPreview);
-      const fileIndex = files.findIndex(f => f._id === fileToPreview._id);
+      const fileIndex = files.findIndex((f) => f._id === fileToPreview._id);
       if (fileIndex !== -1) {
-          setCurrentPreviewIndex(fileIndex);
+        setCurrentPreviewIndex(fileIndex);
       } else {
-          // This case should ideally not happen if previewing from the current 'files' list.
-          // Consider how to handle if it does, e.g., log an error or disable navigation.
-          setCurrentPreviewIndex(null);
-          console.warn("Previewed file not found in current files list for navigation indexing.");
+        // This case should ideally not happen if previewing from the current 'files' list.
+        // Consider how to handle if it does, e.g., log an error or disable navigation.
+        setCurrentPreviewIndex(null);
+        console.warn(
+          "Previewed file not found in current files list for navigation indexing."
+        );
       }
       setIsPreviewing(true); // This will be used to trigger the dialog open state
     } catch (error) {
@@ -252,7 +256,8 @@ const Dashboard = () => {
     }
   };
 
-  const handleUploadFiles = async (files: FileList) => {
+  const handleUploadFiles = async (filesList: FileList) => {
+    const files = Array.from(filesList);
     if (!token) {
       // Check for token first
       toast({
@@ -305,19 +310,33 @@ const Dashboard = () => {
         const encryptedBlob = new Blob([iv, ciphertext]);
 
         let thumbnailBlob: Blob | null = null;
-        if (originalMimeType.startsWith('image/') && file.size > 0) { // Ensure file is not empty
-            try {
-                console.log(`[Thumbnail] Generating thumbnail for: ${file.name}`);
-                thumbnailBlob = await generateImageThumbnail(file, 256, 256, 'image/jpeg', 0.7);
-                if (thumbnailBlob) {
-                    console.log(`[Thumbnail] Generated thumbnail blob size: ${thumbnailBlob.size} for ${file.name}`);
-                } else {
-                    console.warn(`[Thumbnail] Thumbnail generation returned null for ${file.name}`);
-                }
-            } catch (thumbError) {
-                console.error(`[Thumbnail] Error generating thumbnail for ${file.name}:`, thumbError);
-                thumbnailBlob = null; // Ensure it's null on error
+        if (originalMimeType.startsWith("image/") && file.size > 0) {
+          // Ensure file is not empty
+          try {
+            console.log(`[Thumbnail] Generating thumbnail for: ${file.name}`);
+            thumbnailBlob = await generateImageThumbnail(
+              file,
+              256,
+              256,
+              "image/jpeg",
+              0.7
+            );
+            if (thumbnailBlob) {
+              console.log(
+                `[Thumbnail] Generated thumbnail blob size: ${thumbnailBlob.size} for ${file.name}`
+              );
+            } else {
+              console.warn(
+                `[Thumbnail] Thumbnail generation returned null for ${file.name}`
+              );
             }
+          } catch (thumbError) {
+            console.error(
+              `[Thumbnail] Error generating thumbnail for ${file.name}:`,
+              thumbError
+            );
+            thumbnailBlob = null; // Ensure it's null on error
+          }
         }
 
         // Call the updated filesApi.uploadFile
@@ -402,17 +421,17 @@ const Dashboard = () => {
     if (!token) return;
 
     try {
-      await filesApi.deleteFile(token, fileId);
+      await filesApi.trashFile(token, fileId); // Updated to use trashFile
       setFiles((prev) => prev.filter((file) => file._id !== fileId));
       toast({
         title: "Success",
-        description: "File deleted successfully",
+        description: "File moved to trash", // Updated message
       });
     } catch (error) {
-      console.error("Error deleting file:", error);
+      console.error("Error moving file to trash:", error); // Updated message
       toast({
         title: "Error",
-        description: "Failed to delete file",
+        description: "Failed to move file to trash", // Updated message
         variant: "destructive",
       });
     }
@@ -478,25 +497,28 @@ const Dashboard = () => {
   };
 
   const handleNavigateNext = async () => {
-    if (currentPreviewIndex !== null && currentPreviewIndex < files.length - 1) {
-        const nextIndex = currentPreviewIndex + 1;
-        const nextFileToPreview = files[nextIndex];
-        // Re-use the core logic of handleFilePreview.
-        // This assumes handleFilePreview can be called directly.
-        // If handleFilePreview has side effects like showing initial toasts that are undesirable on navigate,
-        // then its core (fetching, decrypting, setting state) needs to be refactored into a helper.
-        // For now, let's assume direct call is okay for a first pass.
-        await handleFilePreview(nextFileToPreview);
-        // setCurrentPreviewIndex will be updated by the handleFilePreview call.
+    if (
+      currentPreviewIndex !== null &&
+      currentPreviewIndex < files.length - 1
+    ) {
+      const nextIndex = currentPreviewIndex + 1;
+      const nextFileToPreview = files[nextIndex];
+      // Re-use the core logic of handleFilePreview.
+      // This assumes handleFilePreview can be called directly.
+      // If handleFilePreview has side effects like showing initial toasts that are undesirable on navigate,
+      // then its core (fetching, decrypting, setting state) needs to be refactored into a helper.
+      // For now, let's assume direct call is okay for a first pass.
+      await handleFilePreview(nextFileToPreview);
+      // setCurrentPreviewIndex will be updated by the handleFilePreview call.
     }
   };
 
   const handleNavigatePrevious = async () => {
     if (currentPreviewIndex !== null && currentPreviewIndex > 0) {
-        const prevIndex = currentPreviewIndex - 1;
-        const prevFileToPreview = files[prevIndex];
-        await handleFilePreview(prevFileToPreview);
-        // setCurrentPreviewIndex will be updated by the handleFilePreview call.
+      const prevIndex = currentPreviewIndex - 1;
+      const prevFileToPreview = files[prevIndex];
+      await handleFilePreview(prevFileToPreview);
+      // setCurrentPreviewIndex will be updated by the handleFilePreview call.
     }
   };
 
@@ -564,8 +586,13 @@ const Dashboard = () => {
           fileType={previewFileMetadata.type}
           onNext={handleNavigateNext}
           onPrevious={handleNavigatePrevious}
-          canNavigateNext={currentPreviewIndex !== null && currentPreviewIndex < files.length - 1}
-          canNavigatePrevious={currentPreviewIndex !== null && currentPreviewIndex > 0}
+          canNavigateNext={
+            currentPreviewIndex !== null &&
+            currentPreviewIndex < files.length - 1
+          }
+          canNavigatePrevious={
+            currentPreviewIndex !== null && currentPreviewIndex > 0
+          }
         />
       )}
 
