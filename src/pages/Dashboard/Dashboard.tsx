@@ -309,44 +309,14 @@ const Dashboard = () => {
         // Create the combined Blob
         const encryptedBlob = new Blob([iv, ciphertext]);
 
-        let thumbnailBlob: Blob | null = null;
-        if (originalMimeType.startsWith("image/") && file.size > 0) {
-          // Ensure file is not empty
-          try {
-            console.log(`[Thumbnail] Generating thumbnail for: ${file.name}`);
-            thumbnailBlob = await generateImageThumbnail(
-              file,
-              256,
-              256,
-              "image/jpeg",
-              0.7
-            );
-            if (thumbnailBlob) {
-              console.log(
-                `[Thumbnail] Generated thumbnail blob size: ${thumbnailBlob.size} for ${file.name}`
-              );
-            } else {
-              console.warn(
-                `[Thumbnail] Thumbnail generation returned null for ${file.name}`
-              );
-            }
-          } catch (thumbError) {
-            console.error(
-              `[Thumbnail] Error generating thumbnail for ${file.name}:`,
-              thumbError
-            );
-            thumbnailBlob = null; // Ensure it's null on error
-          }
-        }
-
         // Call the updated filesApi.uploadFile
         await filesApi.uploadFile(
           token,
           encryptedBlob,
           file.name,
           originalMimeType,
-          currentFolder?._id || null,
-          thumbnailBlob // Add this new argument
+          currentFolder?._id || null
+          // thumbnailBlob argument is now omitted
         );
 
         completedFiles++;
