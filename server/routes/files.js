@@ -385,6 +385,9 @@ router.delete('/:id', auth, async (req, res) => {
     if (req.redisClient) {
         const cacheKey = `files:${req.user._id}:${file.folderId || 'root'}`;
         await req.redisClient.del(cacheKey);
+        
+        await req.redisClient.del(`files_trash:${req.user._id}`); // Added this line
+
         // If you have a global search cache that might include this file, invalidate it too.
         // Example: await req.redisClient.del(`files:${req.user._id}:global_search`); (if applicable)
         // Also, if there's a specific cache for starred files that needs updating:
