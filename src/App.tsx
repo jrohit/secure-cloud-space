@@ -14,6 +14,7 @@ import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import DashboardLayout from "./components/layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard/Dashboard";
+import TrashPage from "./pages/Dashboard/TrashPage"; // Import TrashPage
 
 const queryClient = new QueryClient();
 
@@ -41,7 +42,7 @@ const App = () => (
               <Route path="recent" element={<Dashboard />} />
               <Route path="starred" element={<Dashboard />} />
               <Route path="shared" element={<Dashboard />} />
-              <Route path="trash" element={<Dashboard />} />
+              <Route path="trash" element={<TrashPage />} /> {/* Use TrashPage here */}
               <Route path="settings" element={<Dashboard />} />
             </Route>
             

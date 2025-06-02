@@ -402,17 +402,17 @@ const Dashboard = () => {
     if (!token) return;
 
     try {
-      await filesApi.deleteFile(token, fileId);
+      await filesApi.trashFile(token, fileId); // Updated to use trashFile
       setFiles((prev) => prev.filter((file) => file._id !== fileId));
       toast({
         title: "Success",
-        description: "File deleted successfully",
+        description: "File moved to trash", // Updated message
       });
     } catch (error) {
-      console.error("Error deleting file:", error);
+      console.error("Error moving file to trash:", error); // Updated message
       toast({
         title: "Error",
-        description: "Failed to delete file",
+        description: "Failed to move file to trash", // Updated message
         variant: "destructive",
       });
     }

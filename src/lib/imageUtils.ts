@@ -18,7 +18,7 @@ export async function generateImageThumbnail(
         });
         // heic2any returns a single Blob if only one conversion is done
         const convertedBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
-
+        
         // IMPORTANT: The rest of the function expects a File object for the reader,
         // or we need to adjust how img.src is set.
         // For simplicity, let's create a new File object from the converted Blob.
