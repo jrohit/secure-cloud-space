@@ -12,7 +12,7 @@ import { decryptFile } from "@/lib/cryptoUtils"; // Added
 import { generateImageThumbnail } from "@/lib/imageUtils"; // Added
 import { cn } from "@/lib/utils"; // Added cn
 import { filesApi } from "@/services/api";
-import { File } from "@/types";
+import { MyFileType } from "@/types"; // Changed from File
 import { formatDistanceToNow } from "date-fns";
 import {
   Download,
@@ -26,9 +26,9 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 interface FileItemProps {
-  file: File;
+  file: MyFileType; // Changed from File
   onDelete: () => void;
-  onPreview: (file: File) => void;
+  onPreview: (file: MyFileType) => void; // Changed from File
   onStarToggle?: (fileId: string, newIsStarred: boolean) => void; // Added
 }
 
@@ -128,7 +128,7 @@ const FileItem: React.FC<FileItemProps> = ({
             const decryptedBlob = new Blob([decryptedBuffer], {
               type: file.type,
             });
-            const tempFileForThumbnail = new File(
+            const tempFileForThumbnail = new window.File( // Use window.File to avoid conflict
               [decryptedBlob],
               file.name,
               { type: file.type }

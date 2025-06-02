@@ -9,17 +9,17 @@ export interface User {
   storageUsed?: number; // New
 }
 
-export interface File {
+export interface MyFileType {
   _id: string;
   name: string;
   type: string;
   size: number;
-  path: string;
+  path: string; // This 'path' is server-side OS path, not URL path
   folderId: string | null;
   userId: string;
   createdAt: string;
   updatedAt: string;
-  isStarred?: boolean; // New field
+  isStarred?: boolean;
 }
 
 export interface Folder {
