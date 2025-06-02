@@ -148,6 +148,14 @@ router.post('/trash/empty', auth, async (req, res) => {
       await User.findByIdAndUpdate(userId, {
         $inc: { storageUsed: -totalFreedSpace }
       });
+      // Invalidate user cache if storage was updated
+      if (req.redisClient) { 
+        try {
+          await req.redisClient.del(`user:${userId}`); 
+        } catch (redisError) {
+          console.error(`Redis: Error invalidating user cache for ${userId} after empty trash:`, redisError);
+        }
+      }
     }
 
     // 5. Invalidate relevant caches
@@ -194,6 +202,14 @@ router.delete('/:id/permanent', auth, async (req, res) => {
       await User.findByIdAndUpdate(req.user._id, {
         $inc: { storageUsed: -file.size }
       });
+      // Invalidate user cache if storage was updated
+      if (req.redisClient) {
+        try {
+          await req.redisClient.del(`user:${req.user._id}`);
+        } catch (redisError) {
+          console.error(`Redis: Error invalidating user cache for ${req.user._id} after permanent delete:`, redisError);
+        }
+      }
     }
 
     // 5. Invalidate relevant caches
@@ -346,6 +362,14 @@ router.post('/upload', auth, upload.fields([{ name: 'file', maxCount: 1 }]), asy
     await User.findByIdAndUpdate(req.user._id, { 
       $inc: { storageUsed: newFileSize } 
     });
+
+    if (req.redisClient) {
+      try {
+        await req.redisClient.del(`user:${req.user._id}`);
+      } catch (redisError) {
+        console.error(`Redis: Error invalidating user cache for ${req.user._id} after upload:`, redisError);
+      }
+    }
 
     // Invalidate cache
     const cacheKey = `files:${req.user._id}:${req.body.folderId || 'root'}`;
