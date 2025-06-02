@@ -32,7 +32,7 @@ router.post('/', auth, async (req, res) => {
     await req.redisClient.del(cacheKey);
     
     res.status(201).json({
-      id: newFolder._id,
+      _id: newFolder._id,
       name: newFolder.name,
       parentId: newFolder.parentId,
       userId: newFolder.userId,
