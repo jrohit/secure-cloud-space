@@ -15,6 +15,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string, encryptedMasterKeyString: string) => Promise<void>;
   logout: () => void;
   getMasterCryptoKey: () => Promise<CryptoKey | null>; // Added
+  refreshUserStorageInfo: () => Promise<void>; // Added
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -225,6 +226,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
 
+  const refreshUserStorageInfo = async () => {
+    if (!token) {
+      // console.warn("Cannot refresh user storage info: no token available.");
+      return;
+    }
+    try {
+      const updatedUserData = await authApi.getCurrentUser(token);
+      setUser(updatedUserData); // This will update the user object in the context
+    } catch (error) {
+      console.error("Failed to refresh user storage info:", error);
+      toast({ 
+        title: "Update Failed",
+        description: "Could not fetch the latest storage information.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -237,6 +256,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         register,
         logout,
         getMasterCryptoKey, // Added
+        refreshUserStorageInfo, // Added
       }}
     >
       {children}

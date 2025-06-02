@@ -17,7 +17,7 @@ import { MyFileType } from "@/types"; // Changed from File to MyFileType
 import React, { useEffect, useState } from "react";
 
 const TrashPage: React.FC = () => {
-  const { token } = useAuth();
+  const { token, refreshUserStorageInfo } = useAuth(); // Added refreshUserStorageInfo
   const { toast } = useToast();
   const [trashedFiles, setTrashedFiles] = useState<MyFileType[]>([]); // Changed from File[]
   const [isLoading, setIsLoading] = useState(true);
@@ -281,6 +281,9 @@ const TrashPage: React.FC = () => {
           result.count > 0 ? `${result.count} file(s) deleted.` : ""
         }`,
       });
+      if (result.count > 0 && refreshUserStorageInfo) {
+        await refreshUserStorageInfo();
+      }
     } catch (error) {
       console.error("Error emptying trash:", error);
       toast({
@@ -333,6 +336,9 @@ const TrashPage: React.FC = () => {
         title: "Success",
         description: `"${fileNameToDelete}" has been permanently deleted.`,
       });
+      if (refreshUserStorageInfo) {
+        await refreshUserStorageInfo();
+      }
     } catch (error) {
       console.error("Error permanently deleting file:", error);
       toast({

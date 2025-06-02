@@ -81,8 +81,18 @@ const getAccurateMimeType = (file: globalThis.File): string => {
   return browserType || "application/octet-stream";
 };
 
+// Simple formatBytes helper (can be placed outside component or in a utils file)
+function formatBytes(bytes: number, decimals = 2) {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
 const Dashboard = () => {
-  const { user, token, getMasterCryptoKey } = useAuth(); // Changed
+  const { user, token, getMasterCryptoKey, refreshUserStorageInfo } = useAuth(); // Added refreshUserStorageInfo
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -257,7 +267,7 @@ const Dashboard = () => {
   };
 
   const handleUploadFiles = async (filesList: FileList) => {
-    const files = Array.from(filesList);
+    const filesArray = Array.from(filesList); // Changed variable name for clarity
     if (!token) {
       // Check for token first
       toast({
@@ -281,15 +291,41 @@ const Dashboard = () => {
       return;
     }
 
+    // Calculate total upload size
+    const totalUploadSize = filesArray.reduce((acc, file) => acc + file.size, 0);
+
+    // Perform client-side quota check
+    if (user && typeof user.storageLimit === 'number' && typeof user.storageUsed === 'number') {
+      if (user.storageUsed + totalUploadSize > user.storageLimit) {
+        toast({
+          title: "Insufficient Storage",
+          description: `You do not have enough space to upload these files. Required: ${formatBytes(totalUploadSize)}, Available: ${formatBytes(user.storageLimit - user.storageUsed)}. Please upgrade your plan or free up space.`,
+          variant: "destructive",
+          action: (
+            <ToastAction
+              altText="Upgrade"
+              onClick={() => setIsUpgradeStorageDialogOpen(true)}
+            >
+              Upgrade Storage
+            </ToastAction>
+          ),
+        });
+        setIsUploading(false); // Ensure any uploading state is reset
+        return; // Stop the upload process
+      }
+    } else {
+      console.warn("User storage information not available for client-side quota check. Proceeding with upload.");
+    }
+
     setIsUploading(true);
     setUploadProgress(0);
 
-    const totalFiles = files.length;
+    const totalFiles = filesArray.length; // Use filesArray
     let completedFiles = 0;
 
     try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (let i = 0; i < filesArray.length; i++) { // Use filesArray
+        const file = filesArray[i]; // Use filesArray
 
         // New: Determine originalMimeType using the helper function
         const originalMimeType = getAccurateMimeType(file);
@@ -331,6 +367,12 @@ const Dashboard = () => {
           totalFiles === 1 ? "file" : "files"
         } uploaded successfully`,
       });
+
+      if (completedFiles === totalFiles && totalFiles > 0) {
+        if (refreshUserStorageInfo) {
+          await refreshUserStorageInfo();
+        }
+      }
     } catch (error) {
       console.error("Error uploading files:", error);
 
