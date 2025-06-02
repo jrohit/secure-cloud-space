@@ -70,6 +70,16 @@ export const filesApi = {
     return handleResponse<File[]>(response);
   },
 
+  restoreAllFromTrash: async (token: string): Promise<{ message: string; restoredCount: number }> => {
+    const response = await fetch(`${API_URL}/files/trash/restore-all`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse<{ message: string; restoredCount: number }>(response);
+  },
+
   uploadFile: async (token: string, encryptedFileBlob: Blob, fileName: string, originalMimeType: string, folderId: string | null = null): Promise<File> => {
     const formData = new FormData();
     formData.append('file', encryptedFileBlob, fileName);

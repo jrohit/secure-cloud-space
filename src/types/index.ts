@@ -20,6 +20,8 @@ export interface MyFileType {
   createdAt: string;
   updatedAt: string;
   isStarred?: boolean;
+  displayPath?: string; // Added
+  trashedAt?: string | null; // Added
 }
 
 export interface Folder {

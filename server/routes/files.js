@@ -8,6 +8,7 @@ const fs = require('fs-extra');
 // So, you can use fs.ensureDir directly.
 const File = require('../models/File');
 const User = require('../models/User'); // Import User model
+const Folder = require('../models/Folder'); // Import Folder model
 const auth = require('../middleware/auth');
 
 // Helper function to escape special regex characters
@@ -40,6 +41,72 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + extension);
   }
 });
+
+router.post('/trash/restore-all', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Find all trashed files for the user to identify distinct folderIds for cache invalidation
+    const filesToRestore = await File.find({ userId: userId, isTrashed: true }).select('folderId');
+    
+    const updateResult = await File.updateMany(
+      { userId: userId, isTrashed: true },
+      { $set: { isTrashed: false, trashedAt: null } }
+    );
+
+    if (req.redisClient) {
+      // Invalidate the main trash cache
+      await req.redisClient.del(`files_trash:${userId}`);
+
+      // Invalidate caches for folders where files were restored to
+      if (filesToRestore.length > 0) {
+        const uniqueFolderIds = [...new Set(filesToRestore.map(f => f.folderId || 'root'))];
+        for (const folderId of uniqueFolderIds) {
+          await req.redisClient.del(`files:${userId}:${folderId}`);
+        }
+      }
+    }
+
+    res.json({ 
+      message: 'All files restored successfully.', 
+      restoredCount: updateResult.modifiedCount 
+    });
+
+  } catch (error) {
+    console.error('Error restoring all files from trash:', error);
+    res.status(500).json({ message: 'Server error while restoring all files.' });
+  }
+});
+
+// Helper function to construct display path
+async function getDisplayPath(fileDoc, FolderModel) {
+  if (!fileDoc.folderId) {
+    return fileDoc.name;
+  }
+
+  const pathParts = [fileDoc.name];
+  let currentFolderId = fileDoc.folderId;
+  let safetyBreak = 0; // To prevent infinite loops
+
+  while (currentFolderId && safetyBreak < 10) { // Max 10 levels deep
+    safetyBreak++;
+    try {
+      const parentFolder = await FolderModel.findById(currentFolderId);
+      if (parentFolder) {
+        pathParts.unshift(parentFolder.name);
+        currentFolderId = parentFolder.parentId;
+      } else {
+        pathParts.unshift("[Unknown Folder]");
+        currentFolderId = null;
+      }
+    } catch (error) {
+      console.error(`Error fetching folder ${currentFolderId} for path construction:`, error);
+      pathParts.unshift("[Error Fetching Path]");
+      currentFolderId = null;
+    }
+  }
+  return pathParts.join('/');
+}
 
 // Empty Trash
 router.post('/trash/empty', auth, async (req, res) => {
@@ -157,17 +224,26 @@ router.get('/trash', auth, async (req, res) => {
     }
 
     // If not in cache, fetch from database
-    const trashedFiles = await File.find({
+    const trashedFileDocs = await File.find({ // Renamed to trashedFileDocs
       userId: userId,
       isTrashed: true
-    }).sort({ trashedAt: -1 }); // Optional: sort by when they were trashed, newest first
+    }).sort({ trashedAt: -1 });
+
+    const trashedFilesWithDisplayPath = await Promise.all(
+      trashedFileDocs.map(async (fileDoc) => {
+        const displayPath = await getDisplayPath(fileDoc, Folder); // Pass Folder model
+        const fileObject = fileDoc.toObject ? fileDoc.toObject() : { ...fileDoc };
+        fileObject.displayPath = displayPath;
+        return fileObject;
+      })
+    );
 
     // Cache the result
     if (req.redisClient) {
-      await req.redisClient.set(cacheKey, JSON.stringify(trashedFiles), { EX: 300 }); // Cache for 5 minutes
+      await req.redisClient.set(cacheKey, JSON.stringify(trashedFilesWithDisplayPath), { EX: 300 });
     }
 
-    res.json(trashedFiles);
+    res.json(trashedFilesWithDisplayPath);
   } catch (error) {
     console.error('Error fetching trashed files:', error);
     res.status(500).json({ message: 'Server error while fetching trashed files' });

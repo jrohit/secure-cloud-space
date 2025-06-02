@@ -13,20 +13,25 @@ import { Button } from "@/components/ui/button"; // For placeholder buttons
 import { useToast } from "@/components/ui/use-toast"; // For displaying errors or info
 import { useAuth } from "@/contexts/AuthContext"; // For getting the token
 import { filesApi } from "@/services/api"; // Assuming filesApi is in @/services/api
-import { File } from "@/types"; // Assuming File type is defined in @/types
+import { MyFileType } from "@/types"; // Changed from File to MyFileType
 import React, { useEffect, useState } from "react";
 
 const TrashPage: React.FC = () => {
   const { token } = useAuth();
   const { toast } = useToast();
-  const [trashedFiles, setTrashedFiles] = useState<File[]>([]);
+  const [trashedFiles, setTrashedFiles] = useState<MyFileType[]>([]); // Changed from File[]
   const [isLoading, setIsLoading] = useState(true);
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] =
     useState(false);
   const [fileToDeletePermanently, setFileToDeletePermanently] =
-    useState<File | null>(null);
+    useState<MyFileType | null>(null); // Changed from File | null
   const [isConfirmEmptyTrashDialogOpen, setIsConfirmEmptyTrashDialogOpen] =
     useState(false);
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]); // Added state for selected files
+  const [
+    isConfirmDeleteSelectedDialogOpen,
+    setIsConfirmDeleteSelectedDialogOpen,
+  ] = useState(false); // Added state for delete selected confirmation
 
   useEffect(() => {
     if (token) {
@@ -79,6 +84,184 @@ const TrashPage: React.FC = () => {
     }
   };
 
+  const handleRestoreAll = async () => {
+    if (!token) {
+      toast({ title: "Error", description: "Authentication token not found.", variant: "destructive" });
+      return;
+    }
+    if (trashedFiles.length === 0) {
+      toast({ title: "Info", description: "Trash is already empty." });
+      return;
+    }
+
+    toast({ title: "Restoring All...", description: `Attempting to restore all ${trashedFiles.length} file(s).` });
+
+    try {
+      const result = await filesApi.restoreAllFromTrash(token);
+      
+      toast({
+          title: "Restore All Complete",
+          description: `${result.restoredCount} file(s) restored. ${result.message || ''}`,
+          variant: "default"
+      });
+
+      const updatedTrashedFiles = await filesApi.getTrashedFiles(token);
+      setTrashedFiles(updatedTrashedFiles);
+      setSelectedFileIds([]);
+
+    } catch (error: any) {
+      toast({
+          title: "Error Restoring All",
+          description: error.message || "An unexpected error occurred during Restore All operation.",
+          variant: "destructive"
+      });
+      try {
+          const updatedTrashedFiles = await filesApi.getTrashedFiles(token);
+          setTrashedFiles(updatedTrashedFiles);
+      } catch (refreshError) {
+          console.error("Error refreshing trashed files after failed Restore All:", refreshError);
+      }
+      setSelectedFileIds([]);
+    }
+  };
+
+  const handleRestoreSelected = async () => {
+    if (!token) {
+      toast({
+        title: "Error",
+        description: "Authentication token not found.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (selectedFileIds.length === 0) {
+      toast({ title: "Info", description: "No files selected to restore." });
+      return;
+    }
+
+    let restoredCount = 0;
+    let errorCount = 0;
+
+    toast({
+      title: "Restoring...",
+      description: `Attempting to restore ${selectedFileIds.length} file(s).`,
+    });
+
+    try {
+      for (const fileId of selectedFileIds) {
+        try {
+          await filesApi.restoreFile(token, fileId);
+          restoredCount++;
+        } catch (error) {
+          console.error(`Error restoring file ${fileId}:`, error);
+          errorCount++;
+        }
+      }
+
+      toast({
+        title: "Restore Operation Complete",
+        description: `${restoredCount} file(s) restored. ${
+          errorCount > 0 ? `${errorCount} failed.` : ""
+        }`,
+        variant:
+          errorCount > 0 && restoredCount > 0
+            ? "warning"
+            : errorCount > 0
+            ? "destructive"
+            : "default",
+      });
+
+      if (restoredCount > 0) {
+        const updatedTrashedFiles = await filesApi.getTrashedFiles(token);
+        setTrashedFiles(updatedTrashedFiles);
+      }
+      setSelectedFileIds([]);
+    } catch (apiError) {
+      console.error("Error refreshing trashed files after restore:", apiError);
+      toast({
+        title: "Error",
+        description: "Could not refresh trashed files list.",
+        variant: "destructive",
+      });
+      setSelectedFileIds([]);
+    }
+  };
+
+  const openDeleteSelectedConfirmationDialog = () => {
+    if (selectedFileIds.length === 0) {
+      toast({
+        title: "Info",
+        description: "No files selected for permanent deletion.",
+      });
+      return;
+    }
+    setIsConfirmDeleteSelectedDialogOpen(true);
+  };
+
+  const handleDeleteSelectedPermanently = async () => {
+    if (!token) {
+      toast({
+        title: "Error",
+        description: "Authentication token not found.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (selectedFileIds.length === 0) return;
+
+    let deletedCount = 0;
+    let errorCount = 0;
+
+    toast({
+      title: "Deleting...",
+      description: `Attempting to permanently delete ${selectedFileIds.length} file(s).`,
+    });
+
+    try {
+      for (const fileId of selectedFileIds) {
+        try {
+          await filesApi.deleteFilePermanently(token, fileId);
+          deletedCount++;
+        } catch (error) {
+          console.error(`Error permanently deleting file ${fileId}:`, error);
+          errorCount++;
+        }
+      }
+
+      toast({
+        title: "Permanent Deletion Complete",
+        description: `${deletedCount} file(s) permanently deleted. ${
+          errorCount > 0 ? `${errorCount} failed.` : ""
+        }`,
+        variant:
+          errorCount > 0 && deletedCount > 0
+            ? "warning"
+            : errorCount > 0
+            ? "destructive"
+            : "default",
+      });
+
+      if (deletedCount > 0) {
+        const updatedTrashedFiles = await filesApi.getTrashedFiles(token);
+        setTrashedFiles(updatedTrashedFiles);
+      }
+      setSelectedFileIds([]);
+    } catch (apiError) {
+      console.error(
+        "Error refreshing trashed files after permanent delete:",
+        apiError
+      );
+      toast({
+        title: "Error",
+        description: "Could not refresh trashed files list.",
+        variant: "destructive",
+      });
+      setSelectedFileIds([]);
+    } finally {
+      setIsConfirmDeleteSelectedDialogOpen(false);
+    }
+  };
+
   const handleEmptyTrash = async () => {
     if (!token) {
       toast({
@@ -110,14 +293,26 @@ const TrashPage: React.FC = () => {
     }
   };
 
-  const openConfirmationDialog = (file: File) => {
+  const openConfirmationDialog = (file: MyFileType) => { // Changed from File to MyFileType
     setFileToDeletePermanently(file);
     setIsConfirmDeleteDialogOpen(true);
+  };
+
+  const handleCheckboxChange = (fileId: string, isChecked: boolean) => { // Added checkbox handler
+    setSelectedFileIds((prevSelectedIds) => {
+      if (isChecked) {
+        return [...prevSelectedIds, fileId];
+      } else {
+        return prevSelectedIds.filter((id) => id !== fileId);
+      }
+    });
   };
 
   const handleDeleteFilePermanently = async () => {
     if (!token || !fileToDeletePermanently) {
       toast({
+        title: "Error",
+        description:
         title: "Error",
         description:
           "Required information is missing. Cannot permanently delete file.",
@@ -163,54 +358,85 @@ const TrashPage: React.FC = () => {
     <div className="space-y-4 p-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Trash</h2>
-        {trashedFiles.length > 0 && (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setIsConfirmEmptyTrashDialogOpen(true)}
-          >
-            Empty Trash
-          </Button>
-        )}
+        <div className="flex space-x-2">
+            {/* Conditional rendering for selective action buttons */}
+            {selectedFileIds.length > 0 && (
+              <>
+                <Button variant="outline" size="sm" onClick={handleRestoreSelected}>
+                  Restore Selected ({selectedFileIds.length})
+                </Button>
+                <Button variant="destructive" size="sm" onClick={openDeleteSelectedConfirmationDialog}>
+                  Delete Selected Permanently ({selectedFileIds.length})
+                </Button>
+              </>
+            )}
+
+            {/* Buttons for when no files are selected */}
+            {selectedFileIds.length === 0 && trashedFiles.length > 0 && (
+              <>
+                <Button variant="outline" size="sm" onClick={handleRestoreAll}>
+                  Restore All
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setIsConfirmEmptyTrashDialogOpen(true)}
+                >
+                  Empty Trash
+                </Button>
+              </>
+            )}
+        </div>
       </div>
 
       {trashedFiles.length === 0 ? (
         <p>Your trash is empty.</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2 mt-4"> {/* Added mt-4 for spacing after buttons */}
           {trashedFiles.map((file) => (
             <li
               key={file._id}
-              className="flex justify-between items-center p-2 border rounded"
+              className="flex items-center p-2 border rounded space-x-3" // Added space-x-3
             >
-              <div>
-                <p className="font-medium">{file.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  Trashed:{" "}
-                  {file.trashedAt
-                    ? new Date(file.trashedAt).toLocaleDateString()
-                    : "N/A"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Size: {file.size} bytes
-                </p>{" "}
-                {/* Adjust formatting as needed */}
-              </div>
-              <div className="space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleRestoreFile(file._id)}
-                >
-                  Restore
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openConfirmationDialog(file)}
-                >
-                  Delete Permanently
-                </Button>
+              <input
+                type="checkbox"
+                className="form-checkbox h-5 w-5 text-blue-600" // Basic styling
+                checked={selectedFileIds.includes(file._id)}
+                onChange={(e) =>
+                  handleCheckboxChange(file._id, e.target.checked)
+                }
+              />
+              <div className="flex-grow flex justify-between items-center">
+                <div>
+                  <p className="font-medium" title={file.displayPath || file.name}>
+                    {file.displayPath || file.name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Trashed:{" "}
+                    {file.trashedAt
+                      ? new Date(file.trashedAt).toLocaleDateString()
+                      : "N/A"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Size: {file.size} bytes {/* Adjust formatting as needed */}
+                  </p>
+                </div>
+                <div className="space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRestoreFile(file._id)}
+                  >
+                    Restore
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openConfirmationDialog(file)}
+                  >
+                    Delete Permanently
+                  </Button>
+                </div>
               </div>
             </li>
           ))}
@@ -259,6 +485,28 @@ const TrashPage: React.FC = () => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleEmptyTrash}>
               Empty Trash
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Selected Confirmation Dialog */}
+      <AlertDialog
+        open={isConfirmDeleteSelectedDialogOpen}
+        onOpenChange={setIsConfirmDeleteSelectedDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              selected {selectedFileIds.length} file(s).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSelectedPermanently}>
+              Delete Selected
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
