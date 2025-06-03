@@ -86,7 +86,11 @@ const TrashPage: React.FC = () => {
 
   const handleRestoreAll = async () => {
     if (!token) {
-      toast({ title: "Error", description: "Authentication token not found.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Authentication token not found.",
+        variant: "destructive",
+      });
       return;
     }
     if (trashedFiles.length === 0) {
@@ -94,32 +98,41 @@ const TrashPage: React.FC = () => {
       return;
     }
 
-    toast({ title: "Restoring All...", description: `Attempting to restore all ${trashedFiles.length} file(s).` });
+    toast({
+      title: "Restoring All...",
+      description: `Attempting to restore all ${trashedFiles.length} file(s).`,
+    });
 
     try {
       const result = await filesApi.restoreAllFromTrash(token);
 
       toast({
-          title: "Restore All Complete",
-          description: `${result.restoredCount} file(s) restored. ${result.message || ''}`,
-          variant: "default"
+        title: "Restore All Complete",
+        description: `${result.restoredCount} file(s) restored. ${
+          result.message || ""
+        }`,
+        variant: "default",
       });
 
       const updatedTrashedFiles = await filesApi.getTrashedFiles(token);
       setTrashedFiles(updatedTrashedFiles);
       setSelectedFileIds([]);
-
     } catch (error: any) {
       toast({
-          title: "Error Restoring All",
-          description: error.message || "An unexpected error occurred during Restore All operation.",
-          variant: "destructive"
+        title: "Error Restoring All",
+        description:
+          error.message ||
+          "An unexpected error occurred during Restore All operation.",
+        variant: "destructive",
       });
       try {
-          const updatedTrashedFiles = await filesApi.getTrashedFiles(token);
-          setTrashedFiles(updatedTrashedFiles);
+        const updatedTrashedFiles = await filesApi.getTrashedFiles(token);
+        setTrashedFiles(updatedTrashedFiles);
       } catch (refreshError) {
-          console.error("Error refreshing trashed files after failed Restore All:", refreshError);
+        console.error(
+          "Error refreshing trashed files after failed Restore All:",
+          refreshError
+        );
       }
       setSelectedFileIds([]);
     }
@@ -296,12 +309,14 @@ const TrashPage: React.FC = () => {
     }
   };
 
-  const openConfirmationDialog = (file: MyFileType) => { // Changed from File to MyFileType
+  const openConfirmationDialog = (file: MyFileType) => {
+    // Changed from File to MyFileType
     setFileToDeletePermanently(file);
     setIsConfirmDeleteDialogOpen(true);
   };
 
-  const handleCheckboxChange = (fileId: string, isChecked: boolean) => { // Added checkbox handler
+  const handleCheckboxChange = (fileId: string, isChecked: boolean) => {
+    // Added checkbox handler
     setSelectedFileIds((prevSelectedIds) => {
       if (isChecked) {
         return [...prevSelectedIds, fileId];
@@ -314,8 +329,6 @@ const TrashPage: React.FC = () => {
   const handleDeleteFilePermanently = async () => {
     if (!token || !fileToDeletePermanently) {
       toast({
-        title: "Error",
-        description:
         title: "Error",
         description:
           "Required information is missing. Cannot permanently delete file.",
@@ -365,40 +378,50 @@ const TrashPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Trash</h2>
         <div className="flex space-x-2">
-            {/* Conditional rendering for selective action buttons */}
-            {selectedFileIds.length > 0 && (
-              <>
-                <Button variant="outline" size="sm" onClick={handleRestoreSelected}>
-                  Restore Selected ({selectedFileIds.length})
-                </Button>
-                <Button variant="destructive" size="sm" onClick={openDeleteSelectedConfirmationDialog}>
-                  Delete Selected Permanently ({selectedFileIds.length})
-                </Button>
-              </>
-            )}
+          {/* Conditional rendering for selective action buttons */}
+          {selectedFileIds.length > 0 && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRestoreSelected}
+              >
+                Restore Selected ({selectedFileIds.length})
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={openDeleteSelectedConfirmationDialog}
+              >
+                Delete Selected Permanently ({selectedFileIds.length})
+              </Button>
+            </>
+          )}
 
-            {/* Buttons for when no files are selected */}
-            {selectedFileIds.length === 0 && trashedFiles.length > 0 && (
-              <>
-                <Button variant="outline" size="sm" onClick={handleRestoreAll}>
-                  Restore All
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setIsConfirmEmptyTrashDialogOpen(true)}
-                >
-                  Empty Trash
-                </Button>
-              </>
-            )}
+          {/* Buttons for when no files are selected */}
+          {selectedFileIds.length === 0 && trashedFiles.length > 0 && (
+            <>
+              <Button variant="outline" size="sm" onClick={handleRestoreAll}>
+                Restore All
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setIsConfirmEmptyTrashDialogOpen(true)}
+              >
+                Empty Trash
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       {trashedFiles.length === 0 ? (
         <p>Your trash is empty.</p>
       ) : (
-        <ul className="space-y-2 mt-4"> {/* Added mt-4 for spacing after buttons */}
+        <ul className="space-y-2 mt-4">
+          {" "}
+          {/* Added mt-4 for spacing after buttons */}
           {trashedFiles.map((file) => (
             <li
               key={file._id}
@@ -414,7 +437,10 @@ const TrashPage: React.FC = () => {
               />
               <div className="flex-grow flex justify-between items-center">
                 <div>
-                  <p className="font-medium" title={file.displayPath || file.name}>
+                  <p
+                    className="font-medium"
+                    title={file.displayPath || file.name}
+                  >
                     {file.displayPath || file.name}
                   </p>
                   <p className="text-sm text-muted-foreground">
