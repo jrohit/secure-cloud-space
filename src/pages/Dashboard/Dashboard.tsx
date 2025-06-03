@@ -13,6 +13,9 @@ import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
 import { useEffect, useState } from "react";
 
+// Cache for decrypted file previews
+const decryptedFileCache = new Map<string, ArrayBuffer>();
+
 // Helper function for MIME type inference
 const getAccurateMimeType = (file: globalThis.File): string => {
   const browserType = file.type;
@@ -113,6 +116,7 @@ const Dashboard = () => {
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number | null>(
     null
   );
+  const [folderHistory, setFolderHistory] = useState<Folder[]>([]);
 
   useEffect(() => {
     if (token) {
@@ -155,8 +159,36 @@ const Dashboard = () => {
       return;
     }
 
+    // Cache Key
+    const cacheKey = fileToPreview._id + '_' + new Date(fileToPreview.updatedAt).getTime();
+
+    // Cache Check
+    if (decryptedFileCache.has(cacheKey)) {
+      const cachedBuffer = decryptedFileCache.get(cacheKey);
+      if (cachedBuffer) {
+        setPreviewFileContent(cachedBuffer.slice(0)); // Use a slice for safety
+        setPreviewFileMetadata(fileToPreview);
+        const fileIndex = files.findIndex((f) => f._id === fileToPreview._id);
+        if (fileIndex !== -1) {
+          setCurrentPreviewIndex(fileIndex);
+        } else {
+          setCurrentPreviewIndex(null);
+          console.warn("Previewed file (from cache) not found in current files list for navigation indexing.");
+        }
+        setIsPreviewing(true);
+        setIsPreviewLoading(false); // Ensure loading is false
+        // Dismiss any "loading" toasts if they were shown by a previous non-cached attempt.
+        // This might require a toast instance ID if you want to target a specific toast.
+        // For now, we assume subsequent toasts will overwrite or the user can dismiss.
+        console.log(`[Dashboard] Cache hit for preview: ${fileToPreview.name}`);
+        return;
+      }
+    }
+    console.log(`[Dashboard] Cache miss for preview: ${fileToPreview.name}. Fetching and decrypting.`);
+
     try {
       setIsPreviewLoading(true);
+      // It's important to only show the toast if we are actually going to fetch.
       toast({
         title: "Loading preview...",
         description: `Fetching and decrypting ${fileToPreview.name}.`,
@@ -190,6 +222,10 @@ const Dashboard = () => {
 
       const decryptedBuffer = await decryptFile(encryptedBuffer, cryptoKey); // Use the obtained cryptoKey
       const stableDecryptedBuffer = decryptedBuffer.slice(0);
+
+      // Store in cache
+      decryptedFileCache.set(cacheKey, stableDecryptedBuffer);
+      console.log(`[Dashboard] Stored in cache: ${fileToPreview.name}`);
 
       console.log(
         "[Dashboard] After decryptFile - decryptedBuffer.byteLength:",
@@ -471,28 +507,25 @@ const Dashboard = () => {
 
   const handleNavigateToFolder = (folder: Folder) => {
     setCurrentFolder(folder);
-    setSearchQuery(""); // Clear search when navigating to a folder
+    setFolderHistory(prev => [...prev, folder]); // Add current folder to history
+    setSearchQuery("");
   };
 
-  const handleNavigateUp = async () => {
-    setSearchQuery(""); // Clear search when navigating up
-    if (!currentFolder || !currentFolder.parentId || !token) {
+  const handleNavigateUp = () => {
+    setSearchQuery("");
+    if (folderHistory.length === 0) { // Should not happen if currentFolder is set, but as a safeguard
       setCurrentFolder(null);
-      // setSearchQuery(''); // Already cleared at the top of function
+      // folderHistory is already empty
       return;
     }
 
-    try {
-      const parentFolders = await foldersApi.getFolders(token);
-      const parentFolder = parentFolders.find(
-        (f) => f._id === currentFolder.parentId
-      );
-      setCurrentFolder(parentFolder || null);
-      // setSearchQuery(''); // Already cleared
-    } catch (error) {
-      console.error("Error navigating up:", error);
+    const newHistory = folderHistory.slice(0, -1); // Remove current folder from history
+    setFolderHistory(newHistory);
+
+    if (newHistory.length === 0) { // Navigated up to root
       setCurrentFolder(null);
-      // setSearchQuery(''); // Already cleared
+    } else {
+      setCurrentFolder(newHistory[newHistory.length - 1]); // Set current folder to the new last item in history (the parent)
     }
   };
 

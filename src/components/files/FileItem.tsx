@@ -25,6 +25,9 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+// Define the cache for thumbnails
+const thumbnailCache = new Map<string, string>();
+
 interface FileItemProps {
   file: MyFileType;
   onDelete: () => void;
@@ -102,6 +105,16 @@ const FileItem: React.FC<FileItemProps> = ({
       encryptedFileBuffer &&
       (file.type.startsWith("image/") || file.type === "application/pdf")
     ) {
+      const cacheKey = file._id + '_' + new Date(file.updatedAt).getTime();
+      if (thumbnailCache.has(cacheKey)) {
+        const cachedObjectUrl = thumbnailCache.get(cacheKey)!;
+        setThumbnailObjectUrl(cachedObjectUrl);
+        currentObjectUrlRef.current = cachedObjectUrl;
+        // console.log(`FileItem: Cache hit for ${file.name} (ID: ${file._id})`);
+        return; // Return early as we found it in cache
+      }
+      // console.log(`FileItem: Cache miss for ${file.name} (ID: ${file._id}). Generating.`);
+
       // MODIFIED
       const processEncryptedBuffer = async () => {
         const actualMasterKey = await getMasterCryptoKey();
@@ -143,6 +156,7 @@ const FileItem: React.FC<FileItemProps> = ({
 
               if (thumbnailBlob) {
                 const objectUrl = URL.createObjectURL(thumbnailBlob);
+                thumbnailCache.set(cacheKey, objectUrl); // Store in cache
                 setThumbnailObjectUrl(objectUrl);
                 currentObjectUrlRef.current = objectUrl;
               } else {
