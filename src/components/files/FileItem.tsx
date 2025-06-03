@@ -55,7 +55,7 @@ const FileItem: React.FC<FileItemProps> = ({
     setThumbnailFailed(false);
     setEncryptedFileBuffer(null);
 
-    if (file.type.startsWith("image/") && token) {
+    if (token && (file.type.startsWith("image/") || file.type === "application/pdf")) {
       setIsLoadingFullFile(true);
       const loadEncryptedFile = async () => {
         try {
@@ -70,7 +70,7 @@ const FileItem: React.FC<FileItemProps> = ({
         }
       };
       loadEncryptedFile();
-    } else if (!file.type.startsWith("image/")) {
+    } else if (!(file.type.startsWith("image/") || file.type === "application/pdf")) {
       setThumbnailFailed(true);
     } else if (!token) {
       setThumbnailFailed(true);
@@ -88,7 +88,7 @@ const FileItem: React.FC<FileItemProps> = ({
     }
     setThumbnailObjectUrl(null);
 
-    if (encryptedFileBuffer && file.type.startsWith("image/")) {
+    if (encryptedFileBuffer && (file.type.startsWith("image/") || file.type === "application/pdf")) {
       const processEncryptedBuffer = async () => {
         const actualMasterKey = await getMasterCryptoKey();
 
@@ -142,13 +142,8 @@ const FileItem: React.FC<FileItemProps> = ({
       };
       processEncryptedBuffer();
 
-    } else if (file.type.startsWith("image/")) {
-      // Image file, but encryptedFileBuffer is not yet available or master key missing
-      if (!encryptedFileBuffer) {
-        // console.log(`Image file ${file.name}, but encryptedFileBuffer is not yet available.`);
-      }
-      // If masterKey was the issue, it's handled above.
-      // If it's simply not an image, the first effect sets thumbnailFailed.
+    } else if ((file.type.startsWith("image/") || file.type === "application/pdf") && !encryptedFileBuffer) {
+            // console.log(`FileItem SecondEffect: Image/PDF file ${file.name}, but encryptedFileBuffer is not yet available.`);
     }
 
     return () => {
