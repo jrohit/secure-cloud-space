@@ -55,11 +55,7 @@ const FileItem: React.FC<FileItemProps> = ({
     setThumbnailFailed(false);
     setEncryptedFileBuffer(null);
 
-    if (
-      token &&
-      (file.type.startsWith("image/") || file.type === "application/pdf")
-    ) {
-      // MODIFIED
+    if (token && (file.type.startsWith("image/") || file.type === "application/pdf")) {
       setIsLoadingFullFile(true);
       const loadEncryptedFile = async () => {
         try {
@@ -67,20 +63,14 @@ const FileItem: React.FC<FileItemProps> = ({
           const buffer = await blob.arrayBuffer();
           setEncryptedFileBuffer(buffer);
         } catch (error) {
-          console.error(
-            `Error fetching encrypted file for ${file.name} (ID: ${file._id}):`,
-            error
-          );
+          console.error(`Error fetching encrypted file for ${file.name}:`, error);
           setThumbnailFailed(true);
         } finally {
           setIsLoadingFullFile(false);
         }
       };
       loadEncryptedFile();
-    } else if (
-      !(file.type.startsWith("image/") || file.type === "application/pdf")
-    ) {
-      // MODIFIED
+    } else if (!(file.type.startsWith("image/") || file.type === "application/pdf")) {
       setThumbnailFailed(true);
     } else if (!token) {
       setThumbnailFailed(true);
@@ -98,18 +88,12 @@ const FileItem: React.FC<FileItemProps> = ({
     }
     setThumbnailObjectUrl(null);
 
-    if (
-      encryptedFileBuffer &&
-      (file.type.startsWith("image/") || file.type === "application/pdf")
-    ) {
-      // MODIFIED
+    if (encryptedFileBuffer && (file.type.startsWith("image/") || file.type === "application/pdf")) {
       const processEncryptedBuffer = async () => {
         const actualMasterKey = await getMasterCryptoKey();
 
         if (!actualMasterKey) {
-          console.warn(
-            `FileItem: MasterKey not available after call for ${file.name}. Cannot generate thumbnail.`
-          );
+          console.warn(`MasterKey not available for ${file.name}`);
           setThumbnailFailed(true);
           return;
         }
@@ -125,9 +109,8 @@ const FileItem: React.FC<FileItemProps> = ({
 
             if (decryptedBuffer && decryptedBuffer.byteLength > 0) {
               const decryptedBlob = new Blob([decryptedBuffer], {
-                type: file.type, // Use original file type for Blob
+                type: file.type,
               });
-              // Pass original file.type to generateImageThumbnail, it will handle HEIC/PDF detection
               const tempFileForThumbnail = new window.File(
                 [decryptedBlob],
                 file.name,
@@ -135,10 +118,7 @@ const FileItem: React.FC<FileItemProps> = ({
               );
 
               const thumbnailBlob = await generateImageThumbnail(
-                tempFileForThumbnail,
-                256, // maxWidth
-                256, // maxHeight
-                file.type // Pass original file.type; imageUtils will decide output format
+                tempFileForThumbnail, 256, 256, file.type
               );
 
               if (thumbnailBlob) {
@@ -146,41 +126,31 @@ const FileItem: React.FC<FileItemProps> = ({
                 setThumbnailObjectUrl(objectUrl);
                 currentObjectUrlRef.current = objectUrl;
               } else {
-                console.error(
-                  `FileItem: generateImageThumbnail returned null for ${file.name}.`
-                );
+                console.error(`generateImageThumbnail returned null for ${file.name}`);
                 setThumbnailFailed(true);
               }
             } else {
-              console.error(
-                `FileItem: Decryption returned null or buffer was empty for ${file.name}.`
-              );
+              console.error(`Decryption returned null or buffer was empty for ${file.name}`);
               setThumbnailFailed(true);
             }
           } catch (error) {
-            console.error(
-              `FileItem: Error during decryption or thumbnail generation for ${file.name}:`,
-              error
-            );
+            console.error(`Error during decryption or thumbnail generation for ${file.name}:`, error);
             setThumbnailFailed(true);
           }
         };
         await decryptAndGenerateThumb();
       };
       processEncryptedBuffer();
-    } else if (
-      (file.type.startsWith("image/") || file.type === "application/pdf") &&
-      !encryptedFileBuffer
-    ) {
-      // MODIFIED
-      // console.log(`FileItem SecondEffect: Image/PDF file ${file.name}, but encryptedFileBuffer is not yet available.`);
+
+    } else if ((file.type.startsWith("image/") || file.type === "application/pdf") && !encryptedFileBuffer) {
+            // console.log(`FileItem SecondEffect: Image/PDF file ${file.name}, but encryptedFileBuffer is not yet available.`);
     }
 
     return () => {
-      if (currentObjectUrlRef.current) {
-        URL.revokeObjectURL(currentObjectUrlRef.current);
-        currentObjectUrlRef.current = null;
-      }
+        if (currentObjectUrlRef.current) {
+            URL.revokeObjectURL(currentObjectUrlRef.current);
+            currentObjectUrlRef.current = null;
+        }
     };
   }, [encryptedFileBuffer, file, getMasterCryptoKey]);
 
@@ -200,24 +170,18 @@ const FileItem: React.FC<FileItemProps> = ({
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error downloading file:", error);
-      toast({
-        title: "Download Error",
-        description: "Failed to download file.",
-        variant: "destructive",
-      });
+      toast({ title: "Download Error", description: "Failed to download file.", variant: "destructive" });
     } finally {
       setIsDownloading(false);
     }
   };
 
   function getFileIcon(type: string) {
-    // Now that PDF might have its own thumbnail, adjust icon logic if needed,
-    // or rely on thumbnailFailed to show the icon for PDFs if PDF thumbnailing fails.
-    if (type.startsWith("image/") || type === "application/pdf") {
-      // PDF might render its own thumb
-      return Image; // Use generic image icon as placeholder or if thumb fails
+    if (type.startsWith("image/")) {
+      return Image;
     } else if (
-      type.includes("document") || // More generic document check
+      type.includes("pdf") ||
+      type.includes("document") ||
       type.includes("text")
     ) {
       return FileText;
@@ -230,7 +194,6 @@ const FileItem: React.FC<FileItemProps> = ({
     if (type.startsWith("image/")) {
       return "#34A853"; // Green
     } else if (type.includes("pdf")) {
-      // Keep PDF color for icon fallback
       return "#EA4335"; // Red
     } else if (type.includes("document") || type.includes("text")) {
       return "#4285F4"; // Blue
@@ -260,8 +223,7 @@ const FileItem: React.FC<FileItemProps> = ({
             if (e.key === "Enter" || e.key === " ") onPreview(file);
           }}
         >
-          {(file.type.startsWith("image/") ||
-            file.type === "application/pdf") && // MODIFIED
+          {file.type.startsWith("image/") &&
           thumbnailObjectUrl &&
           !thumbnailFailed ? (
             <img
@@ -269,9 +231,8 @@ const FileItem: React.FC<FileItemProps> = ({
               alt={`Thumbnail for ${file.name}`}
               className="w-full h-full object-contain"
               onError={() => {
-                console.warn(
-                  `Image tag onError for file: ${file.name}. URL: ${thumbnailObjectUrl}`
-                );
+                // Minimal log for this specific image load error
+                console.warn(`Image tag onError for file: ${file.name}. URL: ${thumbnailObjectUrl}`);
                 setThumbnailFailed(true);
               }}
             />
@@ -298,9 +259,7 @@ const FileItem: React.FC<FileItemProps> = ({
               variant="ghost"
               size="icon"
               className="h-8 w-8 mr-1"
-              onClick={() =>
-                onStarToggle && onStarToggle(file._id, !file.isStarred)
-              }
+              onClick={() => onStarToggle && onStarToggle(file._id, !file.isStarred)}
               aria-label={file.isStarred ? "Unstar file" : "Star file"}
             >
               <Star
