@@ -48,7 +48,7 @@ router.post('/trash/restore-all', auth, async (req, res) => {
 
     // Find all trashed files for the user to identify distinct folderIds for cache invalidation
     const filesToRestore = await File.find({ userId: userId, isTrashed: true }).select('folderId');
-    
+
     const updateResult = await File.updateMany(
       { userId: userId, isTrashed: true },
       { $set: { isTrashed: false, trashedAt: null } }
@@ -67,9 +67,9 @@ router.post('/trash/restore-all', auth, async (req, res) => {
       }
     }
 
-    res.json({ 
-      message: 'All files restored successfully.', 
-      restoredCount: updateResult.modifiedCount 
+    res.json({
+      message: 'All files restored successfully.',
+      restoredCount: updateResult.modifiedCount
     });
 
   } catch (error) {
@@ -149,9 +149,9 @@ router.post('/trash/empty', auth, async (req, res) => {
         $inc: { storageUsed: -totalFreedSpace }
       });
       // Invalidate user cache if storage was updated
-      if (req.redisClient) { 
+      if (req.redisClient) {
         try {
-          await req.redisClient.del(`user:${userId}`); 
+          await req.redisClient.del(`user:${userId}`);
         } catch (redisError) {
           console.error(`Redis: Error invalidating user cache for ${userId} after empty trash:`, redisError);
         }
@@ -485,7 +485,7 @@ router.delete('/:id', auth, async (req, res) => {
     if (req.redisClient) {
         const cacheKey = `files:${req.user._id}:${file.folderId || 'root'}`;
         await req.redisClient.del(cacheKey);
-        
+
         await req.redisClient.del(`files_trash:${req.user._id}`); // Added this line
 
         // If you have a global search cache that might include this file, invalidate it too.

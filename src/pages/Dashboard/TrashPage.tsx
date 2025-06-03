@@ -98,7 +98,7 @@ const TrashPage: React.FC = () => {
 
     try {
       const result = await filesApi.restoreAllFromTrash(token);
-      
+
       toast({
           title: "Restore All Complete",
           description: `${result.restoredCount} file(s) restored. ${result.message || ''}`,

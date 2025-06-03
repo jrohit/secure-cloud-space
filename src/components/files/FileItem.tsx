@@ -6,13 +6,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/components/ui/use-toast"; // Added useToast
+import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { decryptFile } from "@/lib/cryptoUtils"; // Added
-import { generateImageThumbnail } from "@/lib/imageUtils"; // Added
-import { cn } from "@/lib/utils"; // Added cn
+import { decryptFile } from "@/lib/cryptoUtils";
+import { generateImageThumbnail } from "@/lib/imageUtils";
+import { cn } from "@/lib/utils";
 import { filesApi } from "@/services/api";
-import { MyFileType } from "@/types"; // Changed from File
+import { MyFileType } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import {
   Download,
@@ -22,14 +22,14 @@ import {
   MoreVertical,
   Star,
   Trash2,
-} from "lucide-react"; // Added Star
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 interface FileItemProps {
-  file: MyFileType; // Changed from File
+  file: MyFileType;
   onDelete: () => void;
-  onPreview: (file: MyFileType) => void; // Changed from File
-  onStarToggle?: (fileId: string, newIsStarred: boolean) => void; // Added
+  onPreview: (file: MyFileType) => void;
+  onStarToggle?: (fileId: string, newIsStarred: boolean) => void;
 }
 
 const FileItem: React.FC<FileItemProps> = ({
@@ -38,12 +38,12 @@ const FileItem: React.FC<FileItemProps> = ({
   onPreview,
   onStarToggle,
 }) => {
-  const { token, masterKey } = useAuth(); // Added masterKey
+  const { token, getMasterCryptoKey } = useAuth();
   const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(
     null
   );
-  const currentObjectUrlRef = useRef<string | null>(null); // To manage cleanup for the Object URL
-  const { toast } = useToast(); // Added
+  const currentObjectUrlRef = useRef<string | null>(null);
+  const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const [encryptedFileBuffer, setEncryptedFileBuffer] =
@@ -51,14 +51,9 @@ const FileItem: React.FC<FileItemProps> = ({
   const [isLoadingFullFile, setIsLoadingFullFile] = useState(false);
 
   useEffect(() => {
-    // Cleanup previous object URL before starting new load or if file/token changes
-    if (currentObjectUrlRef.current) {
-      URL.revokeObjectURL(currentObjectUrlRef.current);
-      currentObjectUrlRef.current = null;
-    }
-    setThumbnailObjectUrl(null); // Reset object URL state
-    setThumbnailFailed(false); // Reset failed state
-    setEncryptedFileBuffer(null); // Reset encrypted file buffer
+    setThumbnailObjectUrl(null);
+    setThumbnailFailed(false);
+    setEncryptedFileBuffer(null);
 
     if (file.type.startsWith("image/") && token) {
       setIsLoadingFullFile(true);
@@ -68,119 +63,107 @@ const FileItem: React.FC<FileItemProps> = ({
           const buffer = await blob.arrayBuffer();
           setEncryptedFileBuffer(buffer);
         } catch (error) {
-          console.error(
-            `Error fetching encrypted file for ${file.name} (ID: ${file._id}):`,
-            error
-          );
-          setThumbnailFailed(true); // Use thumbnailFailed to indicate error for now
+          console.error(`Error fetching encrypted file for ${file.name}:`, error);
+          setThumbnailFailed(true);
         } finally {
           setIsLoadingFullFile(false);
         }
       };
-
       loadEncryptedFile();
     } else if (!file.type.startsWith("image/")) {
-      // Not an image, so no thumbnail to attempt loading.
-      // Setting thumbnailFailed to true will ensure the icon fallback is shown.
       setThumbnailFailed(true);
     } else if (!token) {
-      // No token is available (e.g., user logged out).
-      console.warn(
-        `No token available to fetch data for ${file.name} (ID: ${file._id})`
-      );
       setThumbnailFailed(true);
     }
 
-    // Cleanup function for when component unmounts or dependencies (file, token) change before next run
     return () => {
-      if (currentObjectUrlRef.current) {
-        URL.revokeObjectURL(currentObjectUrlRef.current);
-        currentObjectUrlRef.current = null;
-        // Note: encryptedFileBuffer is managed by state and doesn't need manual cleanup here
-        // as it's not a URL.
-      }
+      // Minimal cleanup here; object URL revocation is handled by the effect that creates it.
     };
-  }, [file, token]); // Dependencies for the effect
+  }, [file, token]);
 
-  // New useEffect for decryption and thumbnail generation
   useEffect(() => {
-    // Cleanup previous object URL before starting new processing or if dependencies change
     if (currentObjectUrlRef.current) {
       URL.revokeObjectURL(currentObjectUrlRef.current);
       currentObjectUrlRef.current = null;
     }
-    setThumbnailObjectUrl(null); // Reset object URL state
+    setThumbnailObjectUrl(null);
 
-    if (
-      encryptedFileBuffer &&
-      masterKey &&
-      file.type.startsWith("image/")
-    ) {
-      setThumbnailFailed(false); // Reset failure state before attempting
+    if (encryptedFileBuffer && file.type.startsWith("image/")) {
+      const processEncryptedBuffer = async () => {
+        const actualMasterKey = await getMasterCryptoKey();
 
-      const processFile = async () => {
-        try {
-          const decryptedBuffer = await decryptFile(
-            encryptedFileBuffer,
-            masterKey
-          );
-          if (decryptedBuffer) {
-            const decryptedBlob = new Blob([decryptedBuffer], {
-              type: file.type,
-            });
-            const tempFileForThumbnail = new window.File( // Use window.File to avoid conflict
-              [decryptedBlob],
-              file.name,
-              { type: file.type }
+        if (!actualMasterKey) {
+          console.warn(`MasterKey not available for ${file.name}`);
+          setThumbnailFailed(true);
+          return;
+        }
+
+        setThumbnailFailed(false);
+
+        const decryptAndGenerateThumb = async () => {
+          try {
+            const decryptedBuffer = await decryptFile(
+              encryptedFileBuffer,
+              actualMasterKey
             );
 
-            const thumbnailBlob = await generateImageThumbnail(
-              tempFileForThumbnail,
-              100,
-              100,
-              file.type
-            );
-
-            if (thumbnailBlob) {
-              const objectUrl = URL.createObjectURL(thumbnailBlob);
-              setThumbnailObjectUrl(objectUrl);
-              currentObjectUrlRef.current = objectUrl; // Store for cleanup
-            } else {
-              console.error(
-                `generateImageThumbnail returned null for ${file.name}`
+            if (decryptedBuffer && decryptedBuffer.byteLength > 0) {
+              const decryptedBlob = new Blob([decryptedBuffer], {
+                type: file.type,
+              });
+              const tempFileForThumbnail = new window.File(
+                [decryptedBlob],
+                file.name,
+                { type: file.type }
               );
+
+              const thumbnailBlob = await generateImageThumbnail(
+                tempFileForThumbnail, 256, 256, file.type
+              );
+
+              if (thumbnailBlob) {
+                const objectUrl = URL.createObjectURL(thumbnailBlob);
+                setThumbnailObjectUrl(objectUrl);
+                currentObjectUrlRef.current = objectUrl;
+              } else {
+                console.error(`generateImageThumbnail returned null for ${file.name}`);
+                setThumbnailFailed(true);
+              }
+            } else {
+              console.error(`Decryption returned null or buffer was empty for ${file.name}`);
               setThumbnailFailed(true);
             }
-          } else {
-            // This case should ideally be caught by the catch block in decryptFile
-            console.error(`Decryption returned null for ${file.name}`);
+          } catch (error) {
+            console.error(`Error during decryption or thumbnail generation for ${file.name}:`, error);
             setThumbnailFailed(true);
           }
-        } catch (error) {
-          console.error(
-            `Error during decryption or thumbnail generation for ${file.name}:`,
-            error
-          );
-          setThumbnailFailed(true);
-        }
+        };
+        await decryptAndGenerateThumb();
       };
+      processEncryptedBuffer();
 
-      processFile();
-    } else if (!file.type.startsWith("image/")) {
-      // This check might be redundant if the first useEffect already handles it,
-      // but ensures icon fallback for non-images.
-      setThumbnailFailed(true);
+    } else if (file.type.startsWith("image/")) {
+      // Image file, but encryptedFileBuffer is not yet available or master key missing
+      if (!encryptedFileBuffer) {
+        // console.log(`Image file ${file.name}, but encryptedFileBuffer is not yet available.`);
+      }
+      // If masterKey was the issue, it's handled above.
+      // If it's simply not an image, the first effect sets thumbnailFailed.
     }
-    // No specific cleanup for encryptedFileBuffer here as it's managed by the first useEffect
-    // when file or token changes. This effect focuses on object URL from the buffer.
-  }, [encryptedFileBuffer, masterKey, file.name, file.type]); // Added file.name and file.type for consistency
+
+    return () => {
+        if (currentObjectUrlRef.current) {
+            URL.revokeObjectURL(currentObjectUrlRef.current);
+            currentObjectUrlRef.current = null;
+        }
+    };
+  }, [encryptedFileBuffer, file, getMasterCryptoKey]);
 
   const fileIcon = getFileIcon(file.type);
   const fileColor = getFileColor(file.type);
 
   const handleDownload = async () => {
     if (!token) return;
-
     setIsDownloading(true);
     try {
       const blob = await filesApi.downloadFile(token, file._id);
@@ -192,6 +175,7 @@ const FileItem: React.FC<FileItemProps> = ({
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error downloading file:", error);
+      toast({ title: "Download Error", description: "Failed to download file.", variant: "destructive" });
     } finally {
       setIsDownloading(false);
     }
@@ -244,34 +228,22 @@ const FileItem: React.FC<FileItemProps> = ({
             if (e.key === "Enter" || e.key === " ") onPreview(file);
           }}
         >
-          {/* Conditional rendering for thumbnail or icon */}
           {file.type.startsWith("image/") &&
           thumbnailObjectUrl &&
           !thumbnailFailed ? (
             <img
-              src={thumbnailObjectUrl} // Use object URL from state
+              src={thumbnailObjectUrl}
               alt={`Thumbnail for ${file.name}`}
-              className="w-full h-full object-contain" // Or object-cover if preferred
+              className="w-full h-full object-contain"
               onError={() => {
-                console.warn(
-                  `[ImgTagDebug] onError triggered for file: ${file.name}.`
-                );
-                // Log the state of relevant variables at the moment onError is called
-                console.log(
-                  `[ImgTagDebug] At time of img.onError - thumbnailObjectUrl (state): ${thumbnailObjectUrl}`
-                );
-                console.log(
-                  `[ImgTagDebug] At time of img.onError - currentObjectUrlRef.current: ${currentObjectUrlRef.current}`
-                );
-
+                // Minimal log for this specific image load error
+                console.warn(`Image tag onError for file: ${file.name}. URL: ${thumbnailObjectUrl}`);
                 setThumbnailFailed(true);
-                // For this diagnostic step, we are intentionally not revoking the object URL here
-                // to see if it persists and was valid. The main useEffect cleanup will handle it.
               }}
             />
           ) : (
             <FileIconComponent
-              style={{ color: fileColor }} // Ensure fileColor is defined as in original code
+              style={{ color: fileColor }}
               className="h-16 w-16 opacity-80"
             />
           )}
@@ -288,13 +260,11 @@ const FileItem: React.FC<FileItemProps> = ({
             </p>
           </div>
           <div className="flex items-center">
-            {" "}
-            {/* Container for star and dropdown */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 mr-1" // Added margin for spacing
-              onClick={() => {}}
+              className="h-8 w-8 mr-1"
+              onClick={() => onStarToggle && onStarToggle(file._id, !file.isStarred)}
               aria-label={file.isStarred ? "Unstar file" : "Star file"}
             >
               <Star
@@ -321,7 +291,7 @@ const FileItem: React.FC<FileItemProps> = ({
                   <span>Download</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={onDelete}
+                  onClick={() => onDelete()}
                   className="text-destructive"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />

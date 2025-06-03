@@ -236,7 +236,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(updatedUserData); // This will update the user object in the context
     } catch (error) {
       console.error("Failed to refresh user storage info:", error);
-      toast({ 
+      toast({
         title: "Update Failed",
         description: "Could not fetch the latest storage information.",
         variant: "destructive"
