@@ -123,43 +123,15 @@ export const filesApi = {
   },
 
   getTrashedFiles: async (token: string): Promise<File[]> => {
-    console.log(`Mock API: Getting trashed files with token ${token}`);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const now = new Date();
-    const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString();
-    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString();
-    const oneDayAgo = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString();
-
-    return [
-      {
-        _id: 'mockfile_trash_001',
-        name: 'Old Document.pdf',
-        type: 'application/pdf',
-        size: 123456,
-        updatedAt: fiveDaysAgo,
-        folderId: null,
-        userId: 'mockUser123',
-        isStarred: false,
-        trashedAt: oneDayAgo,
-        path: 'mock/server/path/old_document.pdf', // server-side OS path
-        createdAt: fiveDaysAgo,
-        displayPath: '/Old Document.pdf'
+    console.log(`[ApiService] Attempting to fetch trashed files with token ${token}`);
+    const response = await fetch(`${API_URL}/files?trashed=true`, { // Endpoint assumes backend filters by a 'trashed' flag
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
-      {
-        _id: 'mockfile_trash_002',
-        name: 'Another Deleted Image.png',
-        type: 'image/png',
-        size: 78910,
-        updatedAt: tenDaysAgo,
-        folderId: 'mockfolder_trash_001',
-        userId: 'mockUser123',
-        isStarred: true,
-        trashedAt: oneDayAgo,
-        path: 'mock/server/path/another_deleted_image.png',
-        createdAt: tenDaysAgo,
-        displayPath: '/Trash Bin/Another Deleted Image.png'
-      }
-    ] as File[];
+    });
+    return handleResponse<File[]>(response);
   },
 
   deleteFilePermanently: async (token: string, fileId: string): Promise<void> => {
@@ -361,33 +333,14 @@ export const foldersApi = {
   },
 
   getTrashedFolders: async (token: string): Promise<Folder[]> => {
-    console.log(`Mock API: Getting trashed folders with token ${token}`);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const now = new Date();
-    const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
-    const fourDaysAgo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString();
-
-    return [
-      {
-        _id: 'mockfolder_trash_001',
-        name: 'Old Project Files (Trashed)',
-        userId: 'mockUser123',
-        parentId: null,
-        createdAt: twentyDaysAgo,
-        updatedAt: threeDaysAgo,
-        trashedAt: threeDaysAgo, // Adding trashedAt for consistency with mock file data
+    console.log(`[ApiService] Attempting to fetch trashed folders with token ${token}`);
+    const response = await fetch(`${API_URL}/folders?trashed=true`, { // Endpoint assumes backend filters by a 'trashed' flag
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
-      {
-        _id: 'mockfolder_trash_002',
-        name: 'Archived Designs (Trashed)',
-        userId: 'mockUser123',
-        parentId: null,
-        createdAt: thirtyDaysAgo,
-        updatedAt: fourDaysAgo,
-        trashedAt: fourDaysAgo,
-      }
-    ] as Array<Folder & { trashedAt?: string }>; // Cast to allow additional trashedAt for mock
+    });
+    return handleResponse<Folder[]>(response);
   },
 };
