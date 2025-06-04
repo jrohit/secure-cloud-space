@@ -123,10 +123,43 @@ export const filesApi = {
   },
 
   getTrashedFiles: async (token: string): Promise<File[]> => {
-    // Mocked for current subtask - TrashPage.tsx uses local mock data for display
     console.log(`Mock API: Getting trashed files with token ${token}`);
     await new Promise(resolve => setTimeout(resolve, 500));
-    return []; // Return empty array as TrashPage uses its own mock display data
+    const now = new Date();
+    const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const oneDayAgo = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString();
+
+    return [
+      {
+        _id: 'mockfile_trash_001',
+        name: 'Old Document.pdf',
+        type: 'application/pdf',
+        size: 123456,
+        updatedAt: fiveDaysAgo,
+        folderId: null,
+        userId: 'mockUser123',
+        isStarred: false,
+        trashedAt: oneDayAgo,
+        path: 'mock/server/path/old_document.pdf', // server-side OS path
+        createdAt: fiveDaysAgo,
+        displayPath: '/Old Document.pdf'
+      },
+      {
+        _id: 'mockfile_trash_002',
+        name: 'Another Deleted Image.png',
+        type: 'image/png',
+        size: 78910,
+        updatedAt: tenDaysAgo,
+        folderId: 'mockfolder_trash_001',
+        userId: 'mockUser123',
+        isStarred: true,
+        trashedAt: oneDayAgo,
+        path: 'mock/server/path/another_deleted_image.png',
+        createdAt: tenDaysAgo,
+        displayPath: '/Trash Bin/Another Deleted Image.png'
+      }
+    ] as File[];
   },
 
   deleteFilePermanently: async (token: string, fileId: string): Promise<void> => {
@@ -328,9 +361,33 @@ export const foldersApi = {
   },
 
   getTrashedFolders: async (token: string): Promise<Folder[]> => {
-    // Mocked for current subtask
     console.log(`Mock API: Getting trashed folders with token ${token}`);
     await new Promise(resolve => setTimeout(resolve, 500));
-    return []; // Return empty array
+    const now = new Date();
+    const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const fourDaysAgo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString();
+
+    return [
+      {
+        _id: 'mockfolder_trash_001',
+        name: 'Old Project Files (Trashed)',
+        userId: 'mockUser123',
+        parentId: null,
+        createdAt: twentyDaysAgo,
+        updatedAt: threeDaysAgo,
+        trashedAt: threeDaysAgo, // Adding trashedAt for consistency with mock file data
+      },
+      {
+        _id: 'mockfolder_trash_002',
+        name: 'Archived Designs (Trashed)',
+        userId: 'mockUser123',
+        parentId: null,
+        createdAt: thirtyDaysAgo,
+        updatedAt: fourDaysAgo,
+        trashedAt: fourDaysAgo,
+      }
+    ] as Array<Folder & { trashedAt?: string }>; // Cast to allow additional trashedAt for mock
   },
 };
