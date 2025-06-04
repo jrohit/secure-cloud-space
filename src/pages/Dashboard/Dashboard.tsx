@@ -148,6 +148,23 @@ const Dashboard = () => {
     }
   };
 
+  const handleBreadcrumbNavigate = (indexInHistory: number) => {
+    setSearchQuery(""); // Clear search query
+
+    if (indexInHistory === -1) { // Clicked on "My Drive" or root
+      setCurrentFolder(null);
+      setFolderHistory([]);
+    } else if (indexInHistory >= 0 && indexInHistory < folderHistory.length) {
+      // Clicked on a folder in the history
+      const targetFolder = folderHistory[indexInHistory];
+      setCurrentFolder(targetFolder);
+      // Trim the history to the point of the clicked folder
+      setFolderHistory(prevHistory => prevHistory.slice(0, indexInHistory + 1));
+    } else {
+      console.warn("Invalid index received from breadcrumb navigation:", indexInHistory);
+    }
+  };
+
   const handleFilePreview = async (fileToPreview: File) => {
     if (!token) {
       // Check for token first
@@ -589,6 +606,8 @@ const Dashboard = () => {
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         onSearchSubmit={loadFilesAndFolders}
+        folderHistory={folderHistory}
+        onBreadcrumbNavigate={handleBreadcrumbNavigate} // Pass the handler
       />
 
       {loading ? (

@@ -10,9 +10,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Folder as FolderType } from "@/types";
+import { Folder as FolderType } from "@/types"; // Already aliased as FolderType
 import { ArrowUp, FolderPlus, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react"; // Added React
 
 interface FilesToolbarProps {
   currentFolder: FolderType | null;
@@ -24,6 +24,8 @@ interface FilesToolbarProps {
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
   onSearchSubmit: () => void;
+  folderHistory: FolderType[]; // Added
+  onBreadcrumbNavigate: (indexInHistory: number) => void; // Added
 }
 
 const FilesToolbar: React.FC<FilesToolbarProps> = ({
@@ -36,6 +38,8 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
   searchQuery,
   onSearchQueryChange,
   onSearchSubmit,
+  folderHistory, // Added
+  onBreadcrumbNavigate, // Added
 }) => {
   const [folderName, setFolderName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -75,6 +79,33 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
 
   return (
     <div className="space-y-2">
+      {/* Breadcrumbs Section */}
+      <div className="flex items-center space-x-1 text-sm mb-2 overflow-x-auto pb-1 min-w-0">
+        <button
+          onClick={() => onBreadcrumbNavigate(-1)}
+          className="font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap p-0 focus:outline-none focus:ring-0 bg-transparent border-none disabled:opacity-75 disabled:cursor-not-allowed"
+          disabled={!currentFolder && folderHistory.length === 0}
+        >
+          <span className="truncate block max-w-[100px] sm:max-w-[150px]">My Drive</span>
+        </button>
+        {folderHistory.map((folder, index) => (
+          <React.Fragment key={folder._id}>
+            <span className="text-muted-foreground mx-1">/</span>
+            <button
+              onClick={() => onBreadcrumbNavigate(index)}
+              className={`font-medium whitespace-nowrap p-0 focus:outline-none focus:ring-0 bg-transparent border-none ${
+                index === folderHistory.length - 1
+                  ? "text-foreground font-semibold cursor-default" // Current folder in breadcrumb
+                  : "text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-75 disabled:cursor-not-allowed"
+              }`}
+              disabled={index === folderHistory.length - 1}
+            >
+              <span className="truncate block max-w-[100px] sm:max-w-[150px]">{folder.name}</span>
+            </button>
+          </React.Fragment>
+        ))}
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         {" "}
         {/* Added items-center for better alignment */}
