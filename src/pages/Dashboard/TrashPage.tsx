@@ -44,9 +44,18 @@ const TrashPage: React.FC = () => {
       try {
         console.log("[TrashPage] Fetching trashed items from API services...");
         const filesData = await filesApi.getTrashedFiles(token as string);
+        console.log('[TrashPage] Raw trashed files data from API:', JSON.stringify(filesData, null, 2));
+        if (filesData && filesData.length > 0) {
+          console.log('[TrashPage] First raw trashed file object:', JSON.stringify(filesData[0], null, 2));
+        }
         const foldersData = await foldersApi.getTrashedFolders(token as string); // Assuming this API exists
-        console.log("[TrashPage] Fetched trashed files:", filesData);
-        console.log("[TrashPage] Fetched trashed folders:", foldersData);
+        console.log('[TrashPage] Raw trashed folders data from API:', JSON.stringify(foldersData, null, 2));
+        if (foldersData && foldersData.length > 0) {
+          console.log('[TrashPage] First raw trashed folder object:', JSON.stringify(foldersData[0], null, 2));
+        }
+        // The older console.log lines can be kept or removed. For this change, I'll keep them as they provide a non-stringified view too.
+        console.log("[TrashPage] Fetched trashed files (object view):", filesData);
+        console.log("[TrashPage] Fetched trashed folders (object view):", foldersData);
         setTrashedFiles(filesData);
         setTrashedFolders(foldersData);
       } catch (error) {
