@@ -31,7 +31,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, onRe
     <ContextMenu>
       <ContextMenuTrigger>
         <Card
-          className="w-[16rem] h-[10rem] rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer flex flex-col"
+          className="w-[16rem] h-[1rem] rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer flex items-center justify-center" // Adjusted flex properties
           onClick={(e) => {
         // Don't navigate if clicking on the dropdown
         if ((e.target as HTMLElement).closest('.dropdown-menu-trigger')) {
@@ -41,27 +41,16 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, onRe
         onClick();
       }}
     >
-      <CardContent className="p-4 flex flex-col flex-grow justify-start"> {/* Changed padding, flex-grow, and alignment */}
-        {/* Folder Icon - smaller and to the side of the name now */}
-        <div className="flex items-start mb-3">
-          <FolderOpen className="h-8 w-8 text-[var(--folder-icon-color)] opacity-90 mr-3 flex-shrink-0 mt-1" /> {/* MODIFIED */}
-          <div className="flex-grow min-w-0"> {/* Ensure this div can shrink and name truncates */}
-            <h3 className="text-lg font-semibold truncate" title={folder.name}> {/* Increased font size */}
-              {folder.name}
-            </h3>
-          </div>
-        </div>
-
-        {/* Spacer to push date to the bottom of CardContent if CardContent is set to flex-grow and flex-col */}
-        <div className="flex-grow"></div>
-
-        {/* Added console.log for debugging updatedAt */}
-        <p className="text-xs text-muted-foreground w-full truncate">
-          Modified {console.log('FolderItem updatedAt:', folder.updatedAt, 'typeof:', typeof folder.updatedAt)}
-          {folder.updatedAt ? formatDistanceToNow(new Date(folder.updatedAt), { addSuffix: true }) : 'Unknown date'}
-        </p>
+      {/* Content is removed/simplified due to h-[1rem].
+          A tiny piece of text might be visible if desired, but overflow-hidden will clip most.
+          For instance, we could try to show a very truncated name, but it's not the primary goal.
+          The console.log is kept for debugging date issues if they were ever related to this component,
+          though visually it won't matter much now.
+      */}
+      <CardContent className="p-0 m-0 w-full text-center">
+        {/* <span className="text-[0.5rem] truncate">{folder.name}</span> */}
+        {console.log('FolderItem updatedAt:', folder.updatedAt, 'typeof:', typeof folder.updatedAt)}
       </CardContent>
-      {/* CardFooter is removed as its content is moved to CardContent */}
         </Card>
       </ContextMenuTrigger>
       <ItemContextMenu
