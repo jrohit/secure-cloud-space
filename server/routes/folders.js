@@ -116,12 +116,27 @@ router.get('/trash', auth, async (req, res) => {
     if (cachedTrashedFolders) {
       return res.json(JSON.parse(cachedTrashedFolders));
     }
-    const trashedFolders = await Folder.find({
+    // 1. Fetch all folders for the user marked as trashed
+    const allUserTrashedFolders = await Folder.find({
       userId: req.user._id,
       isTrashed: true
-    }).sort({ trashedAt: -1 });
-    await req.redisClient.set(cacheKey, JSON.stringify(trashedFolders), { EX: 300 });
-    res.json(trashedFolders);
+    }).sort({ trashedAt: -1 }); // Keep the original sorting
+
+    // 2. Create a Set of all trashed folder IDs for quick lookup
+    const allTrashedFolderIdsSet = new Set(allUserTrashedFolders.map(f => f._id.toString()));
+
+    // 3. Filter to get only top-level trashed folders
+    // A folder is considered top-level in the trash if its parent is null
+    // OR if its parent is NOT in the set of all trashed folders (meaning parent is not trashed)
+    const topLevelTrashedFolders = allUserTrashedFolders.filter(folder => {
+      if (!folder.parentId) {
+        return true; // It's a root folder that's trashed
+      }
+      return !allTrashedFolderIdsSet.has(folder.parentId.toString());
+    });
+
+    await req.redisClient.set(cacheKey, JSON.stringify(topLevelTrashedFolders), { EX: 300 });
+    res.json(topLevelTrashedFolders);
   } catch (error) {
     console.error('Get trashed folders error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -165,26 +180,79 @@ router.post('/:id/restore', auth, async (req, res) => {
     if (!folderToRestore) {
       return res.status(404).json({ message: 'Trashed folder not found' });
     }
-    async function restoreRecursively(folderId) {
-      const childFolders = await Folder.find({ parentId: folderId, userId: req.user._id, isTrashed: true });
-      for (const childFolder of childFolders) {
-        await restoreRecursively(childFolder._id);
+
+    let restoredToRoot = false;
+    const originalParentId = folderToRestore.parentId;
+
+    // Determine the new parentId for the folder being restored
+    let newParentId = folderToRestore.parentId;
+    if (folderToRestore.parentId) {
+      const parentFolder = await Folder.findById(folderToRestore.parentId);
+      if (!parentFolder || parentFolder.isTrashed) {
+        newParentId = null; // Restore to root
+        restoredToRoot = true;
       }
-      await File.updateMany({ folderId: folderId, userId: req.user._id, isTrashed: true }, { $set: { isTrashed: false, trashedAt: null } });
-      const filesInFolder = await File.find({ folderId: folderId, userId: req.user._id });
-      for (const file of filesInFolder) {
-        await req.redisClient.del(`file:${req.user._id}:${file._id}`);
-        await req.redisClient.del(`file_metadata:${req.user._id}:${file._id}`);
-      }
-      await req.redisClient.del(`files:${req.user._id}:${folderId}`);
-      await Folder.updateOne({ _id: folderId, userId: req.user._id }, { $set: { isTrashed: false, trashedAt: null } });
     }
-    await restoreRecursively(folderToRestore._id);
-    await req.redisClient.del(`folders:${req.user._id}:${folderToRestore.parentId || 'root'}`);
-    await req.redisClient.del(`folders_trash:${req.user._id}`);
-    await req.redisClient.del(`files_trash:${req.user._id}`);
-    const restoredFolder = await Folder.findOne({ _id: folderToRestore._id, userId: req.user._id });
-    res.json({ message: 'Folder and its contents restored successfully', folder: restoredFolder });
+
+    // Update the main folder first (its parentage and trashed status)
+    folderToRestore.parentId = newParentId;
+    folderToRestore.isTrashed = false;
+    folderToRestore.trashedAt = null;
+    await folderToRestore.save();
+
+    // Recursive function to restore children (files and subfolders)
+    // This function will only mark items as not trashed. Their parentage remains relative.
+    async function restoreChildrenRecursively(currentParentFolderId) {
+      // Restore child subfolders
+      const childFolders = await Folder.find({ parentId: currentParentFolderId, userId: req.user._id, isTrashed: true });
+      for (const childFolder of childFolders) {
+        childFolder.isTrashed = false;
+        childFolder.trashedAt = null;
+        await childFolder.save(); // Save changes to this child folder
+        await restoreChildrenRecursively(childFolder._id); // Recurse for its children
+      }
+
+      // Restore files in the current folder
+      await File.updateMany(
+        { folderId: currentParentFolderId, userId: req.user._id, isTrashed: true },
+        { $set: { isTrashed: false, trashedAt: null } }
+      );
+
+      // Invalidate caches for files within this folder
+      const filesInThisFolder = await File.find({ folderId: currentParentFolderId, userId: req.user._id });
+      for (const file of filesInThisFolder) {
+        if(req.redisClient) {
+            await req.redisClient.del(`file:${req.user._id}:${file._id}`);
+            await req.redisClient.del(`file_metadata:${req.user._id}:${file._id}`);
+        }
+      }
+      if(req.redisClient) {
+        await req.redisClient.del(`files:${req.user._id}:${currentParentFolderId}`);
+      }
+    }
+
+    // Start recursive restoration for children of the main restored folder
+    await restoreChildrenRecursively(folderToRestore._id);
+
+    // Invalidate caches
+    if (req.redisClient) {
+      // Cache for the original parent folder (if it existed)
+      if (originalParentId) {
+        await req.redisClient.del(`folders:${req.user._id}:${originalParentId}`);
+      }
+      // Cache for the new parent folder (root if restoredToRoot, or the same as originalParentId if not moved)
+      await req.redisClient.del(`folders:${req.user._id}:${newParentId || 'root'}`);
+
+      await req.redisClient.del(`folders_trash:${req.user._id}`);
+      await req.redisClient.del(`files_trash:${req.user._id}`);
+    }
+
+    // The folderToRestore object is already updated and saved
+    res.json({
+      message: 'Folder and its contents restored successfully' + (restoredToRoot ? " to root folder as original parent was unavailable." : "."),
+      folder: folderToRestore,
+      restoredToRoot: restoredToRoot
+    });
   } catch (error) {
     console.error('Restore folder error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -252,7 +320,7 @@ router.post('/trash/empty', auth, async (req, res) => {
       // This check is more of a safeguard if the list contains nested folders that are also marked as trashed independently.
       // For emptying trash, we typically iterate the top-level items.
       const isTopLevelTrashedFolder = folder.parentId === null || !(await Folder.findOne({ _id: folder.parentId, userId: req.user._id, isTrashed: true }));
-      
+
       if (isTopLevelTrashedFolder) {
          overallSpaceFreed += await permanentlyDeleteRecursivelyHelper(
           folder._id,

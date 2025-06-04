@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { filesApi, foldersApi } from "@/services/api";
-import { MyFileType, Folder } from "@/types"; // Ensure Folder is imported
+import { MyFileType, Folder } from "@/types"; // Folder is imported from types
 import React, { useEffect, useState, useCallback } from "react";
 
 const TrashPage: React.FC = () => {
@@ -24,10 +24,9 @@ const TrashPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Dialog states
-  const [isConfirmFileDeleteOpen, setIsConfirmFileDeleteOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<MyFileType | Folder | null>(null); // Generic for item to delete
+  const [isConfirmItemDeleteOpen, setIsConfirmItemDeleteOpen] = useState(false); // Single dialog for both file/folder
+  const [itemToDelete, setItemToDelete] = useState<MyFileType | Folder | null>(null);
   const [deleteType, setDeleteType] = useState<"file" | "folder" | null>(null);
-
 
   const [isConfirmEmptyFileTrashOpen, setIsConfirmEmptyFileTrashOpen] = useState(false);
   const [isConfirmEmptyFolderTrashOpen, setIsConfirmEmptyFolderTrashOpen] = useState(false);
@@ -60,49 +59,66 @@ const TrashPage: React.FC = () => {
   // File Action Handlers
   const handleRestoreFile = async (fileId: string) => {
     if (!token) return;
-    // Optimistic update
     const originalFiles = trashedFiles;
-    setTrashedFiles((prev) => prev.filter((f) => f._id !== fileId));
+    setTrashedFiles((prev) => prev.filter((f) => f._id !== fileId)); // Optimistic update
     try {
-      await filesApi.restoreFile(token, fileId);
-      toast({ title: "Success", description: "File restored successfully." });
-      // No need to re-fetch, optimistic update is enough
+      const response = await filesApi.restoreFile(token, fileId); // Updated to use response
+      let description = response.message || "File restored successfully.";
+      if (response.restoredToRoot) {
+        description += " It was moved to the root folder as its original folder was not accessible.";
+      }
+      toast({ title: "Success", description: description });
+      // Potentially refetch or update parent folder's file list if navigating there next
+      // For now, optimistic removal from trash list is primary.
     } catch (error) {
       setTrashedFiles(originalFiles); // Revert on error
       toast({ title: "Error", description: "Failed to restore file.", variant: "destructive" });
     }
   };
 
-  const openPermanentDeleteFileDialog = (file: MyFileType) => {
-    setItemToDelete(file);
-    setDeleteType("file");
-    setIsConfirmFileDeleteOpen(true);
+  const openPermanentDeleteItemDialog = (item: MyFileType | Folder, type: "file" | "folder") => {
+    setItemToDelete(item);
+    setDeleteType(type);
+    setIsConfirmItemDeleteOpen(true);
   };
 
-  const handlePermanentDeleteFile = async () => {
-    if (!token || !itemToDelete || deleteType !== 'file') return;
-    const file = itemToDelete as MyFileType;
-    // Optimistic update
-    const originalFiles = trashedFiles;
-    setTrashedFiles((prev) => prev.filter((f) => f._id !== file._id));
-    setIsConfirmFileDeleteOpen(false);
+  const handlePermanentDeleteItem = async () => {
+    if (!token || !itemToDelete || !deleteType) return;
 
-    try {
-      await filesApi.deleteFilePermanently(token, file._id);
-      toast({ title: "Success", description: `File "${file.name}" permanently deleted.` });
-      await refreshUserStorageInfo();
-    } catch (error) {
-      setTrashedFiles(originalFiles); // Revert
-      toast({ title: "Error", description: "Failed to permanently delete file.", variant: "destructive" });
-    } finally {
-      setItemToDelete(null);
-      setDeleteType(null);
+    setIsConfirmItemDeleteOpen(false); // Close dialog immediately
+
+    if (deleteType === 'file') {
+      const file = itemToDelete as MyFileType;
+      const originalFiles = trashedFiles;
+      setTrashedFiles((prev) => prev.filter((f) => f._id !== file._id)); // Optimistic
+      try {
+        await filesApi.deleteFilePermanently(token, file._id);
+        toast({ title: "Success", description: `File "${file.name}" permanently deleted.` });
+        await refreshUserStorageInfo();
+      } catch (error) {
+        setTrashedFiles(originalFiles); // Revert
+        toast({ title: "Error", description: "Failed to permanently delete file.", variant: "destructive" });
+      }
+    } else if (deleteType === 'folder') {
+      const folder = itemToDelete as Folder;
+      const originalFolders = trashedFolders;
+      setTrashedFolders((prev) => prev.filter((f) => f._id !== folder._id)); // Optimistic
+      try {
+        await foldersApi.permanentlyDeleteTrashedFolder(token, folder._id);
+        toast({ title: "Success", description: `Folder "${folder.name}" and its contents permanently deleted.` });
+        await refreshUserStorageInfo();
+      } catch (error) {
+        setTrashedFolders(originalFolders); // Revert
+        toast({ title: "Error", description: "Failed to permanently delete folder.", variant: "destructive" });
+      }
     }
+    setItemToDelete(null);
+    setDeleteType(null);
   };
 
   const handleEmptyFileTrash = async () => {
     if (!token) return;
-    setIsLoading(true); // Indicate loading for emptying trash
+    setIsLoading(true);
     try {
       const result = await filesApi.emptyTrash(token);
       setTrashedFiles([]);
@@ -110,7 +126,7 @@ const TrashPage: React.FC = () => {
       await refreshUserStorageInfo();
     } catch (error) {
       toast({ title: "Error", description: "Failed to empty file trash.", variant: "destructive" });
-      await fetchTrashedItems(); // Refetch on error to get current state
+      await fetchTrashedItems();
     } finally {
       setIsConfirmEmptyFileTrashOpen(false);
       setIsLoading(false);
@@ -120,43 +136,19 @@ const TrashPage: React.FC = () => {
   // Folder Action Handlers
   const handleRestoreFolder = async (folderId: string) => {
     if (!token) return;
-    // Optimistic update
     const originalFolders = trashedFolders;
-    setTrashedFolders((prev) => prev.filter((f) => f._id !== folderId));
+    setTrashedFolders((prev) => prev.filter((f) => f._id !== folderId)); // Optimistic update
     try {
-      await foldersApi.restoreFolder(token, folderId);
-      toast({ title: "Success", description: "Folder restored successfully." });
-      // No need to re-fetch, optimistic update is enough
+      const response = await foldersApi.restoreFolder(token, folderId); // Updated to use response
+      let description = response.message || "Folder and its contents restored successfully.";
+      if (response.restoredToRoot) {
+        description += " It was moved to the root folder as its original parent folder was not accessible.";
+      }
+      toast({ title: "Success", description: description });
+      // Potentially refetch or update parent folder's list if navigating there next
     } catch (error) {
       setTrashedFolders(originalFolders); // Revert
       toast({ title: "Error", description: "Failed to restore folder.", variant: "destructive" });
-    }
-  };
-
-  const openPermanentDeleteFolderDialog = (folder: Folder) => {
-    setItemToDelete(folder);
-    setDeleteType("folder");
-    setIsConfirmFileDeleteOpen(true); // Re-use the same dialog state but with different item and type
-  };
-
-  const handlePermanentDeleteFolder = async () => {
-    if (!token || !itemToDelete || deleteType !== 'folder') return;
-    const folder = itemToDelete as Folder;
-    // Optimistic update
-    const originalFolders = trashedFolders;
-    setTrashedFolders((prev) => prev.filter((f) => f._id !== folder._id));
-    setIsConfirmFileDeleteOpen(false);
-
-    try {
-      await foldersApi.permanentlyDeleteTrashedFolder(token, folder._id);
-      toast({ title: "Success", description: `Folder "${folder.name}" permanently deleted.` });
-      await refreshUserStorageInfo();
-    } catch (error) {
-      setTrashedFolders(originalFolders); // Revert
-      toast({ title: "Error", description: "Failed to permanently delete folder.", variant: "destructive" });
-    } finally {
-      setItemToDelete(null);
-      setDeleteType(null);
     }
   };
 
@@ -170,15 +162,14 @@ const TrashPage: React.FC = () => {
       await refreshUserStorageInfo();
     } catch (error) {
       toast({ title: "Error", description: "Failed to empty folder trash.", variant: "destructive" });
-      await fetchTrashedItems(); // Refetch on error
+      await fetchTrashedItems();
     } finally {
       setIsConfirmEmptyFolderTrashOpen(false);
       setIsLoading(false);
     }
   };
 
-
-  if (isLoading && (trashedFiles.length === 0 && trashedFolders.length === 0)) { // Show initial loading spinner
+  if (isLoading && trashedFiles.length === 0 && trashedFolders.length === 0) {
     return (
       <div className="flex justify-center items-center h-64">
         <Spinner className="h-12 w-12" />
@@ -190,7 +181,6 @@ const TrashPage: React.FC = () => {
     <div className="space-y-6 p-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Trash</h2>
-        {/* Add overall actions if needed, or keep them specific */}
       </div>
 
       {/* Folders Section */}
@@ -208,7 +198,7 @@ const TrashPage: React.FC = () => {
             </Button>
           )}
         </div>
-        {isLoading && trashedFolders.length === 0 ? <Spinner /> : trashedFolders.length === 0 ? (
+        {isLoading && trashedFolders.length === 0 && !isLoading && trashedFiles.length > 0 ? null : isLoading && trashedFolders.length === 0 ? <Spinner /> : trashedFolders.length === 0 ? (
           <p>No folders in trash.</p>
         ) : (
           <ul className="space-y-2">
@@ -222,7 +212,7 @@ const TrashPage: React.FC = () => {
                 </div>
                 <div className="space-x-2">
                   <Button variant="outline" size="sm" onClick={() => handleRestoreFolder(folder._id)} disabled={isLoading}>Restore</Button>
-                  <Button variant="destructive" size="sm" onClick={() => openPermanentDeleteFolderDialog(folder)} disabled={isLoading}>Delete Permanently</Button>
+                  <Button variant="destructive" size="sm" onClick={() => openPermanentDeleteItemDialog(folder, "folder")} disabled={isLoading}>Delete Permanently</Button>
                 </div>
               </li>
             ))}
@@ -245,7 +235,7 @@ const TrashPage: React.FC = () => {
             </Button>
           )}
         </div>
-        {isLoading && trashedFiles.length === 0 ? <Spinner /> : trashedFiles.length === 0 ? (
+        {isLoading && trashedFiles.length === 0 && !isLoading && trashedFolders.length > 0 ? null : isLoading && trashedFiles.length === 0 ? <Spinner /> : trashedFiles.length === 0 ? (
           <p>No files in trash.</p>
         ) : (
           <ul className="space-y-2">
@@ -264,7 +254,7 @@ const TrashPage: React.FC = () => {
                 </div>
                 <div className="space-x-2">
                   <Button variant="outline" size="sm" onClick={() => handleRestoreFile(file._id)} disabled={isLoading}>Restore</Button>
-                  <Button variant="destructive" size="sm" onClick={() => openPermanentDeleteFileDialog(file)} disabled={isLoading}>Delete Permanently</Button>
+                  <Button variant="destructive" size="sm" onClick={() => openPermanentDeleteItemDialog(file, "file")} disabled={isLoading}>Delete Permanently</Button>
                 </div>
               </li>
             ))}
@@ -276,10 +266,10 @@ const TrashPage: React.FC = () => {
          <p className="text-center text-muted-foreground mt-8">Your trash is completely empty.</p>
       )}
 
-      {/* Confirmation Dialog for Single Item Permanent Delete (File or Folder) */}
+      {/* Confirmation Dialog for Single Item Permanent Delete */}
       <AlertDialog
-        open={isConfirmFileDeleteOpen} // Reused for both file and folder
-        onOpenChange={setIsConfirmFileDeleteOpen}
+        open={isConfirmItemDeleteOpen}
+        onOpenChange={setIsConfirmItemDeleteOpen}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -290,10 +280,10 @@ const TrashPage: React.FC = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setIsConfirmFileDeleteOpen(false); setItemToDelete(null); setDeleteType(null); }}>
+            <AlertDialogCancel onClick={() => { setIsConfirmItemDeleteOpen(false); setItemToDelete(null); setDeleteType(null); }}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={deleteType === 'file' ? handlePermanentDeleteFile : handlePermanentDeleteFolder}>
+            <AlertDialogAction onClick={handlePermanentDeleteItem}>
               Continue
             </AlertDialogAction>
           </AlertDialogFooter>

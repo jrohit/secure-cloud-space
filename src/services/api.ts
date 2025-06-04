@@ -125,7 +125,7 @@ export const filesApi = {
     return handleResponse<{ message: string }>(response);
   },
 
-  restoreFile: async (token: string, fileId: string): Promise<{message: string, file: File}> => { // Backend sends message and file
+  restoreFile: async (token: string, fileId: string): Promise<{message: string; file: File; restoredToRoot: boolean}> => {
     const response = await fetch(`${API_URL}/files/${fileId}/restore`, {
       method: 'POST',
       headers: {
@@ -278,7 +278,7 @@ export const foldersApi = {
     return handleResponse<{ message: string }>(response);
   },
 
-  restoreFolder: async (token: string, folderId: string): Promise<{ message: string, folder: Folder }> => { // Backend sends message and folder
+  restoreFolder: async (token: string, folderId: string): Promise<{ message: string; folder: Folder; restoredToRoot: boolean }> => {
     const response = await fetch(`${API_URL}/folders/${folderId}/restore`, { // IMPLEMENTED
       method: "POST",
       headers: {

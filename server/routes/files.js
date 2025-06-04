@@ -273,10 +273,18 @@ router.get("/trash", auth, async (req, res) => {
     }
 
     // If not in cache, fetch from database
+    // 1. Get IDs of all trashed folders for the user
+    const trashedFolders = await Folder.find({ userId: userId, isTrashed: true }).select('_id');
+    const trashedFolderIds = trashedFolders.map(f => f._id);
+
+    // 2. Fetch files that are trashed but NOT in a trashed folder OR are in root and trashed
     const trashedFileDocs = await File.find({
-      // Renamed to trashedFileDocs
       userId: userId,
       isTrashed: true,
+      $or: [
+        { folderId: null }, // Files in root
+        { folderId: { $nin: trashedFolderIds } } // Files whose folder is NOT in the trashed list
+      ]
     }).sort({ trashedAt: -1 });
 
     const trashedFilesWithDisplayPath = await Promise.all(
@@ -663,6 +671,19 @@ router.post("/:id/restore", auth, async (req, res) => {
       return res.status(400).json({ message: "File is not in trash" });
     }
 
+    let restoredToRoot = false;
+    const originalFolderId = file.folderId; // Keep track for cache invalidation
+
+    // Check parent folder status if file is not in root
+    if (file.folderId) {
+      const parentFolder = await Folder.findById(file.folderId);
+      if (!parentFolder || parentFolder.isTrashed) {
+        // If parent doesn't exist or is also trashed, restore file to root
+        file.folderId = null;
+        restoredToRoot = true;
+      }
+    }
+
     // Restore the file
     file.isTrashed = false;
     file.trashedAt = null;
@@ -670,18 +691,31 @@ router.post("/:id/restore", auth, async (req, res) => {
 
     // Invalidate relevant caches
     if (req.redisClient) {
-      const folderCacheKey = `files:${req.user._id}:${file.folderId || "root"}`;
-      await req.redisClient.del(folderCacheKey);
+      // Invalidate cache for the original folder the file was in
+      if (originalFolderId) {
+        await req.redisClient.del(`files:${req.user._id}:${originalFolderId}`);
+      }
 
+      // If restored to root, or was already in root, invalidate root file listing
+      if (file.folderId === null) { // This covers both cases: moved to root or was already root
+        await req.redisClient.del(`files:${req.user._id}:root`);
+      }
+
+      // Invalidate trash cache
       const trashCacheKey = `files_trash:${req.user._id}`;
       await req.redisClient.del(trashCacheKey);
 
+      // If starred, invalidate starred files cache
       if (file.isStarred) {
         await req.redisClient.del(`starred_files:${req.user._id}`);
       }
     }
 
-    res.json({ message: "File restored successfully", file });
+    res.json({
+      message: "File restored successfully" + (restoredToRoot ? " to root folder as original parent was unavailable." : "."),
+      file: file, // Send back the updated file document
+      restoredToRoot: restoredToRoot
+    });
   } catch (error) {
     console.error("Error restoring file:", error);
     res.status(500).json({ message: "Server error while restoring file" });
