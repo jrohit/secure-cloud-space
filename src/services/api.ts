@@ -112,6 +112,7 @@ export const filesApi = {
   },
 
   restoreFile: async (token: string, fileId: string): Promise<File> => {
+    console.log(`API: Attempting to restore file ${fileId} with token ${token}`); // Added console log
     const response = await fetch(`${API_URL}/files/${fileId}/restore`, {
       method: 'POST',
       headers: {

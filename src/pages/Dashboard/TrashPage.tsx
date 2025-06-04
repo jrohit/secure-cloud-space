@@ -72,6 +72,7 @@ const TrashPage: React.FC = () => {
   }, [token, toast]); // Still depend on token and toast for consistency, though token not used in mock
 
   const handleRestoreFile = async (fileId: string) => {
+    console.log('[TrashPage] handleRestoreFile: Attempting to restore file with ID:', fileId, 'Token available:', !!token);
     if (!token) {
       toast({
         title: "Error",
@@ -81,25 +82,30 @@ const TrashPage: React.FC = () => {
       return;
     }
 
+    console.log('[TrashPage] handleRestoreFile: Optimistically removing file from local list for ID:', fileId);
+    // Find the file to potentially add back on error, though not implemented in this step
+    // const fileToRestore = trashedFiles.find(f => f._id === fileId);
+    const originalTrashedFiles = [...trashedFiles]; // Keep a copy in case of error and needing to revert
+    setTrashedFiles((prevFiles) => prevFiles.filter((file) => file._id !== fileId));
+    toast({ title: "File Removed from Trash", description: "The file has been removed from this list. Attempting to restore in backend." });
+
     try {
-      const restoredFile = await filesApi.restoreFile(token, fileId);
-      setTrashedFiles((prevFiles) =>
-        prevFiles.filter((file) => file._id !== fileId)
-      );
-      toast({
-        title: "Success",
-        // description: `"${restoredFile.name}" has been restored.`, // Actual API response not used in this version of subtask
-        description: `The file has been restored to its original location.`, // Mocked message
-      });
+      console.log('[TrashPage] handleRestoreFile: Calling filesApi.restoreFile with token and fileId:', fileId);
+      const restoredFile = await filesApi.restoreFile(token as string, fileId);
+      console.log('[TrashPage] handleRestoreFile: filesApi.restoreFile successful for file ID:', fileId, 'API Response:', restoredFile);
+      // Optional: Another toast for backend success if needed
+      // toast({ title: "File Restore Confirmed", description: "Backend confirmed file restoration." });
     } catch (error) {
-      // This catch block might not be hit if filesApi.restoreFile is fully mocked and always succeeds
-      console.error("Error restoring file:", error);
+      console.error('[TrashPage] handleRestoreFile: Error during API restore:', error);
       toast({
-        title: "Error",
-        description: "Failed to restore file. Please try again.",
+        title: "Restore Error",
+        description: "File removed from local trash view, but failed to confirm restoration with the server. The file might not be fully restored.",
         variant: "destructive",
       });
+      // Potentially add the file back to the list if API call fails
+      // setTrashedFiles(originalTrashedFiles); // Example: Revert optimistic update
     }
+    console.log('[TrashPage] handleRestoreFile: Processing complete for file ID:', fileId);
   };
 
   const handleRestoreAll = async () => {
@@ -176,6 +182,28 @@ const TrashPage: React.FC = () => {
       description: "The folder and its contents have been restored." // Generic message as per subtask
     });
     // In a real scenario, this would call foldersApi.restoreFolder(token, folderId)
+    // For optimistic UI, this function needs to be refactored similarly to handleRestoreFile:
+    console.log('[TrashPage] handleRestoreFolder: Optimistically removing folder from local list for ID:', folderId);
+    // const folderToRestore = trashedFolders.find(f => f._id === folderId);
+    const originalTrashedFolders = [...trashedFolders];
+    setTrashedFolders(prevFolders => prevFolders.filter(f => f._id !== folderId));
+    toast({ title: "Folder Removed from Trash", description: "The folder has been removed from this list. Attempting to restore in backend." });
+
+    try {
+      console.log('[TrashPage] handleRestoreFolder: Calling foldersApi.restoreFolder with token and folderId:', folderId);
+      const restoredFolder = await foldersApi.restoreFolder(token as string, folderId); // Assuming foldersApi.restoreFolder exists
+      console.log('[TrashPage] handleRestoreFolder: foldersApi.restoreFolder successful for ID:', folderId, 'API Response:', restoredFolder);
+      // Optional: Another toast for backend success
+    } catch (error) {
+      console.error('[TrashPage] handleRestoreFolder: Error during API restore:', error);
+      toast({
+        title: "Restore Error",
+        description: "Folder removed from local trash view, but failed to confirm restoration with the server. The folder might not be fully restored.",
+        variant: "destructive",
+      });
+      // setTrashedFolders(originalTrashedFolders); // Example: Revert
+    }
+    console.log('[TrashPage] handleRestoreFolder: Processing complete for ID:', folderId);
   };
 
   const handlePermanentDeleteFileClick = async (file: MyFileType) => {
