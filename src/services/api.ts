@@ -181,6 +181,57 @@ export const filesApi = {
     });
     return handleResponse<File[]>(response);
   },
+
+  renameFile: async (token: string, fileId: string, newName: string): Promise<File> => {
+    // Mocked implementation
+    console.log(`Mock renaming file ${fileId} to ${newName} with token ${token}`);
+    // Simulate an API call delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // In a real scenario, you would fetch the file, then return it or the updated version from API
+    // For now, we'll just return a dummy updated file object.
+    // This requires knowing the structure of 'File', which we assume is available.
+    // And we'd need to find the file in some local state or fetch it if not mocking.
+    // For a pure mock, we can't update global state here, so Dashboard.tsx will handle state update.
+    return {
+      _id: fileId,
+      name: newName,
+      updatedAt: new Date().toISOString(),
+      // Ensure all other required fields from the File type are present
+      type: 'mock/type',
+      size: 0,
+      path: '/mock/path',
+      folderId: null,
+      userId: 'mock-user',
+      createdAt: new Date().toISOString(),
+      isStarred: false,
+      displayPath: '/Mock Path',
+      trashedAt: null,
+    } as File; // Cast to File type to satisfy Promise<File>
+  },
+
+  moveFile: async (token: string, fileId: string, newParentId: string | null): Promise<File> => {
+    // Mocked implementation
+    console.log(`Mock moving file ${fileId} to new parent ${newParentId} with token ${token}`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // This mock assumes the file's other properties remain the same,
+    // but 'folderId' (representing parentId) and 'updatedAt' change.
+    // The actual File object would need to be fetched or passed to update realistically.
+    return {
+      _id: fileId,
+      name: 'Moved File Mock', // Name might not change, but to show it's a mock
+      folderId: newParentId,
+      updatedAt: new Date().toISOString(),
+      // Fill in other required fields for the File type
+      type: 'mock/type',
+      size: 0,
+      path: '/mock/path',
+      userId: 'mock-user',
+      createdAt: new Date().toISOString(), // Should be original creation date
+      isStarred: false,
+      displayPath: newParentId ? `/mock-parent/${newParentId}/Moved File Mock` : '/Moved File Mock',
+      trashedAt: null,
+    } as File;
+  },
 };
 
 // Folders API
@@ -218,5 +269,39 @@ export const foldersApi = {
       },
     });
     return handleResponse<void>(response);
+  },
+
+  renameFolder: async (token: string, folderId: string, newName: string): Promise<Folder> => {
+    // Mocked implementation
+    console.log(`Mock renaming folder ${folderId} to ${newName} with token ${token}`);
+    // Simulate an API call delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // Similar to renameFile, this is a mock. Dashboard.tsx will handle actual state update.
+    return {
+      _id: folderId,
+      name: newName,
+      updatedAt: new Date().toISOString(),
+      // Ensure all other required fields from the Folder type are present
+      parentId: null,
+      userId: 'mock-user',
+      createdAt: new Date().toISOString(),
+    } as Folder; // Cast to Folder type
+  },
+
+  moveFolder: async (token: string, folderId: string, newParentId: string | null): Promise<Folder> => {
+    // Mocked implementation
+    console.log(`Mock moving folder ${folderId} to new parent ${newParentId} with token ${token}`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // This mock assumes the folder's other properties remain the same,
+    // but 'parentId' and 'updatedAt' change.
+    return {
+      _id: folderId,
+      name: 'Moved Folder Mock', // Name might not change
+      parentId: newParentId,
+      updatedAt: new Date().toISOString(),
+      // Fill in other required fields for the Folder type
+      userId: 'mock-user',
+      createdAt: new Date().toISOString(), // Should be original creation date
+    } as Folder;
   },
 };

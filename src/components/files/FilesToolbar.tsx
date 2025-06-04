@@ -11,8 +11,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Folder as FolderType } from "@/types"; // Already aliased as FolderType
-import { ArrowUp, FolderPlus, Upload } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react"; // Added React
+import { ArrowUp, FolderPlus, Upload, LayoutGrid, List } from "lucide-react"; // Added icons
+import React, { useEffect, useRef, useState } from "react";
 
 interface FilesToolbarProps {
   currentFolder: FolderType | null;
@@ -24,8 +24,10 @@ interface FilesToolbarProps {
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
   onSearchSubmit: () => void;
-  folderHistory: FolderType[]; // Added
-  onBreadcrumbNavigate: (indexInHistory: number) => void; // Added
+  folderHistory: FolderType[];
+  onBreadcrumbNavigate: (indexInHistory: number) => void;
+  viewMode: 'card' | 'list'; // Added
+  onViewModeChange: (mode: 'card' | 'list') => void; // Added
 }
 
 const FilesToolbar: React.FC<FilesToolbarProps> = ({
@@ -38,8 +40,10 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
   searchQuery,
   onSearchQueryChange,
   onSearchSubmit,
-  folderHistory, // Added
-  onBreadcrumbNavigate, // Added
+  folderHistory,
+  onBreadcrumbNavigate,
+  viewMode, // Added
+  onViewModeChange, // Added
 }) => {
   const [folderName, setFolderName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -170,6 +174,26 @@ const FilesToolbar: React.FC<FilesToolbarProps> = ({
           <Upload className="h-4 w-4 mr-2" />
           Upload Files
         </Button>
+
+        {/* View Mode Toggles */}
+        <div className="flex items-center gap-1 ml-auto">
+          <Button
+            variant={viewMode === 'card' ? 'secondary' : 'ghost'}
+            size="icon"
+            onClick={() => onViewModeChange('card')}
+            aria-label="Card view"
+          >
+            <LayoutGrid className="h-5 w-5" />
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+            size="icon"
+            onClick={() => onViewModeChange('list')}
+            aria-label="List view"
+          >
+            <List className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
 
       {isUploading && (

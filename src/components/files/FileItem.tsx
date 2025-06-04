@@ -1,3 +1,10 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import ItemContextMenu from "./ItemContextMenu"; // Import ItemContextMenu
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import {
@@ -33,6 +40,9 @@ interface FileItemProps {
   onDelete: () => void;
   onPreview: (file: MyFileType) => void;
   onStarToggle?: (fileId: string, newIsStarred: boolean) => void;
+  onRename: (id: string, type: 'file' | 'folder', currentName: string) => void;
+  onOrganize: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void; // Modified
+  currentParentId: string | null; // Added
 }
 
 const FileItem: React.FC<FileItemProps> = ({
@@ -40,6 +50,9 @@ const FileItem: React.FC<FileItemProps> = ({
   onDelete,
   onPreview,
   onStarToggle,
+  onRename,
+  onOrganize, // Modified
+  currentParentId, // Added
 }) => {
   const { token, getMasterCryptoKey } = useAuth();
   const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(
@@ -269,9 +282,11 @@ const FileItem: React.FC<FileItemProps> = ({
   const FileIconComponent = fileIcon;
 
   return (
-    <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
-      <CardContent className="p-0">
-        <div
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
+          <CardContent className="p-0">
+            <div
           className="aspect-square flex items-center justify-center bg-muted/30 cursor-pointer"
           onClick={() => onPreview(file)}
           role="button"
@@ -359,10 +374,21 @@ const FileItem: React.FC<FileItemProps> = ({
         </div>
         <p className="text-xs text-muted-foreground">
           Modified{" "}
-          {formatDistanceToNow(new Date(file.updatedAt), { addSuffix: true })}
+          {formatDistanceToNow(new Date(file.updatedat), { addSuffix: true })}
         </p>
       </CardFooter>
-    </Card>
+        </Card>
+      </ContextMenuTrigger>
+      <ItemContextMenu
+        itemType="file"
+        itemId={file._id}
+        itemName={file.name}
+        currentParentId={currentParentId} // Added
+        onDelete={() => onDelete()} // Call the FileItem's onDelete
+        onRename={onRename} // Pass down from FileGrid
+        onOrganize={onOrganize} // Pass down from FileGrid
+      />
+    </ContextMenu>
   );
 };
 

@@ -1,3 +1,5 @@
+import OrganizeItemDialog from "@/components/dialogs/OrganizeItemDialog"; // Added for Organize
+import RenameItemDialog from "@/components/dialogs/RenameItemDialog"; // Added for Rename
 import UpgradeStorageDialog from "@/components/dialogs/UpgradeStorageDialog"; // Added
 import FileGrid from "@/components/files/FileGrid";
 import FilesEmptyState from "@/components/files/FilesEmptyState";
@@ -117,6 +119,22 @@ const Dashboard = () => {
     null
   );
   const [folderHistory, setFolderHistory] = useState<Folder[]>([]);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false); // Added for Rename
+  const [renameItemInfo, setRenameItemInfo] = useState<{
+    id: string;
+    type: 'file' | 'folder';
+    currentName: string;
+  } | null>(null); // Added for Rename
+  const [isOrganizeDialogOpen, setIsOrganizeDialogOpen] = useState(false); // Added for Organize
+  const [organizeItemInfo, setOrganizeItemInfo] = useState<{
+    id: string;
+    type: 'file' | 'folder';
+    itemName: string;
+    currentParentId: string | null;
+  } | null>(null); // Added for Organize
+  const [availableFoldersForMove, setAvailableFoldersForMove] = useState<Folder[]>([]); // Added for Organize
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card'); // Added for View Toggle
+
 
   useEffect(() => {
     if (token) {
@@ -558,6 +576,114 @@ const Dashboard = () => {
     // For now, this handles the main `files` array.
   };
 
+  // Placeholder for Rename
+  const handleRenameItem = (id: string, type: 'file' | 'folder', currentName: string) => {
+    setRenameItemInfo({ id, type, currentName });
+    setIsRenameDialogOpen(true);
+  };
+
+  const handleRenameSubmit = async (newName: string) => {
+    if (!renameItemInfo || !token) return;
+
+    const { id, type } = renameItemInfo;
+
+    try {
+      if (type === 'file') {
+        const updatedFile = await filesApi.renameFile(token, id, newName);
+        setFiles((prevFiles) =>
+          prevFiles.map((f) => (f._id === id ? { ...f, ...updatedFile } : f))
+        );
+        toast({
+          title: "Success",
+          description: `File "${renameItemInfo.currentName}" renamed to "${newName}".`,
+        });
+      } else if (type === 'folder') {
+        const updatedFolder = await foldersApi.renameFolder(token, id, newName);
+        setFolders((prevFolders) =>
+          prevFolders.map((f) => (f._id === id ? { ...f, ...updatedFolder } : f))
+        );
+        toast({
+          title: "Success",
+          description: `Folder "${renameItemInfo.currentName}" renamed to "${newName}".`,
+        });
+      }
+      setIsRenameDialogOpen(false);
+      setRenameItemInfo(null);
+    } catch (error) {
+      console.error(`Error renaming ${type}:`, error);
+      toast({
+        title: "Error",
+        description: `Failed to rename ${type}. ${error instanceof Error ? error.message : ''}`,
+        variant: "destructive",
+      });
+      // Optionally, keep the dialog open on error or close it
+      // setIsRenameDialogOpen(false);
+      // setRenameItemInfo(null);
+    }
+  };
+
+  // Placeholder for Organize
+  const handleOrganizeItem = (id: string, type: 'file' | 'folder', currentParentId: string | null) => {
+    const itemToOrganize = type === 'file'
+      ? files.find(f => f._id === id)
+      : folders.find(f => f._id === id);
+
+    if (!itemToOrganize) {
+      toast({ title: "Error", description: "Item not found.", variant: "destructive" });
+      return;
+    }
+
+    setOrganizeItemInfo({ id, type, itemName: itemToOrganize.name, currentParentId });
+
+    // Prepare available folders for moving:
+    // Exclude the current folder itself if item is a folder
+    // Exclude current parent of the item (handled by dialog UI not showing current parent as an option implicitly if desired)
+    let filteredFolders = [...folders]; // Operate on a copy
+    if (type === 'folder') {
+      filteredFolders = filteredFolders.filter(f => f._id !== id);
+      // TODO: Advanced - filter out children of this folder as well
+    }
+    setAvailableFoldersForMove(filteredFolders);
+    setIsOrganizeDialogOpen(true);
+  };
+
+  const handleOrganizeSubmit = async (newParentId: string | null) => {
+    if (!organizeItemInfo || !token) return;
+
+    const { id, type, itemName } = organizeItemInfo;
+
+    try {
+      if (type === 'file') {
+        await filesApi.moveFile(token, id, newParentId);
+      } else { // type === 'folder'
+        await foldersApi.moveFolder(token, id, newParentId);
+      }
+
+      toast({
+        title: "Success",
+        description: `"${itemName}" moved successfully.`,
+      });
+
+      // Refresh the current view
+      await loadFilesAndFolders();
+
+      // If moving to a *different* folder than current, the item will disappear.
+      // If moving *within* the current folder (e.g. from root to a subfolder, while viewing root), it also needs refresh.
+      // If moving to root, and currently viewing a folder, it will disappear.
+
+    } catch (error) {
+      console.error(`Error moving ${type}:`, error);
+      toast({
+        title: "Error",
+        description: `Failed to move ${type}. ${error instanceof Error ? error.message : ''}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsOrganizeDialogOpen(false);
+      setOrganizeItemInfo(null);
+    }
+  };
+
   const handleNavigateNext = async () => {
     if (
       currentPreviewIndex !== null &&
@@ -608,6 +734,8 @@ const Dashboard = () => {
         onSearchSubmit={loadFilesAndFolders}
         folderHistory={folderHistory}
         onBreadcrumbNavigate={handleBreadcrumbNavigate} // Pass the handler
+        viewMode={viewMode} // Pass viewMode
+        onViewModeChange={setViewMode} // Pass handler
       />
 
       {loading ? (
@@ -624,7 +752,11 @@ const Dashboard = () => {
           onFileDelete={handleDeleteFile}
           onFolderDelete={handleDeleteFolder}
           onFilePreview={handleFilePreview}
-          onStarToggle={handleFileStarToggled} // Add this prop
+          onStarToggle={handleFileStarToggled}
+          onRenameItem={handleRenameItem}
+          onOrganizeItem={handleOrganizeItem}
+          currentParentId={currentFolder?._id || null} // Pass currentParentId
+          viewMode={viewMode} // Pass viewMode
         />
       )}
 
@@ -664,6 +796,38 @@ const Dashboard = () => {
         isOpen={isUpgradeStorageDialogOpen}
         onOpenChange={setIsUpgradeStorageDialogOpen}
       />
+
+      {renameItemInfo && (
+        <RenameItemDialog
+          isOpen={isRenameDialogOpen}
+          onOpenChange={(isOpen) => {
+            setIsRenameDialogOpen(isOpen);
+            if (!isOpen) {
+              setRenameItemInfo(null); // Reset info when dialog is closed
+            }
+          }}
+          itemType={renameItemInfo.type}
+          itemId={renameItemInfo.id}
+          currentName={renameItemInfo.currentName}
+          onRenameSubmit={handleRenameSubmit}
+        />
+      )}
+
+      {organizeItemInfo && (
+        <OrganizeItemDialog
+          isOpen={isOrganizeDialogOpen}
+          onOpenChange={(isOpen) => {
+            setIsOrganizeDialogOpen(isOpen);
+            if (!isOpen) {
+              setOrganizeItemInfo(null);
+            }
+          }}
+          itemType={organizeItemInfo.type}
+          itemName={organizeItemInfo.itemName}
+          availableFolders={availableFoldersForMove}
+          onOrganizeSubmit={handleOrganizeSubmit}
+        />
+      )}
     </div>
   );
 };
