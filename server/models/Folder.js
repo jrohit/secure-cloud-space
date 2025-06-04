@@ -16,6 +16,15 @@ const FolderSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  isTrashed: {
+    type: Boolean,
+    default: false,
+    index: true // Important for query performance
+  },
+  trashedAt: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
 

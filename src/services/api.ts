@@ -1,4 +1,3 @@
-
 import { ApiError, AuthResponse, File, Folder, User } from "@/types";
 
 const API_URL = "http://localhost:5000/api";
@@ -6,13 +5,30 @@ const API_URL = "http://localhost:5000/api";
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await response.json();
-    throw {
-      message: error.message || "Something went wrong",
-      status: response.status,
-    } as ApiError;
+    const errorText = await response.text(); // Read as text first to avoid JSON parse error if not JSON
+    try {
+      const errorJson = JSON.parse(errorText);
+      throw {
+        message: errorJson.message || "Something went wrong",
+        status: response.status,
+      } as ApiError;
+    } catch (e) {
+      // If parsing as JSON fails, use the raw text or a generic message
+      throw {
+        message: errorText || "Something went wrong",
+        status: response.status,
+      } as ApiError;
+    }
   }
-  return response.json() as Promise<T>;
+  // Handle cases where response might be empty (e.g., 204 No Content)
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.indexOf("application/json") !== -1) {
+    return response.json() as Promise<T>;
+  } else {
+    // For non-JSON responses (like simple text or empty 204), resolve with null or a specific type
+    // For void promises, this is fine. For others, might need adjustment.
+    return Promise.resolve(null as unknown as T);
+  }
 }
 
 // Auth API
@@ -83,7 +99,7 @@ export const filesApi = {
   uploadFile: async (token: string, encryptedFileBlob: Blob, fileName: string, originalMimeType: string, folderId: string | null = null): Promise<File> => {
     const formData = new FormData();
     formData.append('file', encryptedFileBlob, fileName);
-    formData.append('originalMimeType', originalMimeType); // Add this line
+    formData.append('originalMimeType', originalMimeType);
 
     if (folderId) {
       formData.append("folderId", folderId);
@@ -93,55 +109,50 @@ export const filesApi = {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        // 'Content-Type': 'multipart/form-data' is automatically set by the browser for FormData
       },
       body: formData,
     });
     return handleResponse<File>(response);
   },
 
-  // Renamed from deleteFile to trashFile to reflect soft delete
-  trashFile: async (token: string, fileId: string): Promise<void> => {
+  trashFile: async (token: string, fileId: string): Promise<{ message: string }> => { // Backend sends a message
     const response = await fetch(`${API_URL}/files/${fileId}`, {
-      method: 'DELETE', // This is the soft delete endpoint now
+      method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
-    return handleResponse<void>(response);
+    return handleResponse<{ message: string }>(response);
   },
 
-  restoreFile: async (token: string, fileId: string): Promise<File> => {
-    console.log(`API: Attempting to restore file ${fileId} with token ${token}`); // Added console log
+  restoreFile: async (token: string, fileId: string): Promise<{message: string, file: File}> => { // Backend sends message and file
     const response = await fetch(`${API_URL}/files/${fileId}/restore`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
-    return handleResponse<File>(response);
+    return handleResponse<{message: string, file: File}>(response);
   },
 
   getTrashedFiles: async (token: string): Promise<File[]> => {
-    console.log(`[ApiService] Attempting to fetch trashed files with token ${token}`);
-    const response = await fetch(`${API_URL}/files?trashed=true`, { // Endpoint assumes backend filters by a 'trashed' flag
+    const response = await fetch(`${API_URL}/files/trash`, { // UPDATED URL
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
       },
     });
     return handleResponse<File[]>(response);
   },
 
-  deleteFilePermanently: async (token: string, fileId: string): Promise<void> => {
+  deleteFilePermanently: async (token: string, fileId: string): Promise<{ message: string }> => { // Backend sends a message
     const response = await fetch(`${API_URL}/files/${fileId}/permanent`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
-    return handleResponse<void>(response);
+    return handleResponse<{ message: string }>(response);
   },
 
   emptyTrash: async (token: string): Promise<{ message: string; count: number; freedSpace: number }> => {
@@ -160,6 +171,10 @@ export const filesApi = {
         Authorization: `Bearer ${token}`,
       },
     });
+    if (!response.ok) {
+        const error = await response.json();
+        throw { message: error.message || 'Download failed', status: response.status } as ApiError;
+    }
     return response.blob();
   },
 
@@ -168,11 +183,9 @@ export const filesApi = {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json' // Though no body is sent, it's good practice
       },
-      // No body is needed for a simple toggle
     });
-    return handleResponse<File>(response); // Assuming handleResponse is a generic helper
+    return handleResponse<File>(response);
   },
 
   getStarredFiles: async (token: string): Promise<File[]> => {
@@ -186,63 +199,29 @@ export const filesApi = {
   },
 
   renameFile: async (token: string, fileId: string, newName: string): Promise<File> => {
-    // Mocked implementation
+    // This should be a PATCH request in a real API
     console.log(`Mock renaming file ${fileId} to ${newName} with token ${token}`);
-    // Simulate an API call delay
     await new Promise(resolve => setTimeout(resolve, 500));
-    // In a real scenario, you would fetch the file, then return it or the updated version from API
-    // For now, we'll just return a dummy updated file object.
-    // This requires knowing the structure of 'File', which we assume is available.
-    // And we'd need to find the file in some local state or fetch it if not mocking.
-    // For a pure mock, we can't update global state here, so Dashboard.tsx will handle state update.
-    return {
-      _id: fileId,
-      name: newName,
-      updatedAt: new Date().toISOString(),
-      // Ensure all other required fields from the File type are present
-      type: 'mock/type',
-      size: 0,
-      path: '/mock/path',
-      folderId: null,
-      userId: 'mock-user',
-      createdAt: new Date().toISOString(),
-      isStarred: false,
-      displayPath: '/Mock Path',
-      trashedAt: null,
-    } as File; // Cast to File type to satisfy Promise<File>
+    return { _id: fileId, name: newName, updatedAt: new Date().toISOString(), type: 'mock/type', size: 0, path: '/mock/path', folderId: null, userId: 'mock-user', createdAt: new Date().toISOString(), isStarred: false, displayPath: '/Mock Path', trashedAt: null, isTrashed: false } as File;
   },
 
   moveFile: async (token: string, fileId: string, newParentId: string | null): Promise<File> => {
-    // Mocked implementation
+    // This should be a PATCH request in a real API
     console.log(`Mock moving file ${fileId} to new parent ${newParentId} with token ${token}`);
     await new Promise(resolve => setTimeout(resolve, 500));
-    // This mock assumes the file's other properties remain the same,
-    // but 'folderId' (representing parentId) and 'updatedAt' change.
-    // The actual File object would need to be fetched or passed to update realistically.
-    return {
-      _id: fileId,
-      name: 'Moved File Mock', // Name might not change, but to show it's a mock
-      folderId: newParentId,
-      updatedAt: new Date().toISOString(),
-      // Fill in other required fields for the File type
-      type: 'mock/type',
-      size: 0,
-      path: '/mock/path',
-      userId: 'mock-user',
-      createdAt: new Date().toISOString(), // Should be original creation date
-      isStarred: false,
-      displayPath: newParentId ? `/mock-parent/${newParentId}/Moved File Mock` : '/Moved File Mock',
-      trashedAt: null,
-    } as File;
+    return { _id: fileId, name: 'Moved File Mock', folderId: newParentId, updatedAt: new Date().toISOString(), type: 'mock/type', size: 0, path: '/mock/path', userId: 'mock-user', createdAt: new Date().toISOString(), isStarred: false, displayPath: newParentId ? `/mock-parent/${newParentId}/Moved File Mock` : '/Moved File Mock', trashedAt: null, isTrashed: false } as File;
   },
 };
 
 // Folders API
 export const foldersApi = {
   getFolders: async (token: string, parentId: string | null = null): Promise<Folder[]> => {
-    const url = parentId ? 
-      `${API_URL}/folders?parentId=${parentId}` : 
-      `${API_URL}/folders`;
+    const params = new URLSearchParams();
+    if (parentId) {
+        params.append('parentId', parentId);
+    }
+    const queryString = params.toString();
+    const url = `${API_URL}/folders${queryString ? `?${queryString}` : ''}`;
     
     const response = await fetch(url, {
       headers: {
@@ -264,83 +243,68 @@ export const foldersApi = {
     return handleResponse<Folder>(response);
   },
 
-  deleteFolder: async (token: string, folderId: string): Promise<void> => {
+  // This now represents moving a folder to trash (soft delete)
+  deleteFolder: async (token: string, folderId: string): Promise<{ message: string }> => {
     const response = await fetch(`${API_URL}/folders/${folderId}`, {
+      method: "DELETE", // Backend for this endpoint now performs soft delete
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse<{ message: string }>(response); // Backend sends a message
+  },
+
+  renameFolder: async (token: string, folderId: string, newName: string): Promise<Folder> => {
+    // This should be a PATCH request in a real API
+    console.log(`Mock renaming folder ${folderId} to ${newName} with token ${token}`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return { _id: folderId, name: newName, updatedAt: new Date().toISOString(), parentId: null, userId: 'mock-user', createdAt: new Date().toISOString(), isTrashed: false, trashedAt: null } as Folder;
+  },
+
+  moveFolder: async (token: string, folderId: string, newParentId: string | null): Promise<Folder> => {
+    // This should be a PATCH request in a real API
+    console.log(`Mock moving folder ${folderId} to new parent ${newParentId} with token ${token}`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return { _id: folderId, name: 'Moved Folder Mock', parentId: newParentId, updatedAt: new Date().toISOString(), userId: 'mock-user', createdAt: new Date().toISOString(), isTrashed: false, trashedAt: null } as Folder;
+  },
+
+  permanentlyDeleteTrashedFolder: async (token: string, folderId: string): Promise<{ message: string }> => {
+    const response = await fetch(`${API_URL}/folders/${folderId}/permanent`, { // IMPLEMENTED
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
-    return handleResponse<void>(response);
+    return handleResponse<{ message: string }>(response);
   },
 
-  renameFolder: async (token: string, folderId: string, newName: string): Promise<Folder> => {
-    // Mocked implementation
-    console.log(`Mock renaming folder ${folderId} to ${newName} with token ${token}`);
-    // Simulate an API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    // Similar to renameFile, this is a mock. Dashboard.tsx will handle actual state update.
-    return {
-      _id: folderId,
-      name: newName,
-      updatedAt: new Date().toISOString(),
-      // Ensure all other required fields from the Folder type are present
-      parentId: null,
-      userId: 'mock-user',
-      createdAt: new Date().toISOString(),
-    } as Folder; // Cast to Folder type
-  },
-
-  moveFolder: async (token: string, folderId: string, newParentId: string | null): Promise<Folder> => {
-    // Mocked implementation
-    console.log(`Mock moving folder ${folderId} to new parent ${newParentId} with token ${token}`);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    // This mock assumes the folder's other properties remain the same,
-    // but 'parentId' and 'updatedAt' change.
-    return {
-      _id: folderId,
-      name: 'Moved Folder Mock', // Name might not change
-      parentId: newParentId,
-      updatedAt: new Date().toISOString(),
-      // Fill in other required fields for the Folder type
-      userId: 'mock-user',
-      createdAt: new Date().toISOString(), // Should be original creation date
-    } as Folder;
-  },
-
-  permanentlyDeleteTrashedFolder: async (token: string, folderId: string): Promise<void> => {
-    // Mocked implementation
-    console.log(`Mock permanently deleting folder ${folderId} with token ${token}`);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    // No return value needed for a successful void promise
-    return Promise.resolve();
-  },
-
-  restoreFolder: async (token: string, folderId: string): Promise<Folder> => {
-    console.log(`Mock API: Restoring folder ${folderId} with token ${token}`);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    // Return a basic Folder-like object indicating success
-    // Ensure all required fields from the Folder type are present
-    return {
-      _id: folderId,
-      name: "Restored Folder Mock",
-      parentId: null,
-      userId: 'mock-user-id',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      // Add any other fields that your Folder type might have, e.g., trashedAt: null
-    } as Folder;
+  restoreFolder: async (token: string, folderId: string): Promise<{ message: string, folder: Folder }> => { // Backend sends message and folder
+    const response = await fetch(`${API_URL}/folders/${folderId}/restore`, { // IMPLEMENTED
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return handleResponse<{ message: string, folder: Folder }>(response);
   },
 
   getTrashedFolders: async (token: string): Promise<Folder[]> => {
-    console.log(`[ApiService] Attempting to fetch trashed folders with token ${token}`);
-    const response = await fetch(`${API_URL}/folders?trashed=true`, { // Endpoint assumes backend filters by a 'trashed' flag
+    const response = await fetch(`${API_URL}/folders/trash`, { // UPDATED URL
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
       },
     });
     return handleResponse<Folder[]>(response);
   },
+
+  emptyTrash: async (token: string): Promise<{ message: string; foldersDeleted?: number; spaceFreed?: string }> => { // NEW FUNCTION
+    const response = await fetch(`${API_URL}/folders/trash/empty`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse<{ message: string; foldersDeleted?: number; spaceFreed?: string }>(response);
+  }
 };
