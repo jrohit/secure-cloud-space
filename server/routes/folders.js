@@ -116,27 +116,14 @@ router.get('/trash', auth, async (req, res) => {
     if (cachedTrashedFolders) {
       return res.json(JSON.parse(cachedTrashedFolders));
     }
-    // 1. Fetch all folders for the user marked as trashed
-    const allUserTrashedFolders = await Folder.find({
+    // Fetch all folders for the user that are marked as trashed
+    const trashedFolders = await Folder.find({
       userId: req.user._id,
       isTrashed: true
     }).sort({ trashedAt: -1 }); // Keep the original sorting
 
-    // 2. Create a Set of all trashed folder IDs for quick lookup
-    const allTrashedFolderIdsSet = new Set(allUserTrashedFolders.map(f => f._id.toString()));
-
-    // 3. Filter to get only top-level trashed folders
-    // A folder is considered top-level in the trash if its parent is null
-    // OR if its parent is NOT in the set of all trashed folders (meaning parent is not trashed)
-    const topLevelTrashedFolders = allUserTrashedFolders.filter(folder => {
-      if (!folder.parentId) {
-        return true; // It's a root folder that's trashed
-      }
-      return !allTrashedFolderIdsSet.has(folder.parentId.toString());
-    });
-
-    await req.redisClient.set(cacheKey, JSON.stringify(topLevelTrashedFolders), { EX: 300 });
-    res.json(topLevelTrashedFolders);
+    await req.redisClient.set(cacheKey, JSON.stringify(trashedFolders), { EX: 300 });
+    res.json(trashedFolders);
   } catch (error) {
     console.error('Get trashed folders error:', error);
     res.status(500).json({ message: 'Server error' });

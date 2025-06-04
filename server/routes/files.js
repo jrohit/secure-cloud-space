@@ -273,18 +273,10 @@ router.get("/trash", auth, async (req, res) => {
     }
 
     // If not in cache, fetch from database
-    // 1. Get IDs of all trashed folders for the user
-    const trashedFolders = await Folder.find({ userId: userId, isTrashed: true }).select('_id');
-    const trashedFolderIds = trashedFolders.map(f => f._id);
-
-    // 2. Fetch files that are trashed but NOT in a trashed folder OR are in root and trashed
+    // Fetch all files for the user that are marked as trashed
     const trashedFileDocs = await File.find({
       userId: userId,
       isTrashed: true,
-      $or: [
-        { folderId: null }, // Files in root
-        { folderId: { $nin: trashedFolderIds } } // Files whose folder is NOT in the trashed list
-      ]
     }).sort({ trashedAt: -1 });
 
     const trashedFilesWithDisplayPath = await Promise.all(
