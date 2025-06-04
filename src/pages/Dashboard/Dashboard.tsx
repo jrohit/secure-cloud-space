@@ -528,13 +528,13 @@ const Dashboard = () => {
       setFolders((prev) => prev.filter((folder) => folder._id !== folderId));
       toast({
         title: "Success",
-        description: "Folder deleted successfully",
+        description: "Folder and its contents moved to trash", // MODIFIED
       });
     } catch (error) {
-      console.error("Error deleting folder:", error);
+      console.error("Error moving folder to trash:", error); // MODIFIED
       toast({
         title: "Error",
-        description: "Failed to delete folder",
+        description: "Failed to move folder to trash", // MODIFIED
         variant: "destructive",
       });
     }

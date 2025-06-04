@@ -58,7 +58,7 @@
     --folder-icon-color: theme('colors.cloudDrive.blue');
     --sidebar-icon-drive: theme('colors.cloudDrive.blue');
     --sidebar-icon-starred: theme('colors.cloudDrive.yellow');
-    --sidebar-icon-trash: theme('colors.cloudDrive.red');
+    --sidebar-icon-trash: theme('colors.red.500'); /* Updated as per prompt */
   }
 
   .dark {
@@ -108,7 +108,7 @@
     --folder-icon-color: theme('colors.blue.500');
     --sidebar-icon-drive: theme('colors.blue.500');
     --sidebar-icon-starred: theme('colors.yellow.500');
-    --sidebar-icon-trash: theme('colors.red.500');
+    --sidebar-icon-trash: theme('colors.red.600'); /* Updated as per prompt */
   }
 }
 

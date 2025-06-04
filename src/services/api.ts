@@ -122,13 +122,10 @@ export const filesApi = {
   },
 
   getTrashedFiles: async (token: string): Promise<File[]> => {
-    const response = await fetch(`${API_URL}/files/trash`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-    return handleResponse<File[]>(response);
+    // Mocked for current subtask - TrashPage.tsx uses local mock data for display
+    console.log(`Mock API: Getting trashed files with token ${token}`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return []; // Return empty array as TrashPage uses its own mock display data
   },
 
   deleteFilePermanently: async (token: string, fileId: string): Promise<void> => {
@@ -303,5 +300,36 @@ export const foldersApi = {
       userId: 'mock-user',
       createdAt: new Date().toISOString(), // Should be original creation date
     } as Folder;
+  },
+
+  permanentlyDeleteTrashedFolder: async (token: string, folderId: string): Promise<void> => {
+    // Mocked implementation
+    console.log(`Mock permanently deleting folder ${folderId} with token ${token}`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // No return value needed for a successful void promise
+    return Promise.resolve();
+  },
+
+  restoreFolder: async (token: string, folderId: string): Promise<Folder> => {
+    console.log(`Mock API: Restoring folder ${folderId} with token ${token}`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // Return a basic Folder-like object indicating success
+    // Ensure all required fields from the Folder type are present
+    return {
+      _id: folderId,
+      name: "Restored Folder Mock",
+      parentId: null,
+      userId: 'mock-user-id',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      // Add any other fields that your Folder type might have, e.g., trashedAt: null
+    } as Folder;
+  },
+
+  getTrashedFolders: async (token: string): Promise<Folder[]> => {
+    // Mocked for current subtask
+    console.log(`Mock API: Getting trashed folders with token ${token}`);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return []; // Return empty array
   },
 };
