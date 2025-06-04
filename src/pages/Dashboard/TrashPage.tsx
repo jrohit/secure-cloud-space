@@ -35,41 +35,34 @@ const TrashPage: React.FC = () => {
   ] = useState(false); // Added state for delete selected confirmation
 
   useEffect(() => {
-    // if (token) { // Actual API call commented out for this subtask
-    //   setIsLoading(true);
-    //   filesApi
-    //     .getTrashedFiles(token)
-    //     .then((data) => {
-    //       setTrashedFiles(data);
-    //     })
-    //     .catch((error) => {
-    //       console.error("Error fetching trashed files:", error);
-    //       toast({
-    //         title: "Error",
-    //         description: "Failed to fetch trashed files.",
-    //         variant: "destructive",
-    //       });
-    //     })
-    //     .finally(() => {
-    //       setIsLoading(false);
-    //     });
-    // }
+    const fetchTrashedItems = async () => {
+      if (!token) {
+        // Or handle error state appropriately
+        return;
+      }
+      setIsLoading(true);
+      try {
+        console.log("[TrashPage] Fetching trashed items from API services...");
+        const filesData = await filesApi.getTrashedFiles(token as string);
+        const foldersData = await foldersApi.getTrashedFolders(token as string); // Assuming this API exists
+        console.log("[TrashPage] Fetched trashed files:", filesData);
+        console.log("[TrashPage] Fetched trashed folders:", foldersData);
+        setTrashedFiles(filesData);
+        setTrashedFolders(foldersData);
+      } catch (error) {
+        console.error("[TrashPage] Error fetching trashed items:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load trashed items.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    // Mocked data fetching for this subtask
-    setIsLoading(true);
-    setTimeout(() => {
-      const mockTrashedFiles: MyFileType[] = [
-        { _id: 'file1_trashed', name: 'Trashed Document.pdf', type: 'application/pdf', size: 1024, trashedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), updatedAt: new Date().toISOString(), folderId: null, userId: 'user1', isStarred: false, path: 'dummy', createdAt: new Date().toISOString() },
-        { _id: 'file2_trashed', name: 'Old Photo.jpg', type: 'image/jpeg', size: 2048, trashedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), updatedAt: new Date().toISOString(), folderId: null, userId: 'user1', isStarred: false, path: 'dummy', createdAt: new Date().toISOString()  },
-      ];
-      const mockTrashedFolders: import('@/types').Folder[] = [
-        { _id: 'folder1_trashed', name: 'Old Project (Trashed)', trashedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), parentId: null, userId: 'user1', updatedAt: new Date().toISOString(), createdAt: new Date().toISOString() },
-      ];
-      setTrashedFiles(mockTrashedFiles);
-      setTrashedFolders(mockTrashedFolders); // Set mocked folders
-      setIsLoading(false);
-    }, 1000);
-  }, [token, toast]); // Still depend on token and toast for consistency, though token not used in mock
+    fetchTrashedItems();
+  }, [token, toast]); // Dependency array
 
   const handleRestoreFile = async (fileId: string) => {
     console.log('[TrashPage] handleRestoreFile: Attempting to restore file with ID:', fileId, 'Token available:', !!token);
