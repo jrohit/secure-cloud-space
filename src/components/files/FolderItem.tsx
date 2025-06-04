@@ -31,7 +31,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, onRe
     <ContextMenu>
       <ContextMenuTrigger>
         <Card
-          className="w-[16rem] h-[1rem] rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer flex items-center justify-center" // Adjusted flex properties
+          className="w-[16rem] h-[12] rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer flex" // Height MODIFIED, flex properties adjusted
           onClick={(e) => {
         // Don't navigate if clicking on the dropdown
         if ((e.target as HTMLElement).closest('.dropdown-menu-trigger')) {
@@ -41,15 +41,18 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, onRe
         onClick();
       }}
     >
-      {/* Content is removed/simplified due to h-[1rem].
-          A tiny piece of text might be visible if desired, but overflow-hidden will clip most.
-          For instance, we could try to show a very truncated name, but it's not the primary goal.
-          The console.log is kept for debugging date issues if they were ever related to this component,
-          though visually it won't matter much now.
-      */}
-      <CardContent className="p-0 m-0 w-full text-center">
-        {/* <span className="text-[0.5rem] truncate">{folder.name}</span> */}
-        {console.log('FolderItem updatedAt:', folder.updatedAt, 'typeof:', typeof folder.updatedAt)}
+      <CardContent className="flex items-center p-3 space-x-3 w-full"> {/* Ensure CardContent takes full width and apply padding/spacing */}
+        <FolderOpen className="h-6 w-6 text-[var(--folder-icon-color)] flex-shrink-0" />
+        <div className="flex flex-col truncate min-w-0"> {/* Allow text container to shrink and truncate */}
+          <span className="text-sm font-medium truncate" title={folder.name}>
+            {folder.name}
+          </span>
+          {/* Console log for debugging, kept as requested */}
+          {console.log('FolderItem updatedAt:', folder.updatedAt, 'typeof:', typeof folder.updatedAt)}
+          <span className="text-xs text-muted-foreground truncate">
+            {folder.updatedAt ? formatDistanceToNow(new Date(folder.updatedAt), { addSuffix: true }) : 'Unknown date'}
+          </span>
+        </div>
       </CardContent>
         </Card>
       </ContextMenuTrigger>
