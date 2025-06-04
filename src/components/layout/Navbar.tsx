@@ -20,7 +20,7 @@ export const Navbar = ({ toggleSidebar }: NavbarProps) => {
   const { user, logout } = useAuth();
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+    <header className="bg-background border-b border-border sticky top-0 z-30"> {/* MODIFIED */}
       <div className="px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden">

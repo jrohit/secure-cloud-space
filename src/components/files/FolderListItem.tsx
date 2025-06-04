@@ -36,7 +36,7 @@ const FolderListItem: React.FC<FolderListItemProps> = ({
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
         >
-          <FolderIconLucide className="h-6 w-6 mr-3 text-cloudDrive-blue flex-shrink-0" />
+          <FolderIconLucide className="h-6 w-6 mr-3 text-[var(--folder-icon-color)] flex-shrink-0" /> {/* MODIFIED */}
           <span className="text-sm font-medium truncate flex-grow min-w-0" title={folder.name}>
             {folder.name}
           </span>

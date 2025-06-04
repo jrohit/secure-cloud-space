@@ -14,8 +14,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext"; // Import useAuth
 import { useState } from 'react'; // Import useState
-import { Button } from '@/components/ui/button'; // Import Button
-import UpgradeStorageDialog from '@/components/dialogs/UpgradeStorageDialog'; // Import Dialog
+import { Button } from '@/components/ui/button';
+import UpgradeStorageDialog from '@/components/dialogs/UpgradeStorageDialog';
+import { ThemeToggle } from './ThemeToggle'; // Added
 
 interface SidebarProps {
   collapsed: boolean;
@@ -76,10 +77,10 @@ interface SidebarItemProps {
   icon: React.ElementType;
   label: string;
   to: string;
-  color?: string;
+  colorClassName?: string; // Changed from color to colorClassName
 }
 
-const SidebarItem = ({ icon: Icon, label, to, color }: SidebarItemProps) => (
+const SidebarItem = ({ icon: Icon, label, to, colorClassName }: SidebarItemProps) => (
   <NavLink
     to={to}
     className={({ isActive }) =>
@@ -90,8 +91,7 @@ const SidebarItem = ({ icon: Icon, label, to, color }: SidebarItemProps) => (
     }
   >
     <Icon
-      style={color ? { color } : {}}
-      className="h-4 w-4"
+      className={cn("h-4 w-4", colorClassName)} // Apply colorClassName here
     />
     <span>{label}</span>
   </NavLink>
@@ -129,19 +129,28 @@ export const Sidebar = ({ collapsed }: SidebarProps) => {
         </div>
         <nav className="flex flex-col gap-1 px-2">
           <SidebarItem icon={Home} label="Home" to="/dashboard" />
-          <SidebarItem icon={HardDrive} label="My Drive" to="/dashboard/my-drive" color="#4285F4" />
+          <SidebarItem icon={HardDrive} label="My Drive" to="/dashboard/my-drive" colorClassName="text-[var(--sidebar-icon-drive)]" />
           <SidebarItem icon={FileText} label="Recent" to="/dashboard/recent" />
-          <SidebarItem icon={Star} label="Starred" to="/dashboard/starred" color="#FBBC05" />
+          <SidebarItem icon={Star} label="Starred" to="/dashboard/starred" colorClassName="text-[var(--sidebar-icon-starred)]" />
           <SidebarItem icon={Share} label="Shared" to="/dashboard/shared" />
-          <SidebarItem icon={Trash2} label="Trash" to="/dashboard/trash" color="#EA4335" />
+          <SidebarItem icon={Trash2} label="Trash" to="/dashboard/trash" colorClassName="text-[var(--sidebar-icon-trash)]" />
           <div className="my-2 border-t border-border" />
           <SidebarItem icon={Settings} label="Settings" to="/dashboard/settings" />
         </nav>
       </div>
+
+      {/* Theme Toggle - Placed before storage, always visible in expanded sidebar */}
+      <div className={cn(
+        "p-4 border-t transition-opacity duration-300",
+        collapsed ? "opacity-0 pointer-events-none" : "opacity-100"
+      )}>
+        <ThemeToggle />
+      </div>
+
       {/* Storage Section - Placed at the bottom */}
       {user && typeof user.storageUsed === 'number' && typeof user.storageLimit === 'number' && (
         <div className={cn(
-          "mt-auto p-4 border-t transition-opacity duration-300", // Use transition-opacity
+          "p-4 border-t transition-opacity duration-300", // Use transition-opacity. Removed mt-auto as ThemeToggle is above.
           collapsed ? "opacity-0 pointer-events-none" : "opacity-100" // Control visibility with opacity
         )}>
           <h4 className="text-sm font-semibold mb-1">Storage</h4>
@@ -149,6 +158,7 @@ export const Sidebar = ({ collapsed }: SidebarProps) => {
             {formatBytes(user.storageUsed)} of {formatBytes(user.storageLimit)} used
           </div>
           <div className="w-full bg-secondary rounded-full h-2.5 mt-1">
+            {/* TODO: Make gradient themeable if desired, for now it's brand colors */}
             <div 
               className="bg-gradient-to-r from-cloudDrive-blue to-cloudDrive-green h-2.5 rounded-full" 
               style={{ width: `${storagePercentage}%` }}

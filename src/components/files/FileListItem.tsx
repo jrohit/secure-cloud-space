@@ -26,6 +26,19 @@ function getFileIcon(type: string): React.ElementType {
   return FileIconLucide;
 }
 
+// Helper to get appropriate file icon color class name
+function getFileColorClassName(type: string): string {
+  if (type.startsWith("image/")) {
+    return "text-[var(--file-icon-image)]";
+  } else if (type.includes("pdf")) {
+    return "text-[var(--file-icon-pdf)]";
+  } else if (type.includes("document") || type.includes("text")) {
+    return "text-[var(--file-icon-document)]";
+  } else {
+    return "text-[var(--file-icon-default)]";
+  }
+}
+
 interface FileListItemProps {
   file: MyFileType;
   onPreview: (file: MyFileType) => void;
@@ -46,6 +59,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
   currentParentId,
 }) => {
   const FileDisplayIcon = getFileIcon(file.type);
+  const fileColorClassName = getFileColorClassName(file.type); // Get color class
 
   return (
     <ContextMenu>
@@ -57,7 +71,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onPreview(file); }}
         >
-          <FileDisplayIcon className="h-6 w-6 mr-3 text-muted-foreground flex-shrink-0" />
+          <FileDisplayIcon className={cn("h-6 w-6 mr-3 flex-shrink-0", fileColorClassName)} /> {/* Apply color class */}
           <span className="text-sm font-medium truncate flex-grow min-w-0" title={file.name}>
             {file.name}
           </span>

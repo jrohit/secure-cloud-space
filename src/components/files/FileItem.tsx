@@ -218,7 +218,8 @@ const FileItem: React.FC<FileItemProps> = ({
   }, [encryptedFileBuffer, file, getMasterCryptoKey]);
 
   const fileIcon = getFileIcon(file.type);
-  const fileColor = getFileColor(file.type);
+  // const fileColor = getFileColor(file.type); // Old way
+  const fileColorClassName = getFileColorClassName(file.type); // New way
 
   const handleDownload = async () => {
     if (!token) return;
@@ -259,16 +260,16 @@ const FileItem: React.FC<FileItemProps> = ({
     }
   }
 
-  function getFileColor(type: string) {
+  // Updated function to return Tailwind class names using CSS variables
+  function getFileColorClassName(type: string): string {
     if (type.startsWith("image/")) {
-      return "#34A853"; // Green
+      return "text-[var(--file-icon-image)]";
     } else if (type.includes("pdf")) {
-      // Keep PDF color for icon fallback
-      return "#EA4335"; // Red
+      return "text-[var(--file-icon-pdf)]";
     } else if (type.includes("document") || type.includes("text")) {
-      return "#4285F4"; // Blue
+      return "text-[var(--file-icon-document)]";
     } else {
-      return "#FBBC05"; // Yellow
+      return "text-[var(--file-icon-default)]";
     }
   }
 
@@ -312,8 +313,7 @@ const FileItem: React.FC<FileItemProps> = ({
             />
           ) : (
             <FileIconComponent
-              style={{ color: fileColor }}
-              className="h-16 w-16 opacity-80"
+              className={cn("h-16 w-16 opacity-80", fileColorClassName)} // Use className
             />
           )}
         </div>

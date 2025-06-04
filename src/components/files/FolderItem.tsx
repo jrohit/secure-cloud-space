@@ -31,7 +31,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, onRe
     <ContextMenu>
       <ContextMenuTrigger>
         <Card
-          className="w-[16rem] h-[10rem] rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer flex flex-col justify-between"
+          className="w-[16rem] h-[10rem] rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer flex flex-col"
           onClick={(e) => {
         // Don't navigate if clicking on the dropdown
         if ((e.target as HTMLElement).closest('.dropdown-menu-trigger')) {
@@ -41,32 +41,27 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, onRe
         onClick();
       }}
     >
-      {/* Adjusted CardContent and CardFooter for better layout within fixed height */}
-      <CardContent className="p-4 flex-grow flex items-center justify-center">
-        {/* Removed aspect-square to allow icon to size more freely within the content area */}
-        <div className="flex items-center justify-center bg-muted/20 p-2 rounded-md">
-          <FolderOpen className="h-16 w-16 sm:h-20 sm:w-20 text-cloudDrive-blue opacity-80" />
-        </div>
-      </CardContent>
-      <CardFooter className="p-3 pt-0 flex-col items-start gap-1 border-t bg-background/50">
-        <div className="w-full flex justify-between items-center"> {/* items-center for better vertical alignment of name and menu */}
-          <div className="truncate flex-1">
-            <h3 className="text-sm font-semibold truncate" title={folder.name}>
+      <CardContent className="p-4 flex flex-col flex-grow justify-start"> {/* Changed padding, flex-grow, and alignment */}
+        {/* Folder Icon - smaller and to the side of the name now */}
+        <div className="flex items-start mb-3">
+          <FolderOpen className="h-8 w-8 text-[var(--folder-icon-color)] opacity-90 mr-3 flex-shrink-0 mt-1" /> {/* MODIFIED */}
+          <div className="flex-grow min-w-0"> {/* Ensure this div can shrink and name truncates */}
+            <h3 className="text-lg font-semibold truncate" title={folder.name}> {/* Increased font size */}
               {folder.name}
             </h3>
           </div>
-          {/* The DropdownMenu from original code for other actions (like direct delete) is removed
-              as all actions are now meant to be in ItemContextMenu triggered by right-click.
-              If a visible ellipsis for non-context menu actions is still desired, it would be re-added here.
-              For this task, we assume ItemContextMenu is the primary action source.
-          */}
         </div>
+
+        {/* Spacer to push date to the bottom of CardContent if CardContent is set to flex-grow and flex-col */}
+        <div className="flex-grow"></div>
+
         {/* Added console.log for debugging updatedAt */}
-        <p className="text-xs text-muted-foreground w-full truncate"> {/* Ensure date also truncates if needed */}
+        <p className="text-xs text-muted-foreground w-full truncate">
           Modified {console.log('FolderItem updatedAt:', folder.updatedAt, 'typeof:', typeof folder.updatedAt)}
           {folder.updatedAt ? formatDistanceToNow(new Date(folder.updatedAt), { addSuffix: true }) : 'Unknown date'}
         </p>
-      </CardFooter>
+      </CardContent>
+      {/* CardFooter is removed as its content is moved to CardContent */}
         </Card>
       </ContextMenuTrigger>
       <ItemContextMenu
