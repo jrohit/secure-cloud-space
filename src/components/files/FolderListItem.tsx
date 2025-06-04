@@ -40,8 +40,10 @@ const FolderListItem: React.FC<FolderListItemProps> = ({
           <span className="text-sm font-medium truncate flex-grow min-w-0" title={folder.name}>
             {folder.name}
           </span>
+          {/* Added console.log for debugging updatedAt */}
           <span className="text-xs text-muted-foreground mr-4 hidden md:block flex-shrink-0">
-            Modified {formatDistanceToNow(new Date(folder.updatedAt), { addSuffix: true })}
+            Modified {console.log('FolderListItem updatedAt:', folder.updatedAt, 'typeof:', typeof folder.updatedAt)}
+            {folder.updatedAt ? formatDistanceToNow(new Date(folder.updatedAt), { addSuffix: true }) : 'Unknown date'}
           </span>
           {/*
             Similar to FileListItem, actions like star (if applicable to folders later)

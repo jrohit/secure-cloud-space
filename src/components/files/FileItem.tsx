@@ -372,9 +372,11 @@ const FileItem: React.FC<FileItemProps> = ({
             </DropdownMenu>
           </div>
         </div>
+        {/* Added console.log for debugging updatedAt */}
         <p className="text-xs text-muted-foreground">
           Modified{" "}
-          {formatDistanceToNow(new Date(file.updatedat), { addSuffix: true })}
+          {console.log('FileItem updatedAt:', file.updatedAt, 'typeof:', typeof file.updatedAt)}
+          {file.updatedAt ? formatDistanceToNow(new Date(file.updatedAt), { addSuffix: true }) : 'Unknown date'}
         </p>
       </CardFooter>
         </Card>

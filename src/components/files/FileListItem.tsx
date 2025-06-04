@@ -64,8 +64,10 @@ const FileListItem: React.FC<FileListItemProps> = ({
           <span className="text-xs text-muted-foreground mx-4 hidden sm:block flex-shrink-0">
             {formatFileSize(file.size)}
           </span>
+          {/* Added console.log for debugging updatedAt */}
           <span className="text-xs text-muted-foreground mr-4 hidden md:block flex-shrink-0">
-            Modified {formatDistanceToNow(new Date(file.updatedAt), { addSuffix: true })}
+            Modified {console.log('FileListItem updatedAt:', file.updatedAt, 'typeof:', typeof file.updatedAt)}
+            {file.updatedAt ? formatDistanceToNow(new Date(file.updatedAt), { addSuffix: true }) : 'Unknown date'}
           </span>
           <Button
             variant="ghost"

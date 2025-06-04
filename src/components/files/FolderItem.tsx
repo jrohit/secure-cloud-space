@@ -61,8 +61,10 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onClick, onDelete, onRe
               For this task, we assume ItemContextMenu is the primary action source.
           */}
         </div>
+        {/* Added console.log for debugging updatedAt */}
         <p className="text-xs text-muted-foreground w-full truncate"> {/* Ensure date also truncates if needed */}
-          Modified {formatDistanceToNow(new Date(folder.updatedAt), { addSuffix: true })}
+          Modified {console.log('FolderItem updatedAt:', folder.updatedAt, 'typeof:', typeof folder.updatedAt)}
+          {folder.updatedAt ? formatDistanceToNow(new Date(folder.updatedAt), { addSuffix: true }) : 'Unknown date'}
         </p>
       </CardFooter>
         </Card>
