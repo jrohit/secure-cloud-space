@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button"; // For placeholder buttons
 import { useToast } from "@/components/ui/use-toast"; // For displaying errors or info
 import { useAuth } from "@/contexts/AuthContext"; // For getting the token
-import { filesApi } from "@/services/api"; // Assuming filesApi is in @/services/api
+import { filesApi, foldersApi } from "@/services/api"; // MODIFIED: Added foldersApi
 import { MyFileType } from "@/types"; // Changed from File to MyFileType
 import React, { useEffect, useState } from "react";
 
