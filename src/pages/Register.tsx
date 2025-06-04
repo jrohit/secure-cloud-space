@@ -47,7 +47,7 @@ const Register = () => {
 
     try {
       // 1. Generate a raw master key
-      const rawMasterKey = generateMasterKey();
+      const rawMasterKey = await generateMasterKey();
 
       // 2. Generate a salt
       const salt = generateSalt(16);
