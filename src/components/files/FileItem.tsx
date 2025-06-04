@@ -25,8 +25,8 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-// Define the cache for thumbnails
-const thumbnailCache = new Map<string, string>();
+// Define the cache for thumbnails - Stores Blob objects now
+const thumbnailCache = new Map<string, Blob>();
 
 interface FileItemProps {
   file: MyFileType;
@@ -107,13 +107,19 @@ const FileItem: React.FC<FileItemProps> = ({
     ) {
       const cacheKey = file._id + '_' + new Date(file.updatedAt).getTime();
       if (thumbnailCache.has(cacheKey)) {
-        const cachedObjectUrl = thumbnailCache.get(cacheKey)!;
-        setThumbnailObjectUrl(cachedObjectUrl);
-        currentObjectUrlRef.current = cachedObjectUrl;
-        // console.log(`FileItem: Cache hit for ${file.name} (ID: ${file._id})`);
-        return; // Return early as we found it in cache
+        const cachedBlob = thumbnailCache.get(cacheKey);
+        if (cachedBlob) {
+          const newObjectUrl = URL.createObjectURL(cachedBlob);
+          setThumbnailObjectUrl(newObjectUrl);
+          currentObjectUrlRef.current = newObjectUrl;
+          setThumbnailFailed(false); // Ensure failed state is reset if cache hit is successful
+          // console.log(`FileItem: Used cached BLOB for ${file.name} (ID: ${file._id})`);
+          return; // Return early as we found a valid blob in cache
+        }
+        // If cachedBlob was undefined (shouldn't happen if .has was true, but good practice)
+        // console.warn(`FileItem: Cache had key for ${file.name} but blob was undefined. Regenerating.`);
       }
-      // console.log(`FileItem: Cache miss for ${file.name} (ID: ${file._id}). Generating.`);
+      // console.log(`FileItem: Cache miss or invalid blob for ${file.name} (ID: ${file._id}). Generating.`);
 
       // MODIFIED
       const processEncryptedBuffer = async () => {
@@ -155,8 +161,8 @@ const FileItem: React.FC<FileItemProps> = ({
               );
 
               if (thumbnailBlob) {
-                const objectUrl = URL.createObjectURL(thumbnailBlob);
-                thumbnailCache.set(cacheKey, objectUrl); // Store in cache
+                thumbnailCache.set(cacheKey, thumbnailBlob); // Store the Blob in cache
+                const objectUrl = URL.createObjectURL(thumbnailBlob); // Create ObjectURL for this instance
                 setThumbnailObjectUrl(objectUrl);
                 currentObjectUrlRef.current = objectUrl;
               } else {
