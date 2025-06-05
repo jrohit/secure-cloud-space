@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { MyFileType } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
-import { File as FileIconLucide, Image, FileText, Star, MoreVertical } from 'lucide-react';
+import { File as FileIconLucide, Image, FileText, Star, MoreVertical, Trash2 } from 'lucide-react'; // Added Trash2
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -95,12 +95,19 @@ const FileListItem: React.FC<FileListItemProps> = ({
           >
             <Star className={cn("h-5 w-5", file.isStarred && "fill-yellow-400")} />
           </Button>
-          {/*
-            For a cleaner list view, the "MoreVertical" button for dropdown menu
-            is often part of the ContextMenu itself or handled by right-click.
-            If an explicit button is needed, it can be added here, ensuring stopPropagation.
-            For now, relying on ContextMenuTrigger for right-click.
-          */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive delete-list-item-button" // Added class
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent row click
+              onDelete(file._id, 'file');
+            }}
+            aria-label={`Delete ${file.name}`}
+          >
+            <Trash2 className="h-5 w-5" />
+          </Button>
+          {/* ContextMenu can still exist for other actions like rename, organize */}
         </div>
       </ContextMenuTrigger>
       <ItemContextMenu

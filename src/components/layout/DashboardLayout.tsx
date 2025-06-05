@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Navbar } from "./Navbar";
+import ScrollToTopButton from "./ScrollToTopButton"; // Import the new component
 
 const DashboardLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -20,6 +21,7 @@ const DashboardLayout = () => {
           <Outlet />
         </main>
       </div>
+      <ScrollToTopButton /> {/* Add the button here */}
     </div>
   );
 };
