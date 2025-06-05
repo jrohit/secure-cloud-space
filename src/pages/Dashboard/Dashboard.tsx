@@ -568,31 +568,40 @@ const Dashboard = () => {
 
   const handleDeleteFile = async (fileId: string) => {
     if (!token) return;
+    const scrollY = window.scrollY;
 
     try {
       await filesApi.trashFile(token, fileId);
       toast({
         title: "Success",
-        description: "File moved to trash. Refreshing list...",
+        description: "File moved to trash.", // Updated message
       });
-      // Option A: Trigger a full refresh of the current view for infinite scroll
-      setFiles([]);
-      setCurrentPage(1);
-      setHasMoreFiles(true);
-      // loadFilesAndFolders(); // Explicit call, or rely on useEffect for currentPage change.
-      // The useEffect for [token, currentFolder, searchQuery] will reset page to 1
-      // and the useEffect for [token, currentPage, currentFolder, searchQuery] will then load.
-      // To ensure it reloads even if current page was already 1, an explicit call might be useful,
-      // or ensure one of the deps in the second useEffect changes.
-      // For simplicity here, we'll rely on the fact that setFiles([]) and setCurrentPage(1)
-      // should make the existing effects correctly reload the first page.
-      // If `currentPage` was already 1, the data loading `useEffect` needs to be robust enough
-      // or be explicitly called. Let's ensure `loadFilesAndFolders` is called if already on page 1.
-      if (currentPage === 1) {
-        loadFilesAndFolders();
-      } else {
-        setCurrentPage(1); // This will trigger the load via useEffect.
-      }
+
+      const newTotalCount = totalFilesCount - 1;
+      setTotalFilesCount(newTotalCount);
+      const newTotalPages = Math.ceil(newTotalCount / itemsPerPage);
+      setTotalFilePages(newTotalPages);
+      const newHasMoreFiles = currentPage < newTotalPages;
+      setHasMoreFiles(newHasMoreFiles);
+
+      setFiles(prevFiles => {
+        const updatedFiles = prevFiles.filter(f => f._id !== fileId);
+        if (updatedFiles.length === 0 && newHasMoreFiles) {
+          // Emptied current view, but more data exists overall. Reset to page 1.
+          // The useEffect for context change will handle loading.
+          if (currentPage === 1) {
+            loadFilesAndFolders(); // Already on page 1, so explicitly reload
+          } else {
+            setCurrentPage(1);
+          }
+        }
+        return updatedFiles;
+      });
+
+      // Attempt to restore scroll position, might need adjustment for dynamic list height changes
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
 
     } catch (error) {
       console.error("Error moving file to trash:", error);
@@ -604,11 +613,9 @@ const Dashboard = () => {
     }
   };
 
-  // Function to handle permanent deletion of a file
-  // This assumes Dashboard.tsx might be displaying a list of TRASHED files
-  // when this action is available.
   const handleDeleteFilePermanently = async (fileId: string) => {
     if (!token) return;
+    const scrollY = window.scrollY;
 
     try {
       await filesApi.deleteFilePermanently(token, fileId);
@@ -616,32 +623,34 @@ const Dashboard = () => {
         title: "Success",
         description: "File permanently deleted.",
       });
-      // Update local state assuming 'files' could be a list of trashed items
-      const newTotalFilesCount = totalFilesCount - 1;
-      setFiles(prevFiles => prevFiles.filter(f => f._id !== fileId));
-      setTotalFilesCount(newTotalFilesCount);
-      if (newTotalFilesCount <= 0) {
-        setTotalFilePages(0);
-        setHasMoreFiles(false);
-      } else {
-        setTotalFilePages(Math.ceil(newTotalFilesCount / itemsPerPage));
-        // Re-evaluate hasMoreFiles based on current page and new total pages
-        // This is tricky if current page is now out of bounds.
-        // A full refresh (like in handleDeleteFile) might be safer if current page content is affected.
-        // For now, simple filter and count update.
-        setHasMoreFiles(currentPage < Math.ceil(newTotalFilesCount / itemsPerPage));
-      }
-       // If the current page becomes empty and there were more pages,
-       // it might be good to try and load the previous page or reset.
-       // For simplicity, this just removes the item.
-       // Consider if a reload/page adjustment is needed if on trash view.
-       if (files.filter(f => f._id !== fileId).length === 0 && newTotalFilesCount > 0 && currentPage > 1) {
-        setCurrentPage(prev => prev -1); // Go to previous page if current is now empty
-       } else if (files.filter(f => f._id !== fileId).length === 0 && newTotalFilesCount === 0){
-        setCurrentPage(1);
-        setHasMoreFiles(false); // No files left
-       }
 
+      const newTotalCount = totalFilesCount - 1;
+      setTotalFilesCount(newTotalCount);
+      const newTotalPages = Math.ceil(newTotalCount / itemsPerPage);
+      setTotalFilePages(newTotalPages);
+      const newHasMoreFiles = currentPage < newTotalPages; // Check if current page is still valid
+      setHasMoreFiles(newHasMoreFiles);
+
+      setFiles(prevFiles => {
+        const updatedFiles = prevFiles.filter(f => f._id !== fileId);
+        if (updatedFiles.length === 0 && newHasMoreFiles) {
+          // Emptied current view, but more data exists overall (e.g. on other pages).
+          // Reset to page 1. The useEffect for context/page change will handle loading.
+           if (currentPage === 1) {
+            loadFilesAndFolders(); // Already on page 1, so explicitly reload
+          } else {
+            setCurrentPage(1);
+          }
+        } else if (updatedFiles.length === 0 && !newHasMoreFiles) {
+          // This means all files (even across all pages) are now deleted.
+          // No specific load needed, empty state will show. `hasMoreFiles` is already false.
+        }
+        return updatedFiles;
+      });
+
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
 
     } catch (error) {
       console.error("Error permanently deleting file:", error);
