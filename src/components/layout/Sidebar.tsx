@@ -114,7 +114,7 @@ export const Sidebar = ({ collapsed }: SidebarProps) => {
   return (
     <div
       className={cn(
-        "border-r bg-background transition-all duration-300 overflow-hidden flex flex-col h-full", // Added flex flex-col h-full
+        "sticky top-0 border-r bg-background transition-all duration-300 overflow-hidden flex flex-col h-full", // Added flex flex-col h-full
         collapsed ? "w-0 md:w-14" : "w-64"
       )}
     >
