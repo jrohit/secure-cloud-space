@@ -13,8 +13,9 @@ import { decryptFile, encryptFile } from "@/lib/cryptoUtils";
 import { generateImageThumbnail } from "@/lib/imageUtils"; // Adjust path if needed
 import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
-import { useEffect, useState } from "react";
-import { Pagination } from "@/components/ui/pagination"; // Added for pagination
+import { useEffect, useState, useCallback, useMemo }
+ from "react";
+import throttle from 'lodash/throttle'; // Added for infinite scroll
 
 // Cache for decrypted file previews
 const decryptedFileCache = new Map<string, ArrayBuffer>();
@@ -104,10 +105,12 @@ const Dashboard = () => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
-  const [currentPage, setCurrentPage] = useState(1); // Added for pagination
-  const [itemsPerPage] = useState(10); // Added for pagination, could be configurable
-  const [totalFilesCount, setTotalFilesCount] = useState(0); // Added for pagination
-  const [totalFilePages, setTotalFilePages] = useState(0); // Added for pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
+  const [totalFilesCount, setTotalFilesCount] = useState(0);
+  const [totalFilePages, setTotalFilePages] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false); // For infinite scroll
+  const [hasMoreFiles, setHasMoreFiles] = useState(true); // For infinite scroll
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -141,26 +144,51 @@ const Dashboard = () => {
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card'); // Added for View Toggle
 
 
+  // Effect for initial load and when context changes (folder, search)
+  useEffect(() => {
+    if (token) {
+      setFiles([]); // Clear existing files
+      setCurrentPage(1); // Reset to page 1
+      setHasMoreFiles(true); // Assume there are more files initially
+      // loadFilesAndFolders will be called by the effect below due to currentPage change to 1
+    }
+  }, [token, currentFolder, searchQuery]);
+
+  // Effect for loading files based on currentPage
   useEffect(() => {
     if (token) {
       loadFilesAndFolders();
     }
-  }, [token, currentFolder, searchQuery, currentPage]); // Added currentPage for pagination
+  }, [token, currentPage, currentFolder, searchQuery]); // Dependencies that trigger file loading
 
   const loadFilesAndFolders = async () => {
-    setLoading(true);
+    if (!token) return;
+
+    if (currentPage === 1) {
+      setLoading(true);
+    } else {
+      if (isLoadingMore || !hasMoreFiles) return; // Prevent multiple loads for subsequent pages
+      setIsLoadingMore(true);
+    }
+
     try {
-      if (token) {
-        // Pass searchQuery and pagination params to getFiles
-        const [filesResponse, foldersData] = await Promise.all([
-          filesApi.getFiles(token, currentFolder?._id || null, searchQuery, currentPage, itemsPerPage),
-          foldersApi.getFolders(token, currentFolder?._id || null),
-        ]);
+      const filesResponse = await filesApi.getFiles(token, currentFolder?._id || null, searchQuery, currentPage, itemsPerPage);
+
+      if (currentPage === 1) {
+        // Initial load or context change, fetch folders as well
+        const foldersData = await foldersApi.getFolders(token, currentFolder?._id || null);
+        setFolders(foldersData);
         setFiles(filesResponse.files);
         setTotalFilesCount(filesResponse.totalCount);
         setTotalFilePages(filesResponse.totalPages);
-        // setCurrentPage(filesResponse.currentPage); // Optional: Sync with backend's current page, if different
-        setFolders(foldersData);
+        setHasMoreFiles(filesResponse.currentPage < filesResponse.totalPages);
+      } else {
+        // Loading more files, append to existing files
+        setFiles(prevFiles => [...prevFiles, ...filesResponse.files]);
+        // totalFilesCount might not change, but totalPages could if totalCount was an estimate or changed.
+        // However, typically totalCount is stable for a given query.
+        setTotalFilePages(filesResponse.totalPages);
+        setHasMoreFiles(currentPage < filesResponse.totalPages); // Use current page before increment for this check
       }
     } catch (error) {
       console.error("Error loading files and folders:", error);
@@ -169,28 +197,52 @@ const Dashboard = () => {
         description: "Failed to load your files and folders",
         variant: "destructive",
       });
+      setHasMoreFiles(false); // Stop trying to load more on error
     } finally {
-      setLoading(false);
+      if (currentPage === 1) {
+        setLoading(false);
+      } else {
+        setIsLoadingMore(false);
+      }
     }
   };
 
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage);
-    // loadFilesAndFolders will be triggered by useEffect due to currentPage change
-  };
+  const handleScroll = useCallback(() => {
+    // Threshold from bottom to trigger load, e.g., 200px
+    const threshold = 200;
+    // Check if user is near the bottom of the page
+    if (
+      window.innerHeight + document.documentElement.scrollTop >=
+      document.documentElement.offsetHeight - threshold
+    ) {
+      if (hasMoreFiles && !isLoadingMore && !loading) {
+        setCurrentPage(prevPage => prevPage + 1);
+      }
+    }
+  }, [hasMoreFiles, isLoadingMore, loading]); // Add `loading` to prevent fetching during initial load
+
+  const throttledScrollHandler = useMemo(() => throttle(handleScroll, 300), [handleScroll]);
+
+  useEffect(() => {
+    window.addEventListener('scroll', throttledScrollHandler);
+    return () => {
+      window.removeEventListener('scroll', throttledScrollHandler);
+      throttledScrollHandler.cancel(); // Cancel any pending execution
+    };
+  }, [throttledScrollHandler]);
+
 
   const handleBreadcrumbNavigate = (indexInHistory: number) => {
     setSearchQuery(""); // Clear search query
-    setCurrentPage(1); // Reset to first page when navigating folders
+    // setCurrentPage(1) and setFiles([]) will be handled by the main useEffect for context change
 
     if (indexInHistory === -1) { // Clicked on "My Drive" or root
-      setCurrentFolder(null);
+      setCurrentFolder(null); // This will trigger the useEffect for context change
       setFolderHistory([]);
     } else if (indexInHistory >= 0 && indexInHistory < folderHistory.length) {
       // Clicked on a folder in the history
       const targetFolder = folderHistory[indexInHistory];
-      setCurrentFolder(targetFolder);
-      // Trim the history to the point of the clicked folder
+      setCurrentFolder(targetFolder); // This will trigger the useEffect for context change
       setFolderHistory(prevHistory => prevHistory.slice(0, indexInHistory + 1));
     } else {
       console.warn("Invalid index received from breadcrumb navigation:", indexInHistory);
@@ -555,28 +607,27 @@ const Dashboard = () => {
   };
 
   const handleNavigateToFolder = (folder: Folder) => {
-    setCurrentFolder(folder);
-    setFolderHistory(prev => [...prev, folder]); // Add current folder to history
+    // setCurrentPage(1) and setFiles([]) handled by useEffect for context change
+    setCurrentFolder(folder); // This will trigger the useEffect for context change
+    setFolderHistory(prev => [...prev, folder]);
     setSearchQuery("");
-    setCurrentPage(1); // Reset to first page when navigating to a new folder
   };
 
   const handleNavigateUp = () => {
+    // setCurrentPage(1) and setFiles([]) handled by useEffect for context change
     setSearchQuery("");
-    setCurrentPage(1); // Reset to first page
-    if (folderHistory.length === 0) { // Should not happen if currentFolder is set, but as a safeguard
-      setCurrentFolder(null);
-      // folderHistory is already empty
+    if (folderHistory.length === 0) {
+      setCurrentFolder(null); // This will trigger the useEffect for context change
       return;
     }
 
-    const newHistory = folderHistory.slice(0, -1); // Remove current folder from history
+    const newHistory = folderHistory.slice(0, -1);
     setFolderHistory(newHistory);
 
-    if (newHistory.length === 0) { // Navigated up to root
-      setCurrentFolder(null);
+    if (newHistory.length === 0) {
+      setCurrentFolder(null); // This will trigger the useEffect for context change
     } else {
-      setCurrentFolder(newHistory[newHistory.length - 1]); // Set current folder to the new last item in history (the parent)
+      setCurrentFolder(newHistory[newHistory.length - 1]); // This will trigger the useEffect for context change
     }
   };
 
@@ -747,9 +798,17 @@ const Dashboard = () => {
         uploadProgress={uploadProgress}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
-        onSearchSubmit={loadFilesAndFolders}
+        onSearchSubmit={() => {
+          // setCurrentPage(1) and setFiles([]) will be handled by the main useEffect for [searchQuery] change
+          // The actual loadFilesAndFolders call will be triggered by that useEffect.
+          // We just need to ensure searchQuery state is updated here if FilesToolbar doesn't do it internally.
+          // Assuming FilesToolbar calls onSearchQueryChange which updates searchQuery state.
+          // If onSearchSubmit in toolbar is meant to trigger immediate fetch,
+          // then ensure currentPage is 1.
+          if (currentPage !== 1) setCurrentPage(1); else loadFilesAndFolders(); // Trigger if already on page 1
+        }}
         folderHistory={folderHistory}
-        onBreadcrumbNavigate={handleBreadcrumbNavigate} // Pass the handler
+        onBreadcrumbNavigate={handleBreadcrumbNavigate}
         viewMode={viewMode} // Pass viewMode
         onViewModeChange={setViewMode} // Pass handler
       />
@@ -772,17 +831,16 @@ const Dashboard = () => {
             onStarToggle={handleFileStarToggled}
             onRenameItem={handleRenameItem}
             onOrganizeItem={handleOrganizeItem}
-            currentParentId={currentFolder?._id || null} // Pass currentParentId
-            viewMode={viewMode} // Pass viewMode
+            currentParentId={currentFolder?._id || null}
+            viewMode={viewMode}
           />
-          {totalFilePages > 1 && (
-            <div className="mt-8 flex justify-center">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalFilePages}
-                onPageChange={handlePageChange}
-              />
+          {isLoadingMore && (
+            <div className="flex justify-center py-4">
+              <Spinner className="h-8 w-8" />
             </div>
+          )}
+          {!hasMoreFiles && files.length > 0 && (
+             <p className="text-center text-gray-500 py-4">No more files to load.</p>
           )}
         </>
       )}
