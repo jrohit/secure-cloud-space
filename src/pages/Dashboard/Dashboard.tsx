@@ -208,7 +208,13 @@ const Dashboard = () => {
 
     } catch (error) {
       console.error(`Error preparing file ${fileId} for thumbnail:`, error);
-      callback({ fileId, error: error instanceof Error ? error.message : "Unknown error during decryption/download." });
+      let errorMessage = "Unknown error during decryption/download.";
+      if (typeof error === 'object' && error !== null && 'message' in error) {
+        errorMessage = (error as { message: string }).message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      callback({ fileId, error: errorMessage });
     }
   };
 

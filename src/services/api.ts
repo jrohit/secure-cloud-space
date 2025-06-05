@@ -184,8 +184,21 @@ export const filesApi = {
       },
     });
     if (!response.ok) {
-        const error = await response.json();
-        throw { message: error.message || 'Download failed', status: response.status } as ApiError;
+      let errorMessage = 'Download failed';
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorJson = await response.json();
+          errorMessage = errorJson.message || `Download failed with status ${response.status}`;
+        } else {
+          const errorText = await response.text();
+          errorMessage = errorText || `Download failed with status ${response.status}`;
+        }
+      } catch (e) {
+        // Fallback if parsing response body fails
+        errorMessage = `Download failed with status ${response.status}. Unable to parse error response.`;
+      }
+      throw { message: errorMessage, status: response.status } as ApiError;
     }
     return response.blob();
   },

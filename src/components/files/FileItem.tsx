@@ -23,7 +23,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { filesApi } from "@/services/api"; // Still needed for download
 import { MyFileType as File } from "@/types"; // Renamed to avoid conflict with global File
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, parseISO, isValid } from "date-fns"; // Ensure these are imported
 import {
   Download,
   File as FileIconLucide, // Renamed to avoid conflict
@@ -71,7 +71,13 @@ const FileItem: React.FC<FileItemProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [isLoadingThumbnail, setIsLoadingThumbnail] = useState(false);
   const [displayThumbnailUrl, setDisplayThumbnailUrl] = useState<string | undefined>(thumbnailUrl);
+  const [thumbnailAttemptedWithError, setThumbnailAttemptedWithError] = useState(false); // New state
   const objectUrlRef = useRef<string | null>(null); // To keep track of locally created object URLs if any
+
+  useEffect(() => {
+    // Reset error state when file ID changes
+    setThumbnailAttemptedWithError(false);
+  }, [file._id]);
 
   useEffect(() => {
     // Update display URL if the prop changes (e.g. cache in Dashboard updates)
@@ -85,12 +91,13 @@ const FileItem: React.FC<FileItemProps> = ({
       objectUrlRef.current = null;
     }
 
-    if (file.type.startsWith('image/') && !displayThumbnailUrl && !isLoadingThumbnail) {
+    if (file.type.startsWith('image/') && !displayThumbnailUrl && !isLoadingThumbnail && !thumbnailAttemptedWithError) {
       setIsLoadingThumbnail(true);
       // console.log(`FileItem: Requesting decrypted buffer for ${file.name} (ID: ${file._id})`);
       requestDecryptedFileForThumbnail(file._id, ({ fileId, buffer, error: decryptionError }) => {
         if (decryptionError || !buffer) {
           console.error(`FileItem: Error requesting decrypted file for ${fileId}: ${decryptionError}`);
+          setThumbnailAttemptedWithError(true); // Set error state
           setIsLoadingThumbnail(false);
           return;
         }
@@ -103,6 +110,7 @@ const FileItem: React.FC<FileItemProps> = ({
           if (workerFileId === file._id) {
             if (workerError) {
               console.error(`FileItem: Thumbnail worker error for ${file._id}: ${workerError}`);
+              setThumbnailAttemptedWithError(true); // Set error state on worker error too
             } else if (newThumbnailUrl) {
               // console.log(`FileItem: Worker generated thumbnail for ${file._id}. Updating cache via onThumbnailGenerated.`);
               onThumbnailGenerated(file._id, newThumbnailUrl); // This updates Dashboard's cache
@@ -115,6 +123,7 @@ const FileItem: React.FC<FileItemProps> = ({
 
         worker.onerror = (e) => {
           console.error(`FileItem: Worker instance error for ${file._id}:`, e.message);
+          setThumbnailAttemptedWithError(true); // Set error state on worker instance error
           setIsLoadingThumbnail(false);
           worker.terminate();
         };
@@ -205,6 +214,28 @@ const FileItem: React.FC<FileItemProps> = ({
   }
 
   const FileIconComponent = fileIcon;
+
+  // Robust date parsing logic
+  let displayDate = 'Unknown date';
+  if (file.updatedAt) {
+    let dateObj;
+    // Check if file.updatedAt is a string before attempting to parse with parseISO
+    if (typeof file.updatedAt === 'string') {
+      dateObj = parseISO(file.updatedAt);
+    } else if (typeof file.updatedAt === 'number') {
+      // If it's a number, assume it's a Unix timestamp (milliseconds)
+      dateObj = new Date(file.updatedAt);
+    }
+    // Add other type checks or conversions if necessary
+
+    if (dateObj && isValid(dateObj)) {
+      displayDate = formatDistanceToNow(dateObj, { addSuffix: true });
+    } else {
+      // Log an error or warning if the date is invalid
+      console.warn(`Invalid or unparseable date for file.updatedAt: ${file.updatedAt}, typeof: ${typeof file.updatedAt}`);
+      displayDate = 'Invalid date'; // Or keep 'Unknown date'
+    }
+  }
 
   return (
     <ContextMenu>
@@ -301,7 +332,7 @@ const FileItem: React.FC<FileItemProps> = ({
         <p className="text-xs text-muted-foreground">
           Modified{" "}
           {console.log('FileItem updatedAt:', file.updatedAt, 'typeof:', typeof file.updatedAt)}
-          {file.updatedAt ? formatDistanceToNow(new Date(file.updatedAt), { addSuffix: true }) : 'Unknown date'}
+          {displayDate}
         </p>
       </CardFooter>
         </Card>
