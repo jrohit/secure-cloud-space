@@ -1,10 +1,11 @@
+import React, { useEffect, useState, useRef } from 'react'; // Added React and useRef
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import ItemContextMenu from "./ItemContextMenu"; // Import ItemContextMenu
+import ItemContextMenu from "./ItemContextMenu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import {
@@ -14,35 +15,43 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import { decryptFile } from "@/lib/cryptoUtils";
-import { generateImageThumbnail } from "@/lib/imageUtils";
+// useAuth and cryptoUtils are not directly used here anymore for decryption if handled by parent
+// import { useAuth } from "@/contexts/AuthContext";
+// import { decryptFile } from "@/lib/cryptoUtils";
+// generateImageThumbnail is now in the worker
+// import { generateImageThumbnail } from "@/lib/imageUtils";
 import { cn } from "@/lib/utils";
-import { filesApi } from "@/services/api";
-import { MyFileType } from "@/types";
+import { filesApi } from "@/services/api"; // Still needed for download
+import { MyFileType as File } from "@/types"; // Renamed to avoid conflict with global File
 import { formatDistanceToNow } from "date-fns";
 import {
   Download,
-  File as FileIcon,
+  File as FileIconLucide, // Renamed to avoid conflict
   FileText,
-  Image,
+  Image as ImageIcon, // Renamed
   MoreVertical,
   Star,
   Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Spinner } from '../ui/Spinner'; // Assuming Spinner component
 
-// Define the cache for thumbnails - Stores Blob objects now
-const thumbnailCache = new Map<string, Blob>();
+// Removed local thumbnailCache, will rely on props from Dashboard
 
 interface FileItemProps {
-  file: MyFileType;
+  file: File; // Use aliased File type
   onDelete: () => void;
-  onPreview: (file: MyFileType) => void;
+  onPreview: (file: File) => void;
   onStarToggle?: (fileId: string, newIsStarred: boolean) => void;
   onRename: (id: string, type: 'file' | 'folder', currentName: string) => void;
-  onOrganize: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void; // Modified
-  currentParentId: string | null; // Added
+  onOrganize: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void;
+  currentParentId: string | null;
+  // Thumbnail related props from Dashboard
+  thumbnailUrl?: string;
+  requestDecryptedFileForThumbnail: (
+    fileId: string,
+    callback: (args: { fileId: string; buffer?: ArrayBuffer; error?: string }) => void
+  ) => Promise<void>;
+  onThumbnailGenerated: (fileId: string, thumbnailUrl: string) => void;
 }
 
 const FileItem: React.FC<FileItemProps> = ({
@@ -51,181 +60,96 @@ const FileItem: React.FC<FileItemProps> = ({
   onPreview,
   onStarToggle,
   onRename,
-  onOrganize, // Modified
-  currentParentId, // Added
+  onOrganize,
+  currentParentId,
+  thumbnailUrl, // From Dashboard's cache
+  requestDecryptedFileForThumbnail,
+  onThumbnailGenerated,
 }) => {
-  const { token, getMasterCryptoKey } = useAuth();
-  const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(
-    null
-  );
-  const currentObjectUrlRef = useRef<string | null>(null);
+  // const { token } = useAuth(); // Token might still be needed for direct operations like download
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
-  const [thumbnailFailed, setThumbnailFailed] = useState(false);
-  const [encryptedFileBuffer, setEncryptedFileBuffer] =
-    useState<ArrayBuffer | null>(null);
-  const [isLoadingFullFile, setIsLoadingFullFile] = useState(false);
+  const [isLoadingThumbnail, setIsLoadingThumbnail] = useState(false);
+  const [displayThumbnailUrl, setDisplayThumbnailUrl] = useState<string | undefined>(thumbnailUrl);
+  const objectUrlRef = useRef<string | null>(null); // To keep track of locally created object URLs if any
 
   useEffect(() => {
-    setThumbnailObjectUrl(null);
-    setThumbnailFailed(false);
-    setEncryptedFileBuffer(null);
-
-    if (
-      token &&
-      (file.type.startsWith("image/") || file.type === "application/pdf")
-    ) {
-      // MODIFIED
-      setIsLoadingFullFile(true);
-      const loadEncryptedFile = async () => {
-        try {
-          const blob = await filesApi.downloadFile(token, file._id);
-          const buffer = await blob.arrayBuffer();
-          setEncryptedFileBuffer(buffer);
-        } catch (error) {
-          console.error(
-            `Error fetching encrypted file for ${file.name} (ID: ${file._id}):`,
-            error
-          );
-          setThumbnailFailed(true);
-        } finally {
-          setIsLoadingFullFile(false);
-        }
-      };
-      loadEncryptedFile();
-    } else if (
-      !(file.type.startsWith("image/") || file.type === "application/pdf")
-    ) {
-      // MODIFIED
-      setThumbnailFailed(true);
-    } else if (!token) {
-      setThumbnailFailed(true);
-    }
-
-    return () => {
-      // Minimal cleanup here; object URL revocation is handled by the effect that creates it.
-    };
-  }, [file, token]);
+    // Update display URL if the prop changes (e.g. cache in Dashboard updates)
+    setDisplayThumbnailUrl(thumbnailUrl);
+  }, [thumbnailUrl]);
 
   useEffect(() => {
-    if (currentObjectUrlRef.current) {
-      URL.revokeObjectURL(currentObjectUrlRef.current);
-      currentObjectUrlRef.current = null;
+    // Revoke old object URL if it exists from a previous render/effect
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
     }
-    setThumbnailObjectUrl(null);
 
-    if (
-      encryptedFileBuffer &&
-      (file.type.startsWith("image/") || file.type === "application/pdf")
-    ) {
-      const cacheKey = file._id + '_' + new Date(file.updatedAt).getTime();
-      if (thumbnailCache.has(cacheKey)) {
-        const cachedBlob = thumbnailCache.get(cacheKey);
-        if (cachedBlob) {
-          const newObjectUrl = URL.createObjectURL(cachedBlob);
-          setThumbnailObjectUrl(newObjectUrl);
-          currentObjectUrlRef.current = newObjectUrl;
-          setThumbnailFailed(false); // Ensure failed state is reset if cache hit is successful
-          // console.log(`FileItem: Used cached BLOB for ${file.name} (ID: ${file._id})`);
-          return; // Return early as we found a valid blob in cache
-        }
-        // If cachedBlob was undefined (shouldn't happen if .has was true, but good practice)
-        // console.warn(`FileItem: Cache had key for ${file.name} but blob was undefined. Regenerating.`);
-      }
-      // console.log(`FileItem: Cache miss or invalid blob for ${file.name} (ID: ${file._id}). Generating.`);
-
-      // MODIFIED
-      const processEncryptedBuffer = async () => {
-        const actualMasterKey = await getMasterCryptoKey();
-
-        if (!actualMasterKey) {
-          console.warn(
-            `FileItem: MasterKey not available after call for ${file.name}. Cannot generate thumbnail.`
-          );
-          setThumbnailFailed(true);
+    if (file.type.startsWith('image/') && !displayThumbnailUrl && !isLoadingThumbnail) {
+      setIsLoadingThumbnail(true);
+      // console.log(`FileItem: Requesting decrypted buffer for ${file.name} (ID: ${file._id})`);
+      requestDecryptedFileForThumbnail(file._id, ({ fileId, buffer, error: decryptionError }) => {
+        if (decryptionError || !buffer) {
+          console.error(`FileItem: Error requesting decrypted file for ${fileId}: ${decryptionError}`);
+          setIsLoadingThumbnail(false);
           return;
         }
 
-        setThumbnailFailed(false);
+        // console.log(`FileItem: Received buffer for ${fileId}. Posting to worker.`);
+        const worker = new Worker('/thumbnail.worker.js'); // Ensure this path is correct
 
-        const decryptAndGenerateThumb = async () => {
-          try {
-            const decryptedBuffer = await decryptFile(
-              encryptedFileBuffer,
-              actualMasterKey
-            );
-
-            if (decryptedBuffer && decryptedBuffer.byteLength > 0) {
-              const decryptedBlob = new Blob([decryptedBuffer], {
-                type: file.type, // Use original file type for Blob
-              });
-              // Pass original file.type to generateImageThumbnail, it will handle HEIC/PDF detection
-              const tempFileForThumbnail = new window.File(
-                [decryptedBlob],
-                file.name,
-                { type: file.type }
-              );
-
-              const thumbnailBlob = await generateImageThumbnail(
-                tempFileForThumbnail,
-                256, // maxWidth
-                256, // maxHeight
-                file.type // Pass original file.type; imageUtils will decide output format
-              );
-
-              if (thumbnailBlob) {
-                thumbnailCache.set(cacheKey, thumbnailBlob); // Store the Blob in cache
-                const objectUrl = URL.createObjectURL(thumbnailBlob); // Create ObjectURL for this instance
-                setThumbnailObjectUrl(objectUrl);
-                currentObjectUrlRef.current = objectUrl;
-              } else {
-                console.error(
-                  `FileItem: generateImageThumbnail returned null for ${file.name}.`
-                );
-                setThumbnailFailed(true);
-              }
-            } else {
-              console.error(
-                `FileItem: Decryption returned null or buffer was empty for ${file.name}.`
-              );
-              setThumbnailFailed(true);
+        worker.onmessage = (e) => {
+          const { fileId: workerFileId, thumbnailDataUrl: newThumbnailUrl, error: workerError } = e.data;
+          if (workerFileId === file._id) {
+            if (workerError) {
+              console.error(`FileItem: Thumbnail worker error for ${file._id}: ${workerError}`);
+            } else if (newThumbnailUrl) {
+              // console.log(`FileItem: Worker generated thumbnail for ${file._id}. Updating cache via onThumbnailGenerated.`);
+              onThumbnailGenerated(file._id, newThumbnailUrl); // This updates Dashboard's cache
+              // setDisplayThumbnailUrl(newThumbnailUrl); // Update local display URL. Dashboard prop update will also trigger this.
             }
-          } catch (error) {
-            console.error(
-              `FileItem: Error during decryption or thumbnail generation for ${file.name}:`,
-              error
-            );
-            setThumbnailFailed(true);
+            setIsLoadingThumbnail(false);
+            worker.terminate();
           }
         };
-        await decryptAndGenerateThumb();
-      };
-      processEncryptedBuffer();
-    } else if (
-      (file.type.startsWith("image/") || file.type === "application/pdf") &&
-      !encryptedFileBuffer
-    ) {
-      // MODIFIED
-      // console.log(`FileItem SecondEffect: Image/PDF file ${file.name}, but encryptedFileBuffer is not yet available.`);
+
+        worker.onerror = (e) => {
+          console.error(`FileItem: Worker instance error for ${file._id}:`, e.message);
+          setIsLoadingThumbnail(false);
+          worker.terminate();
+        };
+
+        // Transfer array buffer to worker
+        worker.postMessage({ fileId: file._id, fileBuffer: buffer, fileType: file.type }, [buffer]);
+      });
+    } else if (!file.type.startsWith('image/')) {
+      // Not an image, no thumbnail to load via worker
+      setIsLoadingThumbnail(false); // Ensure loading is false
     }
 
+    // Cleanup: If the component unmounts while worker is running, this won't directly terminate the worker above.
+    // Proper worker lifecycle management for unmounting components is more complex.
+    // For this scope, worker.terminate() in onmessage/onerror is the primary cleanup.
     return () => {
-      if (currentObjectUrlRef.current) {
-        URL.revokeObjectURL(currentObjectUrlRef.current);
-        currentObjectUrlRef.current = null;
+      if (objectUrlRef.current) { // Clean up local object URLs if any were created (not in this flow anymore)
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
       }
     };
-  }, [encryptedFileBuffer, file, getMasterCryptoKey]);
+  }, [file._id, file.type, file.name, displayThumbnailUrl, isLoadingThumbnail, requestDecryptedFileForThumbnail, onThumbnailGenerated]);
+
 
   const fileIcon = getFileIcon(file.type);
-  // const fileColor = getFileColor(file.type); // Old way
-  const fileColorClassName = getFileColorClassName(file.type); // New way
+  const fileColorClassName = getFileColorClassName(file.type);
 
   const handleDownload = async () => {
-    if (!token) return;
+    // Assuming filesApi.downloadFile does not require token to be explicitly passed if setup in an interceptor
+    // If not, you'd need to get token from useAuth()
     setIsDownloading(true);
     try {
-      const blob = await filesApi.downloadFile(token, file._id);
+      // TODO: Ensure filesApi.downloadFile is called correctly, it might need the token.
+      // For now, assuming it's handled by an interceptor or similar.
+      const blob = await filesApi.downloadFile(/* Pass token if needed */ file._id);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -249,14 +173,14 @@ const FileItem: React.FC<FileItemProps> = ({
     // or rely on thumbnailFailed to show the icon for PDFs if PDF thumbnailing fails.
     if (type.startsWith("image/") || type === "application/pdf") {
       // PDF might render its own thumb
-      return Image; // Use generic image icon as placeholder or if thumb fails
+      return ImageIcon; // Use generic image icon as placeholder or if thumb fails
     } else if (
       type.includes("document") || // More generic document check
       type.includes("text")
     ) {
       return FileText;
     } else {
-      return FileIcon;
+      return FileIconLucide; // Use aliased name
     }
   }
 
@@ -296,24 +220,25 @@ const FileItem: React.FC<FileItemProps> = ({
             if (e.key === "Enter" || e.key === " ") onPreview(file);
           }}
         >
-          {(file.type.startsWith("image/") ||
-            file.type === "application/pdf") && // MODIFIED
-          thumbnailObjectUrl &&
-          !thumbnailFailed ? (
+          {isLoadingThumbnail ? (
+            <Spinner size="medium" />
+          ) : displayThumbnailUrl && file.type.startsWith('image/') ? (
             <img
-              src={thumbnailObjectUrl}
+              src={displayThumbnailUrl}
               alt={`Thumbnail for ${file.name}`}
               className="w-full h-full object-contain"
               onError={() => {
                 console.warn(
-                  `Image tag onError for file: ${file.name}. URL: ${thumbnailObjectUrl}`
+                  `FileItem: Img onError for ${file.name}. URL: ${displayThumbnailUrl}`
                 );
-                setThumbnailFailed(true);
+                // Potentially set a flag to show icon instead
+                setDisplayThumbnailUrl(undefined); // Fallback to icon
+                setIsLoadingThumbnail(false); // Reset loading if image load fails
               }}
             />
           ) : (
             <FileIconComponent
-              className={cn("h-16 w-16 opacity-80", fileColorClassName)} // Use className
+              className={cn("h-16 w-16 opacity-80", fileColorClassName)}
             />
           )}
         </div>

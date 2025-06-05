@@ -9,6 +9,7 @@ const File = require("../models/File");
 const User = require("../models/User"); // Import User model
 const Folder = require("../models/Folder"); // Import Folder model
 const auth = require("../middleware/auth");
+const logger = require('../config/logger'); // Import logger
 
 // Helper function to escape special regex characters
 function escapeRegex(string) {
@@ -79,7 +80,7 @@ router.post("/trash/restore-all", auth, async (req, res) => {
       restoredCount: updateResult.modifiedCount,
     });
   } catch (error) {
-    console.error("Error restoring all files from trash:", error);
+    logger.error(`Error restoring all files from trash for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res
       .status(500)
       .json({ message: "Server error while restoring all files." });
@@ -105,13 +106,14 @@ async function getDisplayPath(fileDoc, FolderModel) {
         pathParts.unshift(parentFolder.name);
         currentFolderId = parentFolder.parentId;
       } else {
+        logger.warn(`Parent folder with ID ${currentFolderId} not found during path construction for file ${fileDoc._id}`);
         pathParts.unshift("[Unknown Folder]");
         currentFolderId = null;
       }
     } catch (error) {
-      console.error(
-        `Error fetching folder ${currentFolderId} for path construction:`,
-        error
+      logger.error(
+        `Error fetching folder ${currentFolderId} for path construction for file ${fileDoc._id}:`,
+        { stack: error.stack }
       );
       pathParts.unshift("[Error Fetching Path]");
       currentFolderId = null;
@@ -143,8 +145,8 @@ router.post("/trash/empty", auth, async (req, res) => {
       if (file.path && (await fs.pathExists(file.path))) {
         await fs.remove(file.path);
       } else {
-        console.warn(
-          `File path ${file.path} not found for file ID ${file._id} during empty trash. Record will still be deleted.`
+        logger.warn(
+          `File path ${file.path} not found for file ID ${file._id} during empty trash for user ${userId}. Record will still be deleted.`
         );
       }
 
@@ -167,9 +169,9 @@ router.post("/trash/empty", auth, async (req, res) => {
         try {
           await req.redisClient.del(`user:${userId}`);
         } catch (redisError) {
-          console.error(
+          logger.error(
             `Redis: Error invalidating user cache for ${userId} after empty trash:`,
-            redisError
+            { error: redisError }
           );
         }
       }
@@ -187,7 +189,7 @@ router.post("/trash/empty", auth, async (req, res) => {
       freedSpace: totalFreedSpace,
     });
   } catch (error) {
-    console.error("Error emptying trash:", error);
+    logger.error(`Error emptying trash for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: "Server error while emptying trash" });
   }
 });
@@ -217,8 +219,8 @@ router.delete("/:id/permanent", auth, async (req, res) => {
     if (file.path && (await fs.pathExists(file.path))) {
       await fs.remove(file.path);
     } else {
-      console.warn(
-        `File path ${file.path} not found for file ID ${file._id} during permanent delete. Record will still be deleted.`
+      logger.warn(
+        `File path ${file.path} not found for file ID ${file._id} during permanent delete for user ${req.user._id}. Record will still be deleted.`
       );
     }
 
@@ -235,9 +237,9 @@ router.delete("/:id/permanent", auth, async (req, res) => {
         try {
           await req.redisClient.del(`user:${req.user._id}`);
         } catch (redisError) {
-          console.error(
+          logger.error(
             `Redis: Error invalidating user cache for ${req.user._id} after permanent delete:`,
-            redisError
+            { error: redisError }
           );
         }
       }
@@ -251,7 +253,7 @@ router.delete("/:id/permanent", auth, async (req, res) => {
 
     res.json({ message: "File permanently deleted" });
   } catch (error) {
-    console.error("Error permanently deleting file:", error);
+    logger.error(`Error permanently deleting file ${req.params.id} for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res
       .status(500)
       .json({ message: "Server error while permanently deleting file" });
@@ -301,7 +303,7 @@ router.get("/trash", auth, async (req, res) => {
 
     res.json(trashedFilesWithDisplayPath);
   } catch (error) {
-    console.error("Error fetching trashed files:", error);
+    logger.error(`Error fetching trashed files for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res
       .status(500)
       .json({ message: "Server error while fetching trashed files" });
@@ -338,7 +340,7 @@ router.get("/special/starred", auth, async (req, res) => {
 
     res.json(starredFiles);
   } catch (error) {
-    console.error("Error fetching starred files:", error);
+    logger.error(`Error fetching starred files for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -425,9 +427,9 @@ router.post(
         try {
           await req.redisClient.del(`user:${req.user._id}`);
         } catch (redisError) {
-          console.error(
+          logger.error(
             `Redis: Error invalidating user cache for ${req.user._id} after upload:`,
-            redisError
+            { error: redisError }
           );
         }
       }
@@ -451,7 +453,7 @@ router.post(
         updatedAt: newFile.updatedAt,
       });
     } catch (error) {
-      console.error("File upload error:", error);
+      logger.error(`File upload error for user ${req.user._id}, file ${req.files?.file?.[0]?.originalname}:`, { stack: error.stack, path: req.path, method: req.method });
       // If an error occurs *after* multer saved the file but before response, try to clean up.
       // Adjust req.file access to req.files.file[0] or mainFile
       if (
@@ -466,7 +468,7 @@ router.post(
             await fs.remove(req.files.file[0].path);
           }
         } catch (cleanupError) {
-          console.error("Cleanup error:", cleanupError);
+          logger.error(`Cleanup error during file upload error handling for user ${req.user?._id}:`, { stack: cleanupError.stack });
         }
       }
       res.status(500).json({ message: "Server error during file upload." });
@@ -479,6 +481,8 @@ router.get("/", auth, async (req, res) => {
   try {
     const folderId = req.query.folderId || null;
     const searchQuery = req.query.searchQuery;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 50;
 
     const trimmedSearchQuery = searchQuery ? searchQuery.trim() : "";
 
@@ -488,7 +492,7 @@ router.get("/", auth, async (req, res) => {
       cacheKeySegmentForFolder = "global_search"; // Indicator for global search
     }
 
-    let cacheKey = `files:${req.user._id}:${cacheKeySegmentForFolder}`;
+    let cacheKey = `files:${req.user._id}:${cacheKeySegmentForFolder}:page:${page}:limit:${limit}`;
     if (trimmedSearchQuery !== "") {
       // Using a consistent structure for search cache keys
       // Escape the search query for the cache key as well to prevent issues with special characters
@@ -496,15 +500,15 @@ router.get("/", auth, async (req, res) => {
     }
 
     // Try to get files from cache
-    const cachedFiles = await req.redisClient.get(cacheKey);
-
-    if (cachedFiles) {
-      return res.json(JSON.parse(cachedFiles));
+    if (req.redisClient) {
+      const cachedData = await req.redisClient.get(cacheKey);
+      if (cachedData) {
+        return res.json(JSON.parse(cachedData));
+      }
     }
 
     // If not in cache, get from database
     let query = {
-      // Changed from const to let
       userId: req.user._id,
       isTrashed: false, // Exclude trashed files
     };
@@ -518,14 +522,27 @@ router.get("/", auth, async (req, res) => {
       query.folderId = folderId;
     }
 
-    const files = await File.find(query);
+    const totalFiles = await File.countDocuments(query);
+    const files = await File.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    const responseData = {
+      files,
+      totalFiles,
+      totalPages: Math.ceil(totalFiles / limit),
+      currentPage: page,
+    };
 
     // Cache files data
-    await req.redisClient.set(cacheKey, JSON.stringify(files), { EX: 300 }); // Cache for 5 minutes
+    if (req.redisClient) {
+      await req.redisClient.set(cacheKey, JSON.stringify(responseData), { EX: 300 }); // Cache for 5 minutes
+    }
 
-    res.json(files);
+    res.json(responseData);
   } catch (error) {
-    console.error("Get files error:", error);
+    logger.error(`Get files error for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method, query: req.query });
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -565,7 +582,7 @@ router.delete("/:id", auth, async (req, res) => {
 
     res.json({ message: "File moved to trash" });
   } catch (error) {
-    console.error("Error moving file to trash:", error); // Update error message
+    logger.error(`Error moving file ${req.params.id} to trash for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res
       .status(500)
       .json({ message: "Server error while moving file to trash" });
@@ -599,7 +616,7 @@ router.get("/:id/download", auth, async (req, res) => {
     const fileStream = fs.createReadStream(file.path);
     fileStream.pipe(res);
   } catch (error) {
-    console.error("File download error:", error);
+    logger.error(`File download error for file ${req.params.id}, user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -642,7 +659,7 @@ router.patch("/:id/star", auth, async (req, res) => {
 
     res.json(file); // Return the updated file
   } catch (error) {
-    console.error("Error toggling star status:", error);
+    logger.error(`Error toggling star status for file ${req.params.id}, user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -709,7 +726,7 @@ router.post("/:id/restore", auth, async (req, res) => {
       restoredToRoot: restoredToRoot
     });
   } catch (error) {
-    console.error("Error restoring file:", error);
+    logger.error(`Error restoring file ${req.params.id} for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: "Server error while restoring file" });
   }
 });

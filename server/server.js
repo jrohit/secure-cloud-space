@@ -6,6 +6,7 @@ const cors = require('cors');
 const fs = require('fs-extra');
 const path = require('path');
 const { createClient } = require('redis');
+const logger = require('./config/logger'); // Import logger
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -22,9 +23,13 @@ const redisClient = createClient({
 
 // Connect to Redis
 (async () => {
-  redisClient.on('error', (err) => console.log('Redis Client Error', err));
-  await redisClient.connect();
-  console.log('Connected to Redis');
+  redisClient.on('error', (err) => logger.error('Redis Client Error', { error: err }));
+  try {
+    await redisClient.connect();
+    logger.info('Connected to Redis');
+  } catch (err) {
+    logger.error('Failed to connect to Redis', { error: err });
+  }
 })();
 
 // Middleware
@@ -34,8 +39,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+  .then(() => logger.info('Connected to MongoDB'))
+  .catch(err => logger.error('MongoDB connection error:', { error: err }));
 
 // Create storage directory if it doesn't exist
 const storagePath = process.env.STORAGE_PATH || './storage';
@@ -54,12 +59,12 @@ app.use('/api/folders', folderRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error(err.message, { stack: err.stack, path: req.path, method: req.method });
   res.status(500).json({ message: 'Something went wrong!' });
 });
 
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info(`Server running on port ${PORT}`);
 });

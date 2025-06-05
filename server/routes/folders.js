@@ -6,6 +6,7 @@ const Folder = require('../models/Folder');
 const File = require('../models/File');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const logger = require('../config/logger'); // Import logger
 
 // --- Helper Function for Permanent Deletion ---
 async function permanentlyDeleteRecursivelyHelper(folderId, userId, bucketId, redisClient, FolderModel, FileModel) {
@@ -26,7 +27,7 @@ async function permanentlyDeleteRecursivelyHelper(folderId, userId, bucketId, re
         await fs.remove(file.path);
       }
     } catch (fsError) {
-      console.warn(`Error deleting file from filesystem: ${file.path}`, fsError);
+      logger.warn(`Error deleting file from filesystem: ${file.path} for user ${userId}`, { error: fsError });
     }
     await FileModel.deleteOne({ _id: file._id });
     sizeDecremented += file.size || 0;
@@ -50,7 +51,7 @@ async function permanentlyDeleteRecursivelyHelper(folderId, userId, bucketId, re
       await fs.remove(folderPath);
     }
   } catch (fsError) {
-    console.warn(`Error deleting folder from filesystem: ${folderPath}`, fsError);
+      logger.warn(`Error deleting folder from filesystem: ${folderPath} for user ${userId}`, { error: fsError });
   }
 
   // Delete the folder record from DB
@@ -81,7 +82,7 @@ router.post('/', auth, async (req, res) => {
     await req.redisClient.del(`folders:${req.user._id}:${parentId || 'root'}`);
     res.status(201).json(newFolder);
   } catch (error) {
-    console.error('Create folder error:', error);
+    logger.error(`Create folder error for user ${req.user._id}, name "${req.body.name}":`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -103,7 +104,7 @@ router.get('/', auth, async (req, res) => {
     await req.redisClient.set(cacheKey, JSON.stringify(folders), { EX: 300 });
     res.json(folders);
   } catch (error) {
-    console.error('Get folders error:', error);
+    logger.error(`Get folders error for user ${req.user._id}, parentId "${req.query.parentId || 'root'}":`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -125,7 +126,7 @@ router.get('/trash', auth, async (req, res) => {
     await req.redisClient.set(cacheKey, JSON.stringify(trashedFolders), { EX: 300 });
     res.json(trashedFolders);
   } catch (error) {
-    console.error('Get trashed folders error:', error);
+    logger.error(`Get trashed folders error for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -155,7 +156,7 @@ router.delete('/:id', auth, async (req, res) => {
     await req.redisClient.del(`files_trash:${req.user._id}`);
     res.json({ message: 'Folder and its contents moved to trash' });
   } catch (error) {
-    console.error('Soft delete folder error:', error);
+    logger.error(`Soft delete folder error for folder ${req.params.id}, user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -241,7 +242,7 @@ router.post('/:id/restore', auth, async (req, res) => {
       restoredToRoot: restoredToRoot
     });
   } catch (error) {
-    console.error('Restore folder error:', error);
+    logger.error(`Restore folder error for folder ${req.params.id}, user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -280,7 +281,7 @@ router.delete('/:id/permanent', auth, async (req, res) => {
 
     res.json({ message: 'Folder and its contents permanently deleted' });
   } catch (error) {
-    console.error('Permanent delete folder error:', error);
+    logger.error(`Permanent delete folder error for folder ${req.params.id}, user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -343,7 +344,7 @@ router.post('/trash/empty', auth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Empty trash error:', error);
+    logger.error(`Empty folder trash error for user ${req.user._id}:`, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: 'Server error' });
   }
 });

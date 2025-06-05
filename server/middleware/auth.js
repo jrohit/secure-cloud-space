@@ -1,6 +1,7 @@
 
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const logger = require('../config/logger'); // Import logger
 
 module.exports = async (req, res, next) => {
   try {
@@ -26,7 +27,13 @@ module.exports = async (req, res, next) => {
     req.token = token;
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    logger.warn('Authentication error:', {
+      message: error.message,
+      name: error.name,
+      // token: req.header('Authorization'), // Be cautious logging tokens
+      path: req.path,
+      method: req.method
+    });
     res.status(401).json({ message: 'Invalid token, authorization denied' });
   }
 };

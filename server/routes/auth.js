@@ -6,6 +6,7 @@ const fs = require("fs-extra");
 const path = require("path");
 const auth = require("../middleware/auth");
 const { v4: uuidv4 } = require("uuid");
+const logger = require('../config/logger'); // Import logger
 
 // Register a new user
 router.post("/register", async (req, res) => {
@@ -61,7 +62,7 @@ router.post("/register", async (req, res) => {
       token,
     });
   } catch (error) {
-    console.error("Register error:", error);
+    logger.error('Registration error for email: ' + req.body.email, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -113,7 +114,7 @@ router.post("/login", async (req, res) => {
       token,
     });
   } catch (error) {
-    console.error("Login error:", error);
+    logger.error('Login error for email: ' + req.body.email, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -151,7 +152,7 @@ router.get("/me", auth, async (req, res) => {
 
     res.json(returnUserDetails);
   } catch (error) {
-    console.error("Get current user error:", error);
+    logger.error('Get current user error for user ID: ' + req.user._id, { stack: error.stack, path: req.path, method: req.method });
     res.status(500).json({ message: "Server error" });
   }
 });

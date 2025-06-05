@@ -102,6 +102,10 @@ const Dashboard = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
@@ -134,25 +138,115 @@ const Dashboard = () => {
   } | null>(null); // Added for Organize
   const [availableFoldersForMove, setAvailableFoldersForMove] = useState<Folder[]>([]); // Added for Organize
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card'); // Added for View Toggle
+  const [thumbnailCache, setThumbnailCache] = useState<Map<string, string>>(new Map());
 
 
   useEffect(() => {
     if (token) {
-      loadFilesAndFolders();
+      // When currentFolder or searchQuery changes, reset pagination and load first page
+      setFiles([]); // Clear existing files
+      setFolders([]); // Clear existing folders, or handle folder pagination separately if needed
+      setCurrentPage(1); // Reset to page 1
+      setTotalFiles(0);
+      setTotalPages(0);
+      loadFilesAndFolders(true); // Pass true to indicate it's a fresh load
     }
-  }, [token, currentFolder, searchQuery]); // Added searchQuery
+  }, [token, currentFolder, searchQuery]);
 
-  const loadFilesAndFolders = async () => {
-    setLoading(true);
+  // Separate useEffect for loading more data when currentPage changes (for "Load More" style)
+  // This effect should NOT run on initial load if the above effect already handles it.
+  // It's more for when `currentPage` is incremented by a "Load More" button.
+  useEffect(() => {
+    if (token && currentPage > 1 && !isLoadingMore) { // Only load if not already loading more for this page
+      // This condition `!isLoadingMore` might be redundant if `isLoadingMore` is managed correctly
+      // around the call to `loadFilesAndFolders`.
+      // loadFilesAndFolders(false); // false indicates appending data, not a fresh load
+    }
+  }, [token, currentPage]); // Removed isLoadingMore from dependencies to avoid potential loops if not managed carefully
+
+  const updateThumbnailCache = (fileId: string, thumbnailUrl: string) => {
+    setThumbnailCache(prevCache => new Map(prevCache).set(fileId, thumbnailUrl));
+  };
+
+  const requestDecryptedFileForThumbnail = async (
+    fileId: string,
+    callback: (args: { fileId: string; buffer?: ArrayBuffer; error?: string }) => void
+  ) => {
+    if (!token) {
+      callback({ fileId, error: "Not authenticated." });
+      return;
+    }
+    // Check cache for decrypted file first (e.g., decryptedFileCache from preview logic if applicable)
+    // For simplicity, we'll re-fetch and decrypt here. A more robust solution would share decryption results.
+    // const cachedDecrypted = decryptedFileCache.get(fileId + '_' + /* updatedAt property */);
+    // if (cachedDecrypted) {
+    //   callback({ fileId, buffer: cachedDecrypted.slice(0) });
+    //   return;
+    // }
+
+    try {
+      const encryptedBlob = await filesApi.downloadFile(token, fileId);
+      const encryptedBuffer = await encryptedBlob.arrayBuffer();
+
+      if (encryptedBuffer.byteLength < 12) { // Basic check for IV
+        callback({ fileId, error: "Downloaded file data is too short." });
+        return;
+      }
+
+      const cryptoKey = await getMasterCryptoKey();
+      if (!cryptoKey) {
+        callback({ fileId, error: "Decryption key not available." });
+        return;
+      }
+
+      const decryptedBuffer = await decryptFile(encryptedBuffer, cryptoKey);
+      // Transfer ownership of the buffer by slicing if it's to be used elsewhere,
+      // or ensure it's correctly handled by the worker.
+      callback({ fileId, buffer: decryptedBuffer.slice(0) });
+      // Potentially cache this decryptedBuffer if it might be reused soon (e.g., for preview)
+      // decryptedFileCache.set(fileId + '_' + /* updatedAt */, decryptedBuffer.slice(0));
+
+    } catch (error) {
+      console.error(`Error preparing file ${fileId} for thumbnail:`, error);
+      callback({ fileId, error: error instanceof Error ? error.message : "Unknown error during decryption/download." });
+    }
+  };
+
+
+  const loadFilesAndFolders = async (isFreshLoad = false) => {
+    if (isFreshLoad) {
+      setLoading(true); // Full page loading indicator
+      setFiles([]); // Clear files for a fresh load
+      setFolders([]); // Clear folders for a fresh load
+    } else {
+      setIsLoadingMore(true); // Specific indicator for loading more
+    }
+
     try {
       if (token) {
-        // Pass searchQuery only to getFiles
-        const [filesData, foldersData] = await Promise.all([
-          filesApi.getFiles(token, currentFolder?._id || null, searchQuery),
-          foldersApi.getFolders(token, currentFolder?._id || null),
-        ]);
-        setFiles(filesData);
-        setFolders(foldersData);
+        const limit = 50; // Or your desired page size
+        // Pass searchQuery only to getFiles, and currentPage & limit
+        const filesResponse = await filesApi.getFiles(
+          token,
+          currentFolder?._id || null,
+          searchQuery,
+          isFreshLoad ? 1 : currentPage, // Use 1 if fresh, else current page
+          limit
+        );
+
+        // Only fetch folders if it's a fresh load or if folders also need pagination (not implemented here)
+        // For simplicity, folders are reloaded with files on fresh load.
+        // If folders were paginated, their logic would be similar.
+        let foldersData: Folder[] = [];
+        if (isFreshLoad) {
+          foldersData = await foldersApi.getFolders(token, currentFolder?._id || null);
+          setFolders(foldersData);
+        }
+
+        setFiles(prevFiles => isFreshLoad ? filesResponse.files : [...prevFiles, ...filesResponse.files]);
+        setTotalFiles(filesResponse.totalFiles);
+        setTotalPages(filesResponse.totalPages);
+        if (isFreshLoad) setCurrentPage(filesResponse.currentPage); // Set current page from response on fresh load
       }
     } catch (error) {
       console.error("Error loading files and folders:", error);
@@ -163,6 +257,16 @@ const Dashboard = () => {
       });
     } finally {
       setLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    if (currentPage < totalPages && !isLoadingMore) {
+      setCurrentPage(prevPage => prevPage + 1);
+      // The useEffect listening to currentPage will trigger loadFilesAndFolders
+      // Or, call it directly:
+      loadFilesAndFolders(false); // false indicates it's not a fresh load
     }
   };
 
@@ -757,8 +861,31 @@ const Dashboard = () => {
           onOrganizeItem={handleOrganizeItem}
           currentParentId={currentFolder?._id || null} // Pass currentParentId
           viewMode={viewMode} // Pass viewMode
+          // Props for thumbnail generation
+          thumbnailCache={thumbnailCache}
+          requestDecryptedFileForThumbnail={requestDecryptedFileForThumbnail}
+          onThumbnailGenerated={updateThumbnailCache}
         />
       )}
+
+      {!loading && !isLoadingMore && files.length > 0 && currentPage < totalPages && (
+        <div className="flex justify-center mt-8">
+          <button
+            onClick={handleLoadMore}
+            disabled={isLoadingMore || currentPage >= totalPages}
+            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg shadow hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {isLoadingMore ? <Spinner className="h-5 w-5 mr-2 inline" /> : null}
+            Load More
+          </button>
+        </div>
+      )}
+      {isLoadingMore && (
+         <div className="flex justify-center py-6">
+           <Spinner className="h-8 w-8" />
+         </div>
+      )}
+
 
       {isPreviewLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
