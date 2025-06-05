@@ -13,7 +13,8 @@ import { decryptFile, encryptFile } from "@/lib/cryptoUtils";
 import { generateImageThumbnail } from "@/lib/imageUtils"; // Adjust path if needed
 import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+// Removed useRef as toolbarRef is no longer needed for JS sticky
+import { useEffect, useState, useCallback, useMemo } from "react";
 import throttle from 'lodash/throttle';
 
 // Cache for decrypted file previews
@@ -141,11 +142,7 @@ const Dashboard = () => {
   } | null>(null); // Added for Organize
   const [availableFoldersForMove, setAvailableFoldersForMove] = useState<Folder[]>([]); // Added for Organize
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card'); // Added for View Toggle
-  const [isToolbarSticky, setIsToolbarSticky] = useState(false); // For sticky toolbar
-  const [toolbarHeight, setToolbarHeight] = useState(0); // For sticky toolbar placeholder
-  const toolbarRef = useRef<HTMLDivElement>(null); // For measuring toolbar height
-
-  const STICKY_THRESHOLD = 64; // Or any value based on design, e.g., when header is scrolled off
+  // Removed isToolbarSticky, toolbarHeight, toolbarRef, STICKY_THRESHOLD as CSS sticky will be used
 
   // Effect for initial load and when context changes (folder, search)
   useEffect(() => {
@@ -224,40 +221,19 @@ const Dashboard = () => {
     }
   }, [hasMoreFiles, isLoadingMore, loading]); // Add `loading` to prevent fetching during initial load
 
-  const throttledScrollHandler = useMemo(() => throttle(handleScroll, 300), [handleScroll]); // For infinite scroll
-
-  // Scroll handler for toolbar stickiness
-  const handleToolbarStickinessScroll = useCallback(() => {
-    if (window.scrollY > STICKY_THRESHOLD) {
-      setIsToolbarSticky(true);
-    } else {
-      setIsToolbarSticky(false);
-    }
-  }, [STICKY_THRESHOLD]);
-
-  const throttledToolbarScrollHandler = useMemo(
-    () => throttle(handleToolbarStickinessScroll, 100),
-    [handleToolbarStickinessScroll]
-  );
+  const throttledScrollHandler = useMemo(() => throttle(handleScroll, 300), [handleScroll]); // For infinite scroll (remains)
 
   useEffect(() => {
     // For infinite scroll
     window.addEventListener('scroll', throttledScrollHandler);
-    // For sticky toolbar
-    window.addEventListener('scroll', throttledToolbarScrollHandler);
-
-    // Measure toolbar height
-    if (toolbarRef.current) {
-      setToolbarHeight(toolbarRef.current.offsetHeight);
-    }
+    // Removed toolbar stickiness scroll handler and height measurement
 
     return () => {
       window.removeEventListener('scroll', throttledScrollHandler);
       throttledScrollHandler.cancel();
-      window.removeEventListener('scroll', throttledToolbarScrollHandler);
-      throttledToolbarScrollHandler.cancel();
+      // Removed toolbar stickiness scroll handler cleanup
     };
-  }, [throttledScrollHandler, throttledToolbarScrollHandler]);
+  }, [throttledScrollHandler]); // Removed throttledToolbarScrollHandler from deps
 
 
   const handleBreadcrumbNavigate = (indexInHistory: number) => {
@@ -894,10 +870,9 @@ const Dashboard = () => {
         </h2>
       </div>
 
-      {isToolbarSticky && <div style={{ height: `${toolbarHeight}px` }} />}
+      {/* Removed placeholder for sticky toolbar */}
+      {/* toolbarRef and isToolbarSticky props removed from FilesToolbar */}
       <FilesToolbar
-        ref={toolbarRef} // Assign ref to measure height
-        isToolbarSticky={isToolbarSticky} // Pass sticky state
         currentFolder={currentFolder}
         onNavigateUp={handleNavigateUp}
         onCreateFolder={handleCreateFolder}

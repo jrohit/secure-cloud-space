@@ -15,7 +15,7 @@ import { ArrowUp, FolderPlus, Upload, LayoutGrid, List } from "lucide-react"; //
 import React, { useEffect, useRef, useState, forwardRef } from "react";
 
 interface FilesToolbarProps {
-  isToolbarSticky?: boolean; // Added prop
+  // isToolbarSticky prop is no longer needed for CSS sticky
   currentFolder: FolderType | null;
   onNavigateUp: () => void;
   onCreateFolder: (name: string) => void;
@@ -31,8 +31,8 @@ interface FilesToolbarProps {
   onViewModeChange: (mode: 'card' | 'list') => void; // Added
 }
 
-const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(({
-  isToolbarSticky, // Added prop
+const FilesToolbarComponent = forwardRef<HTMLDivElement, FilesToolbarProps>(({
+  // isToolbarSticky, // Removed
   currentFolder,
   onNavigateUp,
   onCreateFolder,
@@ -85,70 +85,15 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(({
 
   // Define base and sticky classes
   // These would ideally be in a CSS module or global CSS file.
-  const baseToolbarClasses = "space-y-2 transition-all duration-300 ease-out";
-  // Note: Tailwind classes for fixed, top, left, right, bg, shadow, z-index can be used too.
-  // Example: `fixed top-0 left-0 right-0 bg-white shadow-md z-50`
-  // For the purpose of this exercise, we'll use a conditional class `toolbar-sticky-active`
-  // and assume those styles are defined elsewhere (as per the CSS example provided in thought process).
-  // To make it work without external CSS for now, I'll add some inline-ish styles for sticky state via class.
-  // A more robust solution would use CSS Modules or a global stylesheet.
-
-  // This is a simplified approach for demonstration.
-  // In a real app, use dedicated CSS classes and stylesheets.
-  const stickyStyles = isToolbarSticky ? {
-    position: 'fixed' as React.CSSProperties['position'],
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'var(--background, white)', // Use CSS variable or a default
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    zIndex: 50,
-    paddingLeft: (toolbarRef?.current?.parentElement?.style.paddingLeft) || '1rem', // Try to match parent padding
-    paddingRight: (toolbarRef?.current?.parentElement?.style.paddingRight) || '1rem',
-    // The padding above is a guess; it's better if the toolbar is *inside* a container that has the page padding
-    // or if the parent of Dashboard handles this.
-    // For now, let's assume the toolbar needs to manage its own horizontal padding when sticky.
-    // The original toolbar is likely constrained by its parent's padding.
-    // A common pattern for full-width sticky elements is to have an inner container for content alignment.
-  } : {};
-
-  const toolbarDynamicClasses = `
-    ${baseToolbarClasses}
-    ${isToolbarSticky ? "filesToolbarStickyActive" : ""}
-  `;
-  // The class "filesToolbarStickyActive" should have the fixed positioning styles.
-  // The base class "filesToolbarBase" should have the transition.
-  // For this exercise, I'll just use the isToolbarSticky prop to conditionally apply a class
-  // and the styles will be assumed to be globally available or need to be added to a global css file.
-
-  // Add a placeholder for the CSS for clarity
-  /*
-  <style jsx global>{`
-    .filesToolbarBase {
-      padding: 0.5rem; // Example padding, adjust to match original
-      transition: background-color 0.3s ease, box-shadow 0.3s ease;
-    }
-    .filesToolbarStickyActive {
-      position: fixed;
-      top: 0;
-      left: 0; // Should ideally align with page content, might need calculations or parent structure.
-      right: 0; // Similar to left.
-      width: 100%; // Or match parent content width.
-      background-color: white; // Or theme background
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      z-index: 50;
-      // Ensure original padding is maintained if fixed positioning affects it.
-      // This might require an inner div if the main div goes full-width.
-    }
-  `}</style>
-  */
-
-  // Corrected: The ref should be on the div that will be measured.
-  // The dynamic styles/classes are applied to this div.
-  // The actual toolbar content (breadcrumbs, buttons) is inside this div.
+  // CSS class for position:sticky will be applied directly.
+  // No more JS-driven conditional classes for stickiness itself.
+  // Transitions can be part of this base class if desired (e.g., for box-shadow).
+  const toolbarClasses = "files-toolbar bg-background space-y-2";
 
   return (
-    <div ref={ref} className={`bg-background filesToolbarBase ${isToolbarSticky ? 'filesToolbarStickyActive' : ''}`}>
+    // The class "files-toolbar" will be styled with position: sticky.
+    // Ensure `ref` is correctly passed to this div.
+    <div ref={ref} className={toolbarClasses}>
       {/* Breadcrumbs Section */}
       <div className="flex items-center space-x-1 text-sm pt-2 mb-2 overflow-x-auto pb-1 min-w-0">
         <button
@@ -275,4 +220,7 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(({
   );
 };
 
-export default FilesToolbar;
+// Assign displayName for better debugging
+FilesToolbarComponent.displayName = "FilesToolbar";
+
+export default FilesToolbarComponent;
