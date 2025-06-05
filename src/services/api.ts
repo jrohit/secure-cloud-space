@@ -67,13 +67,25 @@ export const authApi = {
 
 // Files API
 export const filesApi = {
-  getFiles: async (token: string, folderId: string | null = null, searchQuery?: string): Promise<File[]> => {
+  getFiles: async (
+    token: string,
+    folderId: string | null = null,
+    searchQuery?: string,
+    page?: number,
+    limit?: number
+  ): Promise<{ files: File[]; totalCount: number; currentPage: number; totalPages: number; }> => {
     const params = new URLSearchParams();
     if (folderId) {
       params.append('folderId', folderId);
     }
     if (searchQuery && searchQuery.trim() !== '') {
       params.append('searchQuery', searchQuery.trim());
+    }
+    if (page !== undefined) {
+      params.append('page', page.toString());
+    }
+    if (limit !== undefined) {
+      params.append('limit', limit.toString());
     }
     const queryString = params.toString();
     const url = `${API_URL}/files${queryString ? `?${queryString}` : ''}`;
@@ -83,7 +95,7 @@ export const filesApi = {
         Authorization: `Bearer ${token}`,
       },
     });
-    return handleResponse<File[]>(response);
+    return handleResponse<{ files: File[]; totalCount: number; currentPage: number; totalPages: number; }>(response);
   },
 
   restoreAllFromTrash: async (token: string): Promise<{ message: string; restoredCount: number }> => {

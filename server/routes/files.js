@@ -479,6 +479,17 @@ router.get("/", auth, async (req, res) => {
   try {
     const folderId = req.query.folderId || null;
     const searchQuery = req.query.searchQuery;
+    let page = parseInt(req.query.page, 10);
+    let limit = parseInt(req.query.limit, 10);
+
+    // Default values and validation for page and limit
+    if (isNaN(page) || page < 1) {
+      page = 1;
+    }
+    if (isNaN(limit) || limit < 1) {
+      limit = 10;
+    }
+    // Optional: Add a max limit if desired, e.g., limit = Math.min(limit, 100);
 
     const trimmedSearchQuery = searchQuery ? searchQuery.trim() : "";
 
@@ -490,21 +501,20 @@ router.get("/", auth, async (req, res) => {
 
     let cacheKey = `files:${req.user._id}:${cacheKeySegmentForFolder}`;
     if (trimmedSearchQuery !== "") {
-      // Using a consistent structure for search cache keys
-      // Escape the search query for the cache key as well to prevent issues with special characters
       cacheKey += `:search:${escapeRegex(trimmedSearchQuery)}`;
     }
+    cacheKey += `:page:${page}:limit:${limit}`; // Add pagination to cache key
 
     // Try to get files from cache
-    const cachedFiles = await req.redisClient.get(cacheKey);
-
-    if (cachedFiles) {
-      return res.json(JSON.parse(cachedFiles));
+    if (req.redisClient) {
+      const cachedData = await req.redisClient.get(cacheKey);
+      if (cachedData) {
+        return res.json(JSON.parse(cachedData));
+      }
     }
 
     // If not in cache, get from database
     let query = {
-      // Changed from const to let
       userId: req.user._id,
       isTrashed: false, // Exclude trashed files
     };
@@ -518,12 +528,28 @@ router.get("/", auth, async (req, res) => {
       query.folderId = folderId;
     }
 
-    const files = await File.find(query);
+    // Get total count of files matching the query
+    const totalCount = await File.countDocuments(query);
+
+    // Fetch the paginated list of files
+    const files = await File.find(query)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ createdAt: -1 }); // Optional: sort by creation date or name
+
+    const responsePayload = {
+      files: files,
+      totalCount: totalCount,
+      currentPage: page,
+      totalPages: Math.ceil(totalCount / limit),
+    };
 
     // Cache files data
-    await req.redisClient.set(cacheKey, JSON.stringify(files), { EX: 300 }); // Cache for 5 minutes
+    if (req.redisClient) {
+      await req.redisClient.set(cacheKey, JSON.stringify(responsePayload), { EX: 300 }); // Cache for 5 minutes
+    }
 
-    res.json(files);
+    res.json(responsePayload);
   } catch (error) {
     console.error("Get files error:", error);
     res.status(500).json({ message: "Server error" });

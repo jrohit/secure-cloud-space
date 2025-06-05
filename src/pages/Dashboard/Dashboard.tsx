@@ -14,6 +14,7 @@ import { generateImageThumbnail } from "@/lib/imageUtils"; // Adjust path if nee
 import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
 import { useEffect, useState } from "react";
+import { Pagination } from "@/components/ui/pagination"; // Added for pagination
 
 // Cache for decrypted file previews
 const decryptedFileCache = new Map<string, ArrayBuffer>();
@@ -103,6 +104,10 @@ const Dashboard = () => {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
+  const [currentPage, setCurrentPage] = useState(1); // Added for pagination
+  const [itemsPerPage] = useState(10); // Added for pagination, could be configurable
+  const [totalFilesCount, setTotalFilesCount] = useState(0); // Added for pagination
+  const [totalFilePages, setTotalFilePages] = useState(0); // Added for pagination
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -140,18 +145,21 @@ const Dashboard = () => {
     if (token) {
       loadFilesAndFolders();
     }
-  }, [token, currentFolder, searchQuery]); // Added searchQuery
+  }, [token, currentFolder, searchQuery, currentPage]); // Added currentPage for pagination
 
   const loadFilesAndFolders = async () => {
     setLoading(true);
     try {
       if (token) {
-        // Pass searchQuery only to getFiles
-        const [filesData, foldersData] = await Promise.all([
-          filesApi.getFiles(token, currentFolder?._id || null, searchQuery),
+        // Pass searchQuery and pagination params to getFiles
+        const [filesResponse, foldersData] = await Promise.all([
+          filesApi.getFiles(token, currentFolder?._id || null, searchQuery, currentPage, itemsPerPage),
           foldersApi.getFolders(token, currentFolder?._id || null),
         ]);
-        setFiles(filesData);
+        setFiles(filesResponse.files);
+        setTotalFilesCount(filesResponse.totalCount);
+        setTotalFilePages(filesResponse.totalPages);
+        // setCurrentPage(filesResponse.currentPage); // Optional: Sync with backend's current page, if different
         setFolders(foldersData);
       }
     } catch (error) {
@@ -166,8 +174,14 @@ const Dashboard = () => {
     }
   };
 
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    // loadFilesAndFolders will be triggered by useEffect due to currentPage change
+  };
+
   const handleBreadcrumbNavigate = (indexInHistory: number) => {
     setSearchQuery(""); // Clear search query
+    setCurrentPage(1); // Reset to first page when navigating folders
 
     if (indexInHistory === -1) { // Clicked on "My Drive" or root
       setCurrentFolder(null);
@@ -544,10 +558,12 @@ const Dashboard = () => {
     setCurrentFolder(folder);
     setFolderHistory(prev => [...prev, folder]); // Add current folder to history
     setSearchQuery("");
+    setCurrentPage(1); // Reset to first page when navigating to a new folder
   };
 
   const handleNavigateUp = () => {
     setSearchQuery("");
+    setCurrentPage(1); // Reset to first page
     if (folderHistory.length === 0) { // Should not happen if currentFolder is set, but as a safeguard
       setCurrentFolder(null);
       // folderHistory is already empty
@@ -745,19 +761,30 @@ const Dashboard = () => {
       ) : folders.length === 0 && files.length === 0 ? (
         <FilesEmptyState />
       ) : (
-        <FileGrid
-          folders={folders}
-          files={files}
-          onFolderClick={handleNavigateToFolder}
-          onFileDelete={handleDeleteFile}
-          onFolderDelete={handleDeleteFolder}
-          onFilePreview={handleFilePreview}
-          onStarToggle={handleFileStarToggled}
-          onRenameItem={handleRenameItem}
-          onOrganizeItem={handleOrganizeItem}
-          currentParentId={currentFolder?._id || null} // Pass currentParentId
-          viewMode={viewMode} // Pass viewMode
-        />
+        <>
+          <FileGrid
+            folders={folders}
+            files={files}
+            onFolderClick={handleNavigateToFolder}
+            onFileDelete={handleDeleteFile}
+            onFolderDelete={handleDeleteFolder}
+            onFilePreview={handleFilePreview}
+            onStarToggle={handleFileStarToggled}
+            onRenameItem={handleRenameItem}
+            onOrganizeItem={handleOrganizeItem}
+            currentParentId={currentFolder?._id || null} // Pass currentParentId
+            viewMode={viewMode} // Pass viewMode
+          />
+          {totalFilePages > 1 && (
+            <div className="mt-8 flex justify-center">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalFilePages}
+                onPageChange={handlePageChange}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {isPreviewLoading && (
