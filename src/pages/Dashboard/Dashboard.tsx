@@ -570,21 +570,89 @@ const Dashboard = () => {
     if (!token) return;
 
     try {
-      await filesApi.trashFile(token, fileId); // Updated to use trashFile
-      setFiles((prev) => prev.filter((file) => file._id !== fileId));
+      await filesApi.trashFile(token, fileId);
       toast({
         title: "Success",
-        description: "File moved to trash", // Updated message
+        description: "File moved to trash. Refreshing list...",
       });
+      // Option A: Trigger a full refresh of the current view for infinite scroll
+      setFiles([]);
+      setCurrentPage(1);
+      setHasMoreFiles(true);
+      // loadFilesAndFolders(); // Explicit call, or rely on useEffect for currentPage change.
+      // The useEffect for [token, currentFolder, searchQuery] will reset page to 1
+      // and the useEffect for [token, currentPage, currentFolder, searchQuery] will then load.
+      // To ensure it reloads even if current page was already 1, an explicit call might be useful,
+      // or ensure one of the deps in the second useEffect changes.
+      // For simplicity here, we'll rely on the fact that setFiles([]) and setCurrentPage(1)
+      // should make the existing effects correctly reload the first page.
+      // If `currentPage` was already 1, the data loading `useEffect` needs to be robust enough
+      // or be explicitly called. Let's ensure `loadFilesAndFolders` is called if already on page 1.
+      if (currentPage === 1) {
+        loadFilesAndFolders();
+      } else {
+        setCurrentPage(1); // This will trigger the load via useEffect.
+      }
+
     } catch (error) {
-      console.error("Error moving file to trash:", error); // Updated message
+      console.error("Error moving file to trash:", error);
       toast({
         title: "Error",
-        description: "Failed to move file to trash", // Updated message
+        description: "Failed to move file to trash",
         variant: "destructive",
       });
     }
   };
+
+  // Function to handle permanent deletion of a file
+  // This assumes Dashboard.tsx might be displaying a list of TRASHED files
+  // when this action is available.
+  const handleDeleteFilePermanently = async (fileId: string) => {
+    if (!token) return;
+
+    try {
+      await filesApi.deleteFilePermanently(token, fileId);
+      toast({
+        title: "Success",
+        description: "File permanently deleted.",
+      });
+      // Update local state assuming 'files' could be a list of trashed items
+      const newTotalFilesCount = totalFilesCount - 1;
+      setFiles(prevFiles => prevFiles.filter(f => f._id !== fileId));
+      setTotalFilesCount(newTotalFilesCount);
+      if (newTotalFilesCount <= 0) {
+        setTotalFilePages(0);
+        setHasMoreFiles(false);
+      } else {
+        setTotalFilePages(Math.ceil(newTotalFilesCount / itemsPerPage));
+        // Re-evaluate hasMoreFiles based on current page and new total pages
+        // This is tricky if current page is now out of bounds.
+        // A full refresh (like in handleDeleteFile) might be safer if current page content is affected.
+        // For now, simple filter and count update.
+        setHasMoreFiles(currentPage < Math.ceil(newTotalFilesCount / itemsPerPage));
+      }
+       // If the current page becomes empty and there were more pages,
+       // it might be good to try and load the previous page or reset.
+       // For simplicity, this just removes the item.
+       // Consider if a reload/page adjustment is needed if on trash view.
+       if (files.filter(f => f._id !== fileId).length === 0 && newTotalFilesCount > 0 && currentPage > 1) {
+        setCurrentPage(prev => prev -1); // Go to previous page if current is now empty
+       } else if (files.filter(f => f._id !== fileId).length === 0 && newTotalFilesCount === 0){
+        setCurrentPage(1);
+        setHasMoreFiles(false); // No files left
+       }
+
+
+    } catch (error) {
+      console.error("Error permanently deleting file:", error);
+      toast({
+        title: "Error",
+        description: `Failed to permanently delete file. ${error instanceof Error ? error.message : ''}`,
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!token) return;
@@ -826,6 +894,8 @@ const Dashboard = () => {
             files={files}
             onFolderClick={handleNavigateToFolder}
             onFileDelete={handleDeleteFile}
+            // TODO: Pass handleDeleteFilePermanently if FileGrid needs to offer this for items
+            // onFileDeletePermanently={handleDeleteFilePermanently}
             onFolderDelete={handleDeleteFolder}
             onFilePreview={handleFilePreview}
             onStarToggle={handleFileStarToggled}

@@ -15,6 +15,23 @@ function escapeRegex(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
 }
 
+// Helper function to delete Redis keys by pattern
+async function deleteKeysByPattern(redisClient, pattern) {
+  if (!redisClient) return;
+  try {
+    let count = 0;
+    for await (const key of redisClient.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+      await redisClient.del(key);
+      count++;
+    }
+    if (count > 0) {
+      console.log(`Redis: Deleted ${count} keys matching pattern ${pattern}`);
+    }
+  } catch (err) {
+    console.error(`Redis: Error deleting keys with pattern ${pattern}:`, err);
+  }
+}
+
 // Configure multer for file storage
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -574,18 +591,31 @@ router.delete("/:id", auth, async (req, res) => {
     await file.save(); // Make sure to await the save
 
     // Invalidate cache for the folder the file was in
-    // (and potentially other relevant caches like starred lists if applicable)
+    // Invalidate cache for the folder the file was in and other relevant caches
     if (req.redisClient) {
-      const cacheKey = `files:${req.user._id}:${file.folderId || "root"}`;
-      await req.redisClient.del(cacheKey);
+      const userId = req.user._id.toString();
+      const folderIdString = file.folderId ? file.folderId.toString() : "root";
 
-      await req.redisClient.del(`files_trash:${req.user._id}`); // Added this line
+      // Invalidate direct cache entry for the folder (e.g., page 1 or non-paginated)
+      await req.redisClient.del(`files:${userId}:${folderIdString}`);
 
-      // If you have a global search cache that might include this file, invalidate it too.
-      // Example: await req.redisClient.del(`files:${req.user._id}:global_search`); (if applicable)
-      // Also, if there's a specific cache for starred files that needs updating:
+      // Invalidate all paginated caches for this folder
+      const folderCachePattern = `files:${userId}:${folderIdString}:page:*:limit:*`;
+      await deleteKeysByPattern(req.redisClient, folderCachePattern);
+
+      // Invalidate all paginated search caches (global search)
+      // Search queries can be diverse, so this pattern aims to cover general search result caches.
+      // Note: escapeRegex is for MongoDB, not Redis patterns directly here.
+      // The '*' in Redis patterns acts as a wildcard.
+      const searchCachePattern = `files:${userId}:global_search:page:*:limit:*:search:*`;
+      await deleteKeysByPattern(req.redisClient, searchCachePattern);
+
+      // Invalidate trash list cache
+      await req.redisClient.del(`files_trash:${userId}`);
+
+      // Invalidate starred files list cache if the file was starred
       if (file.isStarred) {
-        await req.redisClient.del(`starred_files:${req.user._id}`);
+        await req.redisClient.del(`starred_files:${userId}`);
       }
     }
 
