@@ -184,6 +184,8 @@ const Dashboard = () => {
     //   return;
     // }
 
+    console.log(`[Dashboard] Attempting to download file for thumbnail. File ID: ${fileId}`); // Add this line
+
     try {
       const encryptedBlob = await filesApi.downloadFile(token, fileId);
       const encryptedBuffer = await encryptedBlob.arrayBuffer();
@@ -249,7 +251,15 @@ const Dashboard = () => {
           setFolders(foldersData);
         }
 
-        setFiles(prevFiles => isFreshLoad ? filesResponse.files : [...prevFiles, ...filesResponse.files]);
+        setFiles(prevFiles => {
+          if (isFreshLoad) {
+            return filesResponse.files;
+          } else {
+            const existingFileIds = new Set(prevFiles.map(file => file._id));
+            const newUniqueFiles = filesResponse.files.filter(file => !existingFileIds.has(file._id));
+            return [...prevFiles, ...newUniqueFiles];
+          }
+        });
         setTotalFiles(filesResponse.totalFiles);
         setTotalPages(filesResponse.totalPages);
         if (isFreshLoad) setCurrentPage(filesResponse.currentPage); // Set current page from response on fresh load
