@@ -15,7 +15,6 @@ import { ArrowUp, FolderPlus, LayoutGrid, List, Upload } from "lucide-react"; //
 import React, { forwardRef, useEffect, useRef, useState } from "react";
 
 interface FilesToolbarProps {
-  isToolbarSticky?: boolean; // Added prop
   currentFolder: FolderType | null;
   onNavigateUp: () => void;
   onCreateFolder: (name: string) => void;
@@ -34,7 +33,6 @@ interface FilesToolbarProps {
 const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
   (
     {
-      isToolbarSticky, // Added prop
       currentFolder,
       onNavigateUp,
       onCreateFolder,
@@ -100,41 +98,10 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
     // This is a simplified approach for demonstration.
     // In a real app, use dedicated CSS classes and stylesheets.
 
-    // Extract padding values safely from ref
-    let paddingLeft = "1rem";
-    let paddingRight = "1rem";
-
-    if (ref && "current" in ref && ref.current?.parentElement?.style) {
-      paddingLeft = ref.current.parentElement.style.paddingLeft || paddingLeft;
-      paddingRight =
-        ref.current.parentElement.style.paddingRight || paddingRight;
-    }
-
-    const stickyStyles = isToolbarSticky
-      ? {
-          position: "fixed" as React.CSSProperties["position"],
-          bottom: 0,
-          left: 0,
-          right: 0,
-          width: "100%",
-          backgroundColor: "var(--background, white)", // Use CSS variable or a default
-          boxShadow: "0 -2px 8px rgba(0,0,0,0.15)",
-          zIndex: 9999,
-          paddingLeft,
-          paddingRight,
-          // The padding above is a guess; it's better if the toolbar is *inside* a container that has the page padding
-          // or if the parent of Dashboard handles this.
-          // For now, let's assume the toolbar needs to manage its own horizontal padding when sticky.
-          // The original toolbar is likely constrained by its parent's padding.
-          // A common pattern for full-width sticky elements is to have an inner container for content alignment.
-        }
-      : {};
-
     return (
       <div
         ref={ref}
-        style={stickyStyles}
-        className="bg-background filesToolbarBase"
+        className="bg-background filesToolbarBase sticky top-16 z-20"
       >
         {/* Breadcrumbs Section */}
         <div className="flex items-center space-x-1 text-sm pt-2 mb-2 overflow-x-auto pb-1 min-w-0">
