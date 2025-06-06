@@ -72,7 +72,8 @@ export const filesApi = {
     folderId: string | null = null,
     searchQuery?: string,
     page?: number,
-    limit?: number
+    limit?: number,
+    cacheBuster?: string // New optional parameter
   ): Promise<{ files: File[]; totalCount: number; currentPage: number; totalPages: number; }> => {
     const params = new URLSearchParams();
     if (folderId) {
@@ -87,7 +88,9 @@ export const filesApi = {
     if (limit !== undefined) {
       params.append('limit', limit.toString());
     }
-    params.append('_cb', Date.now().toString()); // Cache buster
+    if (cacheBuster) {
+      params.append('_cb', cacheBuster);
+    }
     const queryString = params.toString();
     const url = `${API_URL}/files${queryString ? `?${queryString}` : ''}`;
     
@@ -228,12 +231,18 @@ export const filesApi = {
 
 // Folders API
 export const foldersApi = {
-  getFolders: async (token: string, parentId: string | null = null): Promise<Folder[]> => {
+  getFolders: async (
+    token: string,
+    parentId: string | null = null,
+    cacheBuster?: string // New optional parameter
+  ): Promise<Folder[]> => {
     const params = new URLSearchParams();
     if (parentId) {
         params.append('parentId', parentId);
     }
-    params.append('_cb', Date.now().toString()); // Cache buster
+    if (cacheBuster) {
+      params.append('_cb', cacheBuster);
+    }
     const queryString = params.toString();
     const url = `${API_URL}/folders${queryString ? `?${queryString}` : ''}`;
     

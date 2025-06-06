@@ -197,38 +197,50 @@ const Dashboard = () => {
   // Effect for loading files based on currentPage
   useEffect(() => {
     if (token) {
-      loadFilesAndFolders();
+      // This effect is for general navigation and infinite scroll, so no cache busting.
+      // It uses the currentPage from state.
+      loadFilesAndFolders({ pageToLoad: currentPage });
     }
-  }, [token, currentPage, currentFolder, searchQuery]); // Dependencies that trigger file loading
+  }, [token, currentPage, currentFolder, searchQuery, loadFilesAndFolders]);
 
-  const loadFilesAndFolders = async () => {
+  const loadFilesAndFolders = useCallback(async (options?: { bustCache?: boolean; pageToLoad?: number }) => {
     if (!token) return;
 
-    if (currentPage === 1) {
+    const effectivePage = options?.pageToLoad !== undefined ? options.pageToLoad : currentPage;
+    const cacheBusterString = options?.bustCache ? Date.now().toString() : undefined;
+
+    if (effectivePage === 1) {
       setLoading(true);
     } else {
-      if (isLoadingMore || !hasMoreFiles) return; // Prevent multiple loads for subsequent pages
+      if (isLoadingMore || !hasMoreFiles) return;
       setIsLoadingMore(true);
     }
 
     try {
-      const filesResponse = await filesApi.getFiles(token, currentFolder?._id || null, searchQuery, currentPage, itemsPerPage);
+      const filesResponse = await filesApi.getFiles(
+        token!,
+        currentFolder?._id || null,
+        searchQuery,
+        effectivePage,
+        itemsPerPage,
+        cacheBusterString // Pass the cacheBusterString
+      );
 
-      if (currentPage === 1) {
-        // Initial load or context change, fetch folders as well
-        const foldersData = await foldersApi.getFolders(token, currentFolder?._id || null);
+      if (effectivePage === 1) {
+        const foldersData = await foldersApi.getFolders(
+          token!,
+          currentFolder?._id || null,
+          cacheBusterString // Pass the cacheBusterString
+        );
         setFolders(foldersData);
         setFiles(filesResponse.files);
         setTotalFilesCount(filesResponse.totalCount);
         setTotalFilePages(filesResponse.totalPages);
-        setHasMoreFiles(filesResponse.currentPage < filesResponse.totalPages);
+        setHasMoreFiles(effectivePage < filesResponse.totalPages);
       } else {
-        // Loading more files, append to existing files
         setFiles(prevFiles => [...prevFiles, ...filesResponse.files]);
-        // totalFilesCount might not change, but totalPages could if totalCount was an estimate or changed.
-        // However, typically totalCount is stable for a given query.
         setTotalFilePages(filesResponse.totalPages);
-        setHasMoreFiles(currentPage < filesResponse.totalPages); // Use current page before increment for this check
+        setHasMoreFiles(effectivePage < filesResponse.totalPages);
       }
     } catch (error) {
       console.error("Error loading files and folders:", error);
@@ -237,15 +249,21 @@ const Dashboard = () => {
         description: "Failed to load your files and folders",
         variant: "destructive",
       });
-      setHasMoreFiles(false); // Stop trying to load more on error
+      setHasMoreFiles(false);
     } finally {
-      if (currentPage === 1) {
+      if (effectivePage === 1) {
         setLoading(false);
       } else {
         setIsLoadingMore(false);
       }
     }
-  };
+  }, [
+    token, currentFolder, searchQuery, currentPage, itemsPerPage, toast,
+    isLoadingMore, hasMoreFiles, // These ensure that the logic inside loadFilesAndFolders is working with current values
+    // State setters are stable and don't need to be listed:
+    // setFiles, setFolders, setLoading, setIsLoadingMore,
+    // setTotalFilesCount, setTotalFilePages, setHasMoreFiles
+  ]);
 
   const handleDownloadFile = async (fileId: string, fileName: string, originalFileType: string) => {
     if (!token) {
@@ -609,13 +627,12 @@ const Dashboard = () => {
 
       // loadFilesAndFolders(); // Replaced by new logic below
 
-      if (currentPage === 1) {
-        setFiles([]);
-        setFolders([]);
-        loadFilesAndFolders();
-      } else {
-        setCurrentPage(1);
-      }
+      // Clear local state immediately for responsiveness before new data loads
+      setFiles([]);
+      setFolders([]);
+      setCurrentPage(1); // Set current page state to 1
+      // Call loadFilesAndFolders explicitly to load page 1 and bust cache
+      loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
 
       toast({
         title: "Success",
@@ -1199,19 +1216,15 @@ const Dashboard = () => {
         description: `Successfully uploaded ${totalFilesToUploadInFolder} files.`,
       });
 
-      const finalRefreshTasks = async () => {
-          if (refreshUserStorageInfo) {
-              await refreshUserStorageInfo();
-          }
-          if (currentPage === 1) {
-              setFiles([]);
-              setFolders([]);
-              loadFilesAndFolders();
-          } else {
-              setCurrentPage(1);
-          }
-      };
-      finalRefreshTasks();
+
+      // Clear local state immediately
+      setFiles([]);
+      setFolders([]);
+      setCurrentPage(1); // Set current page state to 1
+      // Call loadFilesAndFolders explicitly to load page 1 and bust cache
+      loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
+      // Note: refreshUserStorageInfo is already called after each successful file in the folder upload queue processing.
+      // If it needed to be called only once at the very end, it would be here, before loadFilesAndFolders.
 
     } else if (!isUploadingFolder && isProcessingFolderQueue.current) {
       // Catch-all: if uploading was stopped externally but lock was somehow still true
