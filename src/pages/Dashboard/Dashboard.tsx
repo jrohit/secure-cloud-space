@@ -859,7 +859,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-full">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight">
           {searchQuery
@@ -896,47 +896,49 @@ const Dashboard = () => {
         onViewModeChange={setViewMode} // Pass handler
       />
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Spinner className="h-12 w-12" />
-        </div>
-      ) : folders.length === 0 && files.length === 0 ? (
-        <FilesEmptyState />
-      ) : (
-        <>
-          <FileGrid
-            folders={folders}
-            files={files}
-            onFolderClick={handleNavigateToFolder}
-            onFileDelete={handleDeleteFile}
-            // TODO: Pass handleDeleteFilePermanently if FileGrid needs to offer this for items
-            // onFileDeletePermanently={handleDeleteFilePermanently}
-            onFolderDelete={handleDeleteFolder}
-            onFilePreview={handleFilePreview}
-            onStarToggle={handleFileStarToggled}
-            onRenameItem={handleRenameItem}
-            onOrganizeItem={handleOrganizeItem}
-            currentParentId={currentFolder?._id || null}
-            viewMode={viewMode}
-          />
-          {isLoadingMore && (
-            <div className="flex justify-center py-4">
-              <Spinner className="h-8 w-8" />
-            </div>
-          )}
-          {!hasMoreFiles && files.length > 0 && (
-             <p className="text-center text-gray-500 py-4">No more files to load.</p>
-          )}
-        </>
-      )}
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Spinner className="h-12 w-12" />
+          </div>
+        ) : folders.length === 0 && files.length === 0 ? (
+          <FilesEmptyState />
+        ) : (
+          <>
+            <FileGrid
+              folders={folders}
+              files={files}
+              onFolderClick={handleNavigateToFolder}
+              onFileDelete={handleDeleteFile}
+              // TODO: Pass handleDeleteFilePermanently if FileGrid needs to offer this for items
+              // onFileDeletePermanently={handleDeleteFilePermanently}
+              onFolderDelete={handleDeleteFolder}
+              onFilePreview={handleFilePreview}
+              onStarToggle={handleFileStarToggled}
+              onRenameItem={handleRenameItem}
+              onOrganizeItem={handleOrganizeItem}
+              currentParentId={currentFolder?._id || null}
+              viewMode={viewMode}
+            />
+            {isLoadingMore && (
+              <div className="flex justify-center py-4">
+                <Spinner className="h-8 w-8" />
+              </div>
+            )}
+            {!hasMoreFiles && files.length > 0 && (
+               <p className="text-center text-gray-500 py-4">No more files to load.</p>
+            )}
+          </>
+        )}
 
-      {isPreviewLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
-          {" "}
-          {/* Ensure high z-index */}
-          <Spinner className="h-12 w-12 text-white" />
-        </div>
-      )}
+        {isPreviewLoading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+            {" "}
+            {/* Ensure high z-index */}
+            <Spinner className="h-12 w-12 text-white" />
+          </div>
+        )}
+      </div>
 
       {previewFileMetadata && (
         <FilePreviewDialog

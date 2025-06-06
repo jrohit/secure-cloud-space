@@ -17,7 +17,7 @@ const DashboardLayout = () => {
       <Navbar toggleSidebar={toggleSidebar} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar collapsed={sidebarCollapsed} />
-        <main className="flex-1 overflow-auto p-4 md:p-6 transition-all duration-200">
+        <main className="flex-1 p-4 md:p-6 transition-all duration-200">
           <Outlet />
         </main>
       </div>
