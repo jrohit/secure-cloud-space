@@ -78,7 +78,7 @@ export const filesApi = {
     searchQuery?: string,
     page?: number,
     limit?: number,
-    cacheBuster?: string, // New optional parameter
+    cacheBuster?: string // New optional parameter
   ): Promise<{
     files: File[];
     totalCount: number;
@@ -99,7 +99,7 @@ export const filesApi = {
       params.append("limit", limit.toString());
     }
     if (cacheBuster) {
-      params.append("_cb", cacheBuster);
+      params.append("resetCache", cacheBuster);
     }
     const queryString = params.toString();
     const url = `${API_URL}/files${queryString ? `?${queryString}` : ""}`;
@@ -118,7 +118,7 @@ export const filesApi = {
   },
 
   restoreAllFromTrash: async (
-    token: string,
+    token: string
   ): Promise<{ message: string; restoredCount: number }> => {
     const response = await fetch(`${API_URL}/files/trash/restore-all`, {
       method: "POST",
@@ -134,7 +134,7 @@ export const filesApi = {
     encryptedFileBlob: Blob,
     fileName: string,
     originalMimeType: string,
-    folderId: string | null = null,
+    folderId: string | null = null
   ): Promise<File> => {
     const formData = new FormData();
     formData.append("file", encryptedFileBlob, fileName);
@@ -156,7 +156,7 @@ export const filesApi = {
 
   trashFile: async (
     token: string,
-    fileId: string,
+    fileId: string
   ): Promise<{ message: string }> => {
     // Backend sends a message
     const response = await fetch(`${API_URL}/files/${fileId}`, {
@@ -170,7 +170,7 @@ export const filesApi = {
 
   restoreFile: async (
     token: string,
-    fileId: string,
+    fileId: string
   ): Promise<{ message: string; file: File; restoredToRoot: boolean }> => {
     const response = await fetch(`${API_URL}/files/${fileId}/restore`, {
       method: "POST",
@@ -194,7 +194,7 @@ export const filesApi = {
 
   deleteFilePermanently: async (
     token: string,
-    fileId: string,
+    fileId: string
   ): Promise<{ message: string }> => {
     // Backend sends a message
     const response = await fetch(`${API_URL}/files/${fileId}/permanent`, {
@@ -207,7 +207,7 @@ export const filesApi = {
   },
 
   emptyTrash: async (
-    token: string,
+    token: string
   ): Promise<{ message: string; count: number; freedSpace: number }> => {
     const response = await fetch(`${API_URL}/files/trash/empty`, {
       method: "POST",
@@ -261,11 +261,11 @@ export const filesApi = {
   renameFile: async (
     token: string,
     fileId: string,
-    newName: string,
+    newName: string
   ): Promise<File> => {
     // This should be a PATCH request in a real API
     console.log(
-      `Mock renaming file ${fileId} to ${newName} with token ${token}`,
+      `Mock renaming file ${fileId} to ${newName} with token ${token}`
     );
     await new Promise((resolve) => setTimeout(resolve, 500));
     return {
@@ -288,11 +288,11 @@ export const filesApi = {
   moveFile: async (
     token: string,
     fileId: string,
-    newParentId: string | null,
+    newParentId: string | null
   ): Promise<File> => {
     // This should be a PATCH request in a real API
     console.log(
-      `Mock moving file ${fileId} to new parent ${newParentId} with token ${token}`,
+      `Mock moving file ${fileId} to new parent ${newParentId} with token ${token}`
     );
     await new Promise((resolve) => setTimeout(resolve, 500));
     return {
@@ -320,7 +320,7 @@ export const foldersApi = {
   getFolders: async (
     token: string,
     parentId: string | null = null,
-    cacheBuster?: string, // New optional parameter
+    cacheBuster?: string // New optional parameter
   ): Promise<Folder[]> => {
     const params = new URLSearchParams();
     if (parentId) {
@@ -343,7 +343,7 @@ export const foldersApi = {
   createFolder: async (
     token: string,
     name: string,
-    parentId: string | null = null,
+    parentId: string | null = null
   ): Promise<Folder> => {
     const response = await fetch(`${API_URL}/folders`, {
       method: "POST",
@@ -359,7 +359,7 @@ export const foldersApi = {
   // This now represents moving a folder to trash (soft delete)
   deleteFolder: async (
     token: string,
-    folderId: string,
+    folderId: string
   ): Promise<{ message: string }> => {
     const response = await fetch(`${API_URL}/folders/${folderId}`, {
       method: "DELETE", // Backend for this endpoint now performs soft delete
@@ -373,11 +373,11 @@ export const foldersApi = {
   renameFolder: async (
     token: string,
     folderId: string,
-    newName: string,
+    newName: string
   ): Promise<Folder> => {
     // This should be a PATCH request in a real API
     console.log(
-      `Mock renaming folder ${folderId} to ${newName} with token ${token}`,
+      `Mock renaming folder ${folderId} to ${newName} with token ${token}`
     );
     await new Promise((resolve) => setTimeout(resolve, 500));
     return {
@@ -395,11 +395,11 @@ export const foldersApi = {
   moveFolder: async (
     token: string,
     folderId: string,
-    newParentId: string | null,
+    newParentId: string | null
   ): Promise<Folder> => {
     // This should be a PATCH request in a real API
     console.log(
-      `Mock moving folder ${folderId} to new parent ${newParentId} with token ${token}`,
+      `Mock moving folder ${folderId} to new parent ${newParentId} with token ${token}`
     );
     await new Promise((resolve) => setTimeout(resolve, 500));
     return {
@@ -416,7 +416,7 @@ export const foldersApi = {
 
   permanentlyDeleteTrashedFolder: async (
     token: string,
-    folderId: string,
+    folderId: string
   ): Promise<{ message: string }> => {
     const response = await fetch(`${API_URL}/folders/${folderId}/permanent`, {
       // IMPLEMENTED
@@ -430,7 +430,7 @@ export const foldersApi = {
 
   restoreFolder: async (
     token: string,
-    folderId: string,
+    folderId: string
   ): Promise<{ message: string; folder: Folder; restoredToRoot: boolean }> => {
     const response = await fetch(`${API_URL}/folders/${folderId}/restore`, {
       // IMPLEMENTED
@@ -454,7 +454,7 @@ export const foldersApi = {
   },
 
   emptyTrash: async (
-    token: string,
+    token: string
   ): Promise<{
     message: string;
     foldersDeleted?: number;

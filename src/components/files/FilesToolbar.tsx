@@ -14,10 +14,11 @@ import { Folder as FolderType } from "@/types"; // Already aliased as FolderType
 import {
   ArrowUp,
   FolderPlus,
+  FolderUp,
   LayoutGrid,
   List,
+  RefreshCcw,
   Upload,
-  FolderUp,
 } from "lucide-react"; // Added icons
 import React, { forwardRef, useEffect, useRef, useState } from "react";
 
@@ -37,6 +38,7 @@ interface FilesToolbarProps {
   onBreadcrumbNavigate: (indexInHistory: number) => void;
   viewMode: "card" | "list"; // Added
   onViewModeChange: (mode: "card" | "list") => void; // Added
+  reloadFilesAndFolders: (resetCached: boolean) => void;
 }
 
 const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
@@ -57,8 +59,9 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
       onBreadcrumbNavigate,
       viewMode, // Added
       onViewModeChange, // Added
+      reloadFilesAndFolders,
     },
-    ref,
+    ref
   ) => {
     const [folderName, setFolderName] = useState("");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -236,6 +239,14 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
             <FolderUp className="h-4 w-4 mr-2" />
             Upload Folder
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => reloadFilesAndFolders(true)}
+          >
+            <RefreshCcw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
           {/* View Mode Toggles */}
           <div className="flex items-center gap-1 ml-auto">
             <Button
@@ -268,7 +279,7 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
         )}
       </div>
     );
-  },
+  }
 );
 
 export default FilesToolbar;

@@ -11,12 +11,11 @@ import { ToastAction } from "@/components/ui/toast"; // Added
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { decryptFile, encryptFile } from "@/lib/cryptoUtils";
-import { generateImageThumbnail } from "@/lib/imageUtils"; // Adjust path if needed
 import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
 // Removed useRef as toolbarRef is no longer needed for JS sticky
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import throttle from "lodash/throttle";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // Cache for decrypted file previews
 const decryptedFileCache = new Map<string, ArrayBuffer>();
@@ -152,14 +151,14 @@ const Dashboard = () => {
   const [previewFileContent, setPreviewFileContent] =
     useState<ArrayBuffer | null>(null);
   const [previewFileMetadata, setPreviewFileMetadata] = useState<File | null>(
-    null,
+    null
   );
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isUpgradeStorageDialogOpen, setIsUpgradeStorageDialogOpen] =
     useState(false); // Added state for dialog
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number | null>(
-    null,
+    null
   );
   const [folderHistory, setFolderHistory] = useState<Folder[]>([]);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false); // Added for Rename
@@ -183,7 +182,7 @@ const Dashboard = () => {
 
   // State for folder upload queue and progress
   const [folderUploadQueue, setFolderUploadQueue] = useState<ProcessedFile[]>(
-    [],
+    []
   );
   const [isUploadingFolder, setIsUploadingFolder] = useState<boolean>(false);
   const [currentUploadingFolderFile, setCurrentUploadingFolderFile] = useState<
@@ -206,12 +205,6 @@ const Dashboard = () => {
   }, [token, currentFolder, searchQuery]);
 
   // Effect for loading files based on currentPage
-  useEffect(() => {
-    if (token) {
-      loadFilesAndFolders({ pageToLoad: currentPage });
-    }
-  }, [token, currentPage, currentFolder, searchQuery, loadFilesAndFolders]);
-
   const loadFilesAndFolders = useCallback(
     async (options?: { bustCache?: boolean; pageToLoad?: number }) => {
       if (!token) return;
@@ -236,14 +229,14 @@ const Dashboard = () => {
           searchQuery,
           effectivePage,
           itemsPerPage,
-          cacheBusterValue, // Pass to API
+          cacheBusterValue // Pass to API
         );
 
         if (effectivePage === 1) {
           const foldersData = await foldersApi.getFolders(
             token,
             currentFolder?._id || null,
-            cacheBusterValue, // Pass to API
+            cacheBusterValue // Pass to API
           );
           setFolders(foldersData);
           setFiles(filesResponse.files);
@@ -288,13 +281,19 @@ const Dashboard = () => {
       setFolders,
       setTotalFilesCount,
       setTotalFilePages,
-    ],
+    ]
   );
+
+  useEffect(() => {
+    if (token) {
+      loadFilesAndFolders({ pageToLoad: currentPage });
+    }
+  }, [token, currentPage, currentFolder, searchQuery]);
 
   const handleDownloadFile = async (
     fileId: string,
     fileName: string,
-    originalFileType: string,
+    originalFileType: string
   ) => {
     if (!token) {
       toast({
@@ -332,7 +331,7 @@ const Dashboard = () => {
 
       if (decryptedBuffer.byteLength < IV_LENGTH) {
         console.error(
-          "Decrypted buffer is shorter than IV length. This should not happen if IV was prepended.",
+          "Decrypted buffer is shorter than IV length. This should not happen if IV was prepended."
         );
         toast({
           id: downloadToastId.id,
@@ -385,7 +384,9 @@ const Dashboard = () => {
       toast({
         id: downloadToastId.id,
         title: "Download Error",
-        description: `Failed to download ${fileName}. ${error.message || "Unknown error"}`,
+        description: `Failed to download ${fileName}. ${
+          error.message || "Unknown error"
+        }`,
         variant: "destructive",
         duration: 5000,
       });
@@ -408,7 +409,7 @@ const Dashboard = () => {
 
   const throttledScrollHandler = useMemo(
     () => throttle(handleScroll, 300),
-    [handleScroll],
+    [handleScroll]
   ); // For infinite scroll (remains)
 
   useEffect(() => {
@@ -436,12 +437,12 @@ const Dashboard = () => {
       const targetFolder = folderHistory[indexInHistory];
       setCurrentFolder(targetFolder); // This will trigger the useEffect for context change
       setFolderHistory((prevHistory) =>
-        prevHistory.slice(0, indexInHistory + 1),
+        prevHistory.slice(0, indexInHistory + 1)
       );
     } else {
       console.warn(
         "Invalid index received from breadcrumb navigation:",
-        indexInHistory,
+        indexInHistory
       );
     }
   };
@@ -473,7 +474,7 @@ const Dashboard = () => {
         } else {
           setCurrentPreviewIndex(null);
           console.warn(
-            "Previewed file (from cache) not found in current files list for navigation indexing.",
+            "Previewed file (from cache) not found in current files list for navigation indexing."
           );
         }
         setIsPreviewing(true);
@@ -486,7 +487,7 @@ const Dashboard = () => {
       }
     }
     console.log(
-      `[Dashboard] Cache miss for preview: ${fileToPreview.name}. Fetching and decrypting.`,
+      `[Dashboard] Cache miss for preview: ${fileToPreview.name}. Fetching and decrypting.`
     );
 
     try {
@@ -499,7 +500,7 @@ const Dashboard = () => {
 
       const encryptedBlob = await filesApi.downloadFile(
         token,
-        fileToPreview._id,
+        fileToPreview._id
       );
       const encryptedBuffer = await encryptedBlob.arrayBuffer();
 
@@ -507,7 +508,7 @@ const Dashboard = () => {
       if (encryptedBuffer.byteLength < 12) {
         // Minimum size for IV
         throw new Error(
-          "Downloaded file data is too short to be valid encrypted content.",
+          "Downloaded file data is too short to be valid encrypted content."
         );
       }
 
@@ -532,20 +533,20 @@ const Dashboard = () => {
 
       console.log(
         "[Dashboard] After decryptFile - decryptedBuffer.byteLength:",
-        decryptedBuffer.byteLength,
+        decryptedBuffer.byteLength
       );
       try {
         const sliceTestDashboard = decryptedBuffer.slice(0);
         console.log(
           "[Dashboard] After decryptFile - decryptedBuffer slice test successful, new buffer byteLength:",
-          sliceTestDashboard.byteLength,
+          sliceTestDashboard.byteLength
         );
         // You could also check if they are the same buffer instance, though slice creates a new one.
         // console.log('[Dashboard] Buffers are same instance after slice:', decryptedBuffer === sliceTestDashboard); // Should be false
       } catch (e) {
         console.error(
           "[Dashboard] Error trying to slice decryptedBuffer immediately after decryptFile:",
-          e,
+          e
         );
         // If this error occurs, the buffer is likely already detached or invalid from decryptFile.
       }
@@ -560,7 +561,7 @@ const Dashboard = () => {
         // Consider how to handle if it does, e.g., log an error or disable navigation.
         setCurrentPreviewIndex(null);
         console.warn(
-          "Previewed file not found in current files list for navigation indexing.",
+          "Previewed file not found in current files list for navigation indexing."
         );
       }
       setIsPreviewing(true); // This will be used to trigger the dialog open state
@@ -588,7 +589,7 @@ const Dashboard = () => {
       const newFolder = await foldersApi.createFolder(
         token,
         name,
-        currentFolder?._id || null,
+        currentFolder?._id || null
       );
       // setFolders((prev) => [...prev, newFolder]); // Optimistic update removed
       toast({
@@ -650,7 +651,7 @@ const Dashboard = () => {
     // Calculate total upload size
     const totalUploadSize = filesArray.reduce(
       (acc, file) => acc + file.size,
-      0,
+      0
     );
 
     // Perform client-side quota check
@@ -662,7 +663,11 @@ const Dashboard = () => {
       if (user.storageUsed + totalUploadSize > user.storageLimit) {
         toast({
           title: "Insufficient Storage",
-          description: `You do not have enough space to upload these files. Required: ${formatBytes(totalUploadSize)}, Available: ${formatBytes(user.storageLimit - user.storageUsed)}. Please upgrade your plan or free up space.`,
+          description: `You do not have enough space to upload these files. Required: ${formatBytes(
+            totalUploadSize
+          )}, Available: ${formatBytes(
+            user.storageLimit - user.storageUsed
+          )}. Please upgrade your plan or free up space.`,
           variant: "destructive",
           action: (
             <ToastAction
@@ -678,7 +683,7 @@ const Dashboard = () => {
       }
     } else {
       console.warn(
-        "User storage information not available for client-side quota check. Proceeding with upload.",
+        "User storage information not available for client-side quota check. Proceeding with upload."
       );
     }
 
@@ -717,7 +722,7 @@ const Dashboard = () => {
           encryptedBlob,
           file.name,
           originalMimeType,
-          currentFolder?._id || null,
+          currentFolder?._id || null
           // thumbnailBlob argument is now omitted
         );
 
@@ -731,7 +736,7 @@ const Dashboard = () => {
       if (currentPage === 1) {
         setFiles([]);
         setFolders([]);
-        loadFilesAndFolders();
+        loadFilesAndFolders({ bustCache: true, pageToLoad: currentPage ?? 1 });
       } else {
         setCurrentPage(1);
       }
@@ -854,7 +859,9 @@ const Dashboard = () => {
       console.error("Error permanently deleting file:", error);
       toast({
         title: "Error",
-        description: `Failed to permanently delete file. ${error instanceof Error ? error.message : ""}`,
+        description: `Failed to permanently delete file. ${
+          error instanceof Error ? error.message : ""
+        }`,
         variant: "destructive",
       });
     }
@@ -941,7 +948,7 @@ const Dashboard = () => {
   const handleRenameItem = (
     id: string,
     type: "file" | "folder",
-    currentName: string,
+    currentName: string
   ) => {
     setRenameItemInfo({ id, type, currentName });
     setIsRenameDialogOpen(true);
@@ -982,7 +989,9 @@ const Dashboard = () => {
       console.error(`Error renaming ${type}:`, error);
       toast({
         title: "Error",
-        description: `Failed to rename ${type}. ${error instanceof Error ? error.message : ""}`,
+        description: `Failed to rename ${type}. ${
+          error instanceof Error ? error.message : ""
+        }`,
         variant: "destructive",
       });
       // Optionally, keep the dialog open on error or close it
@@ -995,7 +1004,7 @@ const Dashboard = () => {
   const handleOrganizeItem = (
     id: string,
     type: "file" | "folder",
-    currentParentId: string | null,
+    currentParentId: string | null
   ) => {
     const itemToOrganize =
       type === "file"
@@ -1061,7 +1070,9 @@ const Dashboard = () => {
       console.error(`Error moving ${type}:`, error);
       toast({
         title: "Error",
-        description: `Failed to move ${type}. ${error instanceof Error ? error.message : ""}`,
+        description: `Failed to move ${type}. ${
+          error instanceof Error ? error.message : ""
+        }`,
         variant: "destructive",
       });
     } finally {
@@ -1133,7 +1144,7 @@ const Dashboard = () => {
         } else {
           console.warn(
             "File without webkitRelativePath encountered:",
-            globalFile.name,
+            globalFile.name
           );
           processedFiles.push({
             file: file as globalThis.File,
@@ -1159,7 +1170,11 @@ const Dashboard = () => {
         if (user.storageUsed + totalSizeNeededForFolder > user.storageLimit) {
           toast({
             title: "Insufficient Storage for Folder",
-            description: `The selected folder (${formatBytes(totalSizeNeededForFolder)}) exceeds your available storage (${formatBytes(user.storageLimit - user.storageUsed)}). Please upgrade your plan or free up space.`,
+            description: `The selected folder (${formatBytes(
+              totalSizeNeededForFolder
+            )}) exceeds your available storage (${formatBytes(
+              user.storageLimit - user.storageUsed
+            )}). Please upgrade your plan or free up space.`,
             variant: "destructive",
             duration: 9000,
             action: (
@@ -1176,7 +1191,7 @@ const Dashboard = () => {
         }
       } else {
         console.warn(
-          "User storage information not available for client-side folder quota check. Proceeding with upload, backend will verify.",
+          "User storage information not available for client-side folder quota check. Proceeding with upload, backend will verify."
         );
       }
 
@@ -1206,7 +1221,7 @@ const Dashboard = () => {
       relativePath: string, // e.g., "Photos/Summer/Beach" (folder path part only)
       initialParentId: string | null,
       token: string, // Token must be passed in
-      toastFn: typeof toast, // Pass the toast function
+      toastFn: typeof toast // Pass the toast function
     ): Promise<string | null> {
       let currentParentId = initialParentId;
       if (!relativePath) return currentParentId; // No path to create, return initial parent
@@ -1226,19 +1241,21 @@ const Dashboard = () => {
           const newFolder = await foldersApi.createFolder(
             token,
             segment,
-            currentParentId,
+            currentParentId
           );
           folderCache.set(cacheKey, newFolder._id);
           currentParentId = newFolder._id;
         } catch (error: any) {
           console.error(
             `[ensureFolderPathExists] Error creating folder ${segment} under ${currentParentId}:`,
-            error,
+            error
           );
           toastFn({
             // Use the passed toast function
             title: "Folder Creation Error",
-            description: `Failed to create part of folder structure: ${segment}. Error: ${error.message || "Unknown error"}`,
+            description: `Failed to create part of folder structure: ${segment}. Error: ${
+              error.message || "Unknown error"
+            }`,
             variant: "destructive",
           });
           return null; // Stop if any part of the path fails
@@ -1293,7 +1310,7 @@ const Dashboard = () => {
             fileParentPath,
             currentFolder?._id || null,
             token,
-            toast,
+            toast
           );
 
           if (targetFolderId === null && fileParentPath !== "") {
@@ -1316,7 +1333,13 @@ const Dashboard = () => {
             if (user.storageUsed + file.size > user.storageLimit) {
               toast({
                 title: "Insufficient Storage",
-                description: `Cannot upload ${file.name}. Required: ${formatBytes(file.size)}, Available: ${formatBytes(user.storageLimit - user.storageUsed)}. Stopping folder upload.`,
+                description: `Cannot upload ${
+                  file.name
+                }. Required: ${formatBytes(
+                  file.size
+                )}, Available: ${formatBytes(
+                  user.storageLimit - user.storageUsed
+                )}. Stopping folder upload.`,
                 variant: "destructive",
                 action: (
                   <ToastAction
@@ -1355,7 +1378,7 @@ const Dashboard = () => {
                 resolve(fileReader.result as ArrayBuffer);
               fileReader.onerror = () => reject(fileReader.error);
               fileReader.readAsArrayBuffer(file);
-            },
+            }
           );
 
           const { iv, ciphertext } = await encryptFile(fileBuffer, cryptoKey);
@@ -1366,7 +1389,7 @@ const Dashboard = () => {
             encryptedBlob,
             file.name,
             originalMimeType,
-            targetFolderId,
+            targetFolderId
           );
 
           // Successful upload of this one file
@@ -1380,11 +1403,13 @@ const Dashboard = () => {
         } catch (error: any) {
           console.error(
             `[Folder Upload] Error processing file ${fileToProcess.relativePath}:`,
-            error,
+            error
           );
           toast({
             title: "Upload Failed",
-            description: `Could not upload file: ${fileToProcess.file.name}. Error: ${error.message || "Unknown error"}`,
+            description: `Could not upload file: ${
+              fileToProcess.file.name
+            }. Error: ${error.message || "Unknown error"}`,
             variant: "destructive",
           });
           setIsUploadingFolder(false);
@@ -1445,8 +1470,8 @@ const Dashboard = () => {
           {searchQuery
             ? `Search results for "${searchQuery}"`
             : currentFolder
-              ? currentFolder.name
-              : "My Drive"}
+            ? currentFolder.name
+            : "My Drive"}
         </h2>
       </div>
 
@@ -1477,6 +1502,9 @@ const Dashboard = () => {
         onBreadcrumbNavigate={handleBreadcrumbNavigate}
         viewMode={viewMode} // Pass viewMode
         onViewModeChange={setViewMode} // Pass handler
+        reloadFilesAndFolders={() => {
+          loadFilesAndFolders({ bustCache: true, pageToLoad: 1 }); // Trigger reload
+        }}
       />
 
       {isUploadingFolder && (
