@@ -158,6 +158,7 @@ const Dashboard = () => {
   const [currentUploadingFolderFile, setCurrentUploadingFolderFile] = useState<string | null>(null);
   const [processedFolderFilesCount, setProcessedFolderFilesCount] = useState<number>(0);
   const [totalFilesToUploadInFolder, setTotalFilesToUploadInFolder] = useState<number>(0);
+  const isProcessingFolderQueue = useRef<boolean>(false);
 
   // Effect for initial load and when context changes (folder, search)
   useEffect(() => {
@@ -995,105 +996,141 @@ const Dashboard = () => {
       return currentParentId;
     }
 
-    const processNextFileInQueue = async () => {
-      if (!isUploadingFolder || folderUploadQueue.length === 0 || !token) {
-        if (isUploadingFolder && folderUploadQueue.length === 0 && totalFilesToUploadInFolder > 0 && processedFolderFilesCount === totalFilesToUploadInFolder) {
-             // All files in the folder have been processed
-            setIsUploadingFolder(false);
-            setCurrentUploadingFolderFile(null);
-            toast({
-              title: "Folder Upload Complete",
-              description: `Successfully uploaded ${totalFilesToUploadInFolder} files.`,
-            });
-            loadFilesAndFolders(); // Refresh file list
-            if (refreshUserStorageInfo) { // Refresh storage info if all files done
-                await refreshUserStorageInfo();
-            }
-        }
-        return;
+    // const processNextFileInQueue = async () => { // Original function is now part of the IIFE below
+    // }; // processNextFileInQueue removed, logic moved into IIFE
+
+    if (isUploadingFolder && folderUploadQueue.length > 0) {
+      if (isProcessingFolderQueue.current) {
+        // console.log("[Folder Upload] Already processing queue, skipping this effect run.");
+        return; // Already processing, don't start another concurrent run
       }
 
-      const nextFileToProcess = folderUploadQueue[0];
-      setCurrentUploadingFolderFile(nextFileToProcess.relativePath);
-      const { file, relativePath } = nextFileToProcess;
+      isProcessingFolderQueue.current = true;
+      // console.log("[Folder Upload] Lock acquired.");
 
-      try {
-        console.log(`[Folder Upload] Starting to process: ${relativePath}`);
-        const pathParts = relativePath.split('/');
-        pathParts.pop(); // Remove filename to get parent path
-        const fileParentPath = pathParts.join('/');
+      const fileToProcess = folderUploadQueue[0]; // Still peek at the first file
+      // setCurrentUploadingFolderFile should be set here so UI updates before async ops
+      // However, if the async op fails fast, it might look like it skipped.
+      // For a smoother UX, it might be better to set it right before the actual async file operation
+      // but for now, setting it before the IIFE.
+      setCurrentUploadingFolderFile(fileToProcess.relativePath);
+      // console.log(`[Folder Upload] Starting to process (with lock): ${fileToProcess.relativePath}`);
 
-        const targetFolderId = await ensureFolderPathExists(fileParentPath, currentFolder?._id || null, token, toast);
+      (async () => {
+        try {
+          // Ensure token is valid before proceeding with operations that need it
+          if (!token) {
+              toast({ title: "Authentication Error", description: "User token not found. Cannot upload.", variant: "destructive" });
+              setIsUploadingFolder(false);
+              setFolderUploadQueue([]);
+              // isProcessingFolderQueue.current = false; // Handled by finally
+              return;
+          }
 
-        if (targetFolderId === undefined) { // Check for undefined explicitly if ensureFolderPathExists can return it on root.
-                                          // For now, it returns null on error or the ID.
-            // This case means it's the root of the upload (currentFolder or actual root)
-            // ensureFolderPathExists would return initialParentId if relativePath is empty
-        }
+          const { file, relativePath } = fileToProcess; // Deconstruct after checking queue
+          setCurrentUploadingFolderFile(relativePath); // Confirm current file for UI
 
-        if (targetFolderId === null && fileParentPath !== "") { // Folder creation failed and it wasn't meant for the root
-          toast({ title: "Upload Error", description: `Failed to establish folder path for ${relativePath}. Stopping folder upload.`, variant: "destructive" });
-          setIsUploadingFolder(false);
-          setFolderUploadQueue([]);
-          return;
-        }
+          const pathParts = relativePath.split('/');
+          pathParts.pop();
+          const fileParentPath = pathParts.join('/');
 
-        if (user && typeof user.storageLimit === 'number' && typeof user.storageUsed === 'number') {
-          if (user.storageUsed + file.size > user.storageLimit) {
-            toast({
-              title: "Insufficient Storage",
-              description: `Cannot upload ${file.name}. Required: ${formatBytes(file.size)}, Available: ${formatBytes(user.storageLimit - user.storageUsed)}. Stopping folder upload.`,
-              variant: "destructive",
-              action: (<ToastAction altText="Upgrade" onClick={() => setIsUpgradeStorageDialogOpen(true)}> Upgrade Storage </ToastAction>),
-            });
+          const targetFolderId = await ensureFolderPathExists(fileParentPath, currentFolder?._id || null, token, toast);
+
+          if (targetFolderId === null && fileParentPath !== "") { // Check if folder creation failed and it wasn't for root
+            toast({ title: "Upload Error", description: `Failed to establish folder path for ${relativePath}. Stopping folder upload.`, variant: "destructive" });
             setIsUploadingFolder(false);
             setFolderUploadQueue([]);
             return;
           }
-        }
 
-        const cryptoKey = await getMasterCryptoKey();
-        if (!cryptoKey) {
-          toast({ title: "Upload Error", description: "Encryption key not available. Stopping folder upload.", variant: "destructive" });
+          if (user && typeof user.storageLimit === 'number' && typeof user.storageUsed === 'number') {
+            if (user.storageUsed + file.size > user.storageLimit) {
+              toast({
+                title: "Insufficient Storage",
+                description: `Cannot upload ${file.name}. Required: ${formatBytes(file.size)}, Available: ${formatBytes(user.storageLimit - user.storageUsed)}. Stopping folder upload.`,
+                variant: "destructive",
+                action: (<ToastAction altText="Upgrade" onClick={() => setIsUpgradeStorageDialogOpen(true)}> Upgrade Storage </ToastAction>),
+              });
+              setIsUploadingFolder(false);
+              setFolderUploadQueue([]);
+              return;
+            }
+          }
+
+          const cryptoKey = await getMasterCryptoKey();
+          if (!cryptoKey) {
+            toast({ title: "Encryption Key Error", description: "Could not retrieve encryption key. Stopping folder upload.", variant: "destructive" });
+            setIsUploadingFolder(false);
+            setFolderUploadQueue([]);
+            return;
+          }
+
+          const originalMimeType = getAccurateMimeType(file);
+          const fileReader = new FileReader();
+          const fileBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+              fileReader.onload = () => resolve(fileReader.result as ArrayBuffer);
+              fileReader.onerror = () => reject(fileReader.error);
+              fileReader.readAsArrayBuffer(file);
+          });
+
+          const { iv, ciphertext } = await encryptFile(fileBuffer, cryptoKey);
+          const encryptedBlob = new Blob([iv, ciphertext]);
+
+          await filesApi.uploadFile(token, encryptedBlob, file.name, originalMimeType, targetFolderId);
+
+          // Successful upload of this one file
+          if (refreshUserStorageInfo) {
+            await refreshUserStorageInfo();
+          }
+          // The state updates below will trigger the useEffect to re-run for the next file
+          setFolderUploadQueue(prevQueue => prevQueue.slice(1));
+          setProcessedFolderFilesCount(prevCount => prevCount + 1);
+          // console.log(`[Folder Upload] "Completed" processing (with lock): ${relativePath}`);
+
+        } catch (error: any) {
+          console.error(`[Folder Upload] Error processing file ${fileToProcess.relativePath}:`, error);
+          toast({ title: "Upload Failed", description: `Could not upload file: ${fileToProcess.file.name}. Error: ${error.message || 'Unknown error'}`, variant: "destructive" });
           setIsUploadingFolder(false);
           setFolderUploadQueue([]);
-          return;
+        } finally {
+          // console.log("[Folder Upload] Releasing lock.");
+          isProcessingFolderQueue.current = false;
         }
+      })(); // End of async IIFE
 
-        const originalMimeType = getAccurateMimeType(file);
-        const fileReader = new FileReader();
-        const fileBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-          fileReader.onload = () => resolve(fileReader.result as ArrayBuffer);
-          fileReader.onerror = () => reject(fileReader.error);
-          fileReader.readAsArrayBuffer(file);
-        });
-
-        const { iv, ciphertext } = await encryptFile(fileBuffer, cryptoKey);
-        const encryptedBlob = new Blob([iv, ciphertext]);
-
-        // Use targetFolderId from ensureFolderPathExists, which could be the initialParentId if fileParentPath was empty
-        await filesApi.uploadFile(token!, encryptedBlob, file.name, originalMimeType, targetFolderId);
-
-        // Successfully uploaded this file
-        setFolderUploadQueue(prevQueue => prevQueue.slice(1));
-        setProcessedFolderFilesCount(prevCount => prevCount + 1);
-         if (refreshUserStorageInfo) { // Refresh storage after each file for more immediate feedback
-            await refreshUserStorageInfo();
-        }
-        console.log(`[Folder Upload] Completed processing: ${relativePath}`);
-
-      } catch (error: any) {
-        console.error(`[Folder Upload] Error processing file ${relativePath}:`, error);
-        toast({ title: "Upload Failed", description: `Could not upload file: ${file.name}. Error: ${error.message}`, variant: "destructive" });
-        setIsUploadingFolder(false);
-        setFolderUploadQueue([]);
-        return;
-      }
-    };
-
-    processNextFileInQueue();
-
-  }, [isUploadingFolder, folderUploadQueue, totalFilesToUploadInFolder, token, currentFolder, getMasterCryptoKey, refreshUserStorageInfo, toast, user]);
+    } else if (isUploadingFolder && folderUploadQueue.length === 0 && totalFilesToUploadInFolder > 0 && processedFolderFilesCount === totalFilesToUploadInFolder) {
+      setIsUploadingFolder(false);
+      setCurrentUploadingFolderFile(null);
+      isProcessingFolderQueue.current = false; // Ensure lock is also released on successful completion
+      // console.log("[Folder Upload] All files processed. Lock released.");
+      toast({
+        title: "Folder Upload Complete",
+        description: `Successfully uploaded ${totalFilesToUploadInFolder} files.`,
+      });
+      const refreshData = async () => { // Keep this async wrapper for await
+        if (refreshUserStorageInfo) { await refreshUserStorageInfo(); }
+        loadFilesAndFolders();
+      };
+      refreshData();
+    } else if (!isUploadingFolder && isProcessingFolderQueue.current) {
+      // Catch-all: if uploading was stopped externally but lock was somehow still true
+      isProcessingFolderQueue.current = false;
+      // console.log("[Folder Upload] Upload externally stopped. Lock released.");
+    }
+  }, [
+    isUploadingFolder,
+    folderUploadQueue,
+    totalFilesToUploadInFolder,
+    processedFolderFilesCount, // Added dependency
+    token,
+    currentFolder,
+    user,
+    getMasterCryptoKey,
+    refreshUserStorageInfo,
+    loadFilesAndFolders, // Added dependency
+    toast,
+    setIsUpgradeStorageDialogOpen // Added dependency
+  ]);
 
 
   return (
