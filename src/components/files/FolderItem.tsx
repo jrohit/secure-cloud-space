@@ -1,21 +1,9 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import ItemContextMenu from "./ItemContextMenu"; // Import ItemContextMenu
+import { Card, CardContent } from "@/components/ui/card";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Folder } from "@/types";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { formatDistanceToNow } from "date-fns";
-import { FolderOpen, Trash2, MoreVertical } from "lucide-react";
+import { FolderOpen } from "lucide-react";
+import ItemContextMenu from "./ItemContextMenu"; // Import ItemContextMenu
 
 interface FolderItemProps {
   folder: Folder;
@@ -25,9 +13,10 @@ interface FolderItemProps {
   onOrganize: (
     id: string,
     type: "file" | "folder",
-    currentParentId: string | null,
+    currentParentId: string | null
   ) => void; // Modified
   currentParentId: string | null; // Added
+  onDownloadFile: () => void;
 }
 
 const FolderItem: React.FC<FolderItemProps> = ({
@@ -70,7 +59,7 @@ const FolderItem: React.FC<FolderItemProps> = ({
                 "FolderItem updatedAt:",
                 folder.updatedAt,
                 "typeof:",
-                typeof folder.updatedAt,
+                typeof folder.updatedAt
               )}
               <span className="text-xs text-muted-foreground truncate">
                 {folder.updatedAt

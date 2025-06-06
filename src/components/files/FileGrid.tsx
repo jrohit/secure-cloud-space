@@ -1,7 +1,7 @@
 import { File, Folder } from "@/types";
 import FileItem from "./FileItem";
-import FolderItem from "./FolderItem";
 import FileListItem from "./FileListItem"; // Added
+import FolderItem from "./FolderItem";
 import FolderListItem from "./FolderListItem"; // Added
 
 interface FileGridProps {
@@ -15,17 +15,17 @@ interface FileGridProps {
   onRenameItem: (
     id: string,
     type: "file" | "folder",
-    currentName: string,
+    currentName: string
   ) => void;
   onOrganizeItem: (
     id: string,
     type: "file" | "folder",
-    currentParentId: string | null,
+    currentParentId: string | null
   ) => void;
   onDownloadFile: (
     fileId: string,
     fileName: string,
-    originalFileType: string,
+    originalFileType: string
   ) => void;
   currentParentId: string | null;
   viewMode: "card" | "list"; // Added
@@ -88,39 +88,42 @@ const FileGrid: React.FC<FileGridProps> = ({
 
   // Card view (existing logic)
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-      {folders.length > 0 && (
-        <h2 className="col-span-full text-lg font-semibold">Folders</h2>
-      )}
-      {folders.map((folder) => (
-        <FolderItem
-          key={folder._id}
-          folder={folder}
-          onClick={() => onFolderClick(folder)}
-          onDelete={() => onFolderDelete(folder._id)} // Original onDelete for FolderItem
-          onRename={onRenameItem}
-          onOrganize={onOrganizeItem}
-          onDownloadFile={onDownloadFile}
-          currentParentId={currentParentId}
-        />
-      ))}
-
-      {files.length > 0 && (
-        <h2 className="col-span-full text-lg font-semibold">Files</h2>
-      )}
-      {files.map((file) => (
-        <FileItem
-          key={file._id}
-          file={file}
-          onDelete={() => onFileDelete(file._id)} // Original onDelete for FileItem
-          onPreview={onFilePreview}
-          onStarToggle={onStarToggle}
-          onRename={onRenameItem}
-          onOrganize={onOrganizeItem}
-          currentParentId={currentParentId}
-        />
-      ))}
-    </div>
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mt-2">
+        {folders.length > 0 && (
+          <h2 className="col-span-full text-lg font-semibold">Folders</h2>
+        )}
+        {folders.map((folder) => (
+          <FolderItem
+            key={folder._id}
+            folder={folder}
+            onClick={() => onFolderClick(folder)}
+            onDelete={() => onFolderDelete(folder._id)} // Original onDelete for FolderItem
+            onRename={onRenameItem}
+            onOrganize={onOrganizeItem}
+            onDownloadFile={onDownloadFile}
+            currentParentId={currentParentId}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mt-2">
+        {files.length > 0 && (
+          <h2 className="col-span-full text-lg font-semibold">Files</h2>
+        )}
+        {files.map((file) => (
+          <FileItem
+            key={file._id}
+            file={file}
+            onDelete={() => onFileDelete(file._id)} // Original onDelete for FileItem
+            onPreview={onFilePreview}
+            onStarToggle={onStarToggle}
+            onRename={onRenameItem}
+            onOrganize={onOrganizeItem}
+            currentParentId={currentParentId}
+          />
+        ))}
+      </div>
+    </>
   );
 };
 

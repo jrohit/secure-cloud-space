@@ -1536,7 +1536,7 @@ const Dashboard = () => {
         ) : folders.length === 0 && files.length === 0 ? (
           <FilesEmptyState />
         ) : (
-          <>
+          <div className="mt-3 overflow-hidden shadow-lg p-2">
             <FileGrid
               folders={folders}
               files={files}
@@ -1563,7 +1563,7 @@ const Dashboard = () => {
                 No more files to load.
               </p>
             )}
-          </>
+          </div>
         )}
 
         {isPreviewLoading && (
