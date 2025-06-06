@@ -267,7 +267,16 @@ const Dashboard = () => {
 
       const decryptedBuffer = await decryptFile(encryptedBuffer, cryptoKey);
 
-      const decryptedBlob = new Blob([decryptedBuffer], { type: originalFileType });
+      const IV_LENGTH = 12; // Standard for AES-GCM IV
+
+      if (decryptedBuffer.byteLength < IV_LENGTH) {
+        console.error("Decrypted buffer is shorter than IV length. This should not happen if IV was prepended.");
+        toast({ id: downloadToastId.id, title: "Download Error", description: "Decrypted data is inconsistent. Cannot process file.", variant: "destructive", duration: 5000 });
+        return;
+      }
+      const fileContentBuffer = decryptedBuffer.slice(IV_LENGTH);
+
+      const decryptedBlob = new Blob([fileContentBuffer], { type: originalFileType });
 
       let finalFileName = fileName;
       const nameParts = fileName.split('.');
