@@ -46,6 +46,7 @@ interface FileListItemProps {
   onRename: (id: string, type: 'file' | 'folder', currentName: string) => void;
   onOrganize: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void;
   onDelete: (id: string, type: 'file' | 'folder') => void;
+  onDownloadFile: (fileId: string, fileName: string, originalFileType: string) => void;
   currentParentId: string | null;
 }
 
@@ -56,6 +57,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
   onRename,
   onOrganize,
   onDelete,
+  onDownloadFile,
   currentParentId,
 }) => {
   const FileDisplayIcon = getFileIcon(file.type);
@@ -118,6 +120,11 @@ const FileListItem: React.FC<FileListItemProps> = ({
         onDelete={onDelete}
         onRename={onRename}
         onOrganize={onOrganize}
+        onDownload={(itemId, itemName, itemTypeConstant) => {
+          if (itemTypeConstant === 'file') {
+            onDownloadFile(itemId, itemName, file.type);
+          }
+        }}
       />
     </ContextMenu>
   );

@@ -14,6 +14,7 @@ interface FileGridProps {
   onStarToggle?: (fileId: string, newIsStarred: boolean) => void;
   onRenameItem: (id: string, type: 'file' | 'folder', currentName: string) => void;
   onOrganizeItem: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void;
+  onDownloadFile: (fileId: string, fileName: string, originalFileType: string) => void;
   currentParentId: string | null;
   viewMode: 'card' | 'list'; // Added
 }
@@ -28,6 +29,7 @@ const FileGrid: React.FC<FileGridProps> = ({
   onStarToggle,
   onRenameItem,
   onOrganizeItem,
+  onDownloadFile,
   currentParentId,
   viewMode, // Added
 }) => {
@@ -62,6 +64,7 @@ const FileGrid: React.FC<FileGridProps> = ({
                 onRename={onRenameItem}
                 onOrganize={onOrganizeItem}
                 onDelete={(id, type) => onFileDelete(id)} // Adjusted
+                onDownloadFile={onDownloadFile}
                 currentParentId={currentParentId}
               />
             ))}
@@ -83,6 +86,7 @@ const FileGrid: React.FC<FileGridProps> = ({
           onDelete={() => onFolderDelete(folder._id)} // Original onDelete for FolderItem
           onRename={onRenameItem}
           onOrganize={onOrganizeItem}
+          onDownloadFile={onDownloadFile}
           currentParentId={currentParentId}
         />
       ))}

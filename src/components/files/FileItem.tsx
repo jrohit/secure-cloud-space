@@ -42,6 +42,7 @@ interface FileItemProps {
   onStarToggle?: (fileId: string, newIsStarred: boolean) => void;
   onRename: (id: string, type: 'file' | 'folder', currentName: string) => void;
   onOrganize: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void; // Modified
+  onDownloadFile: (fileId: string, fileName: string, originalFileType: string) => void;
   currentParentId: string | null; // Added
 }
 
@@ -52,6 +53,7 @@ const FileItem: React.FC<FileItemProps> = ({
   onStarToggle,
   onRename,
   onOrganize, // Modified
+  onDownloadFile,
   currentParentId, // Added
 }) => {
   const { token, getMasterCryptoKey } = useAuth();
@@ -389,6 +391,11 @@ const FileItem: React.FC<FileItemProps> = ({
         onDelete={() => onDelete()} // Call the FileItem's onDelete
         onRename={onRename} // Pass down from FileGrid
         onOrganize={onOrganize} // Pass down from FileGrid
+        onDownload={(itemId, itemName, itemTypeConstant) => {
+          if (itemTypeConstant === 'file') {
+            onDownloadFile(itemId, itemName, file.type);
+          }
+        }}
       />
     </ContextMenu>
   );

@@ -15,7 +15,7 @@ import { generateImageThumbnail } from "@/lib/imageUtils"; // Adjust path if nee
 import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
 // Removed useRef as toolbarRef is no longer needed for JS sticky
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import throttle from 'lodash/throttle';
 
 // Cache for decrypted file previews
@@ -220,6 +220,45 @@ const Dashboard = () => {
       } else {
         setIsLoadingMore(false);
       }
+    }
+  };
+
+  const handleDownloadFile = async (fileId: string, fileName: string, originalFileType: string) => {
+    if (!token) {
+      toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
+      return;
+    }
+
+    const downloadToastId = toast({ title: "Preparing Download", description: `Downloading ${fileName}...` });
+
+    try {
+      const encryptedBlob = await filesApi.downloadFile(token, fileId);
+      const encryptedBuffer = await encryptedBlob.arrayBuffer();
+
+      const cryptoKey = await getMasterCryptoKey();
+      if (!cryptoKey) {
+        toast({ id: downloadToastId.id, title: "Download Error", description: "Could not retrieve decryption key.", variant: "destructive", duration: 5000 });
+        return;
+      }
+
+      const decryptedBuffer = await decryptFile(encryptedBuffer, cryptoKey);
+
+      const decryptedBlob = new Blob([decryptedBuffer], { type: originalFileType });
+
+      const url = URL.createObjectURL(decryptedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({ id: downloadToastId.id, title: "Download Started", description: `${fileName} should begin downloading shortly.`, variant: "success", duration: 5000 });
+
+    } catch (error: any) {
+      console.error("Error downloading or decrypting file:", error);
+      toast({ id: downloadToastId.id, title: "Download Error", description: `Failed to download ${fileName}. ${error.message || 'Unknown error'}`, variant: "destructive", duration: 5000 });
     }
   };
 
@@ -1203,6 +1242,7 @@ const Dashboard = () => {
               onStarToggle={handleFileStarToggled}
               onRenameItem={handleRenameItem}
               onOrganizeItem={handleOrganizeItem}
+              onDownloadFile={handleDownloadFile}
               currentParentId={currentFolder?._id || null}
               viewMode={viewMode}
             />
