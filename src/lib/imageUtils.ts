@@ -12,7 +12,7 @@ export async function generateImageThumbnail(
   maxWidth: number,
   maxHeight: number,
   mimeType: string = "image/jpeg", // Default output mimeType for general images
-  quality: number = 0.8
+  quality: number = 0.8,
 ): Promise<Blob | null> {
   return new Promise(async (resolve) => {
     if (file.type === "image/heic" || file.type === "image/heif") {
@@ -33,12 +33,12 @@ export async function generateImageThumbnail(
           conversionError.message.includes("Image is already browser readable")
         ) {
           console.warn(
-            `[imageUtils] HEIC conversion for '${file.name}' skipped: ${conversionError.message}. Using original file.`
+            `[imageUtils] HEIC conversion for '${file.name}' skipped: ${conversionError.message}. Using original file.`,
           );
         } else {
           console.error(
             `[imageUtils] HEIC to JPEG conversion failed for thumbnail for file '${file.name}':`,
-            conversionError
+            conversionError,
           );
           resolve(null);
           return;
@@ -48,7 +48,7 @@ export async function generateImageThumbnail(
       try {
         if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
           console.warn(
-            "[imageUtils] PDF worker not configured. Attempting to set dynamically for Vite. Best to set this in main.tsx/App.tsx."
+            "[imageUtils] PDF worker not configured. Attempting to set dynamically for Vite. Best to set this in main.tsx/App.tsx.",
           );
           // This dynamic import is Vite-specific and a fallback.
           try {
@@ -59,13 +59,13 @@ export async function generateImageThumbnail(
               pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerEntryPoint;
             } else {
               throw new Error(
-                "Dynamic import of PDF worker failed to return a path."
+                "Dynamic import of PDF worker failed to return a path.",
               );
             }
           } catch (workerError) {
             console.error(
               "[imageUtils] Failed to dynamically set PDF worker source. PDF thumbnails may fail.",
-              workerError
+              workerError,
             );
             resolve(null); // Resolve with null if worker cannot be set.
             return;
@@ -79,7 +79,7 @@ export async function generateImageThumbnail(
         const viewport = pdfPage.getViewport({ scale: 1 });
         const scaleToFit = Math.min(
           maxWidth / viewport.width,
-          maxHeight / viewport.height
+          maxHeight / viewport.height,
         );
         const effectiveScale =
           scaleToFit > 1 ? Math.min(scaleToFit, 3) : scaleToFit;
@@ -93,7 +93,7 @@ export async function generateImageThumbnail(
         if (!context) {
           console.error(
             "[imageUtils] PDF: Failed to get canvas context for file:",
-            file.name
+            file.name,
           );
           resolve(null);
           return;
@@ -114,19 +114,19 @@ export async function generateImageThumbnail(
             } else {
               console.error(
                 "[imageUtils] PDF: Canvas toBlob returned null for file:",
-                file.name
+                file.name,
               );
               resolve(null);
             }
           },
           "image/jpeg",
-          quality
+          quality,
         );
         return;
       } catch (pdfError) {
         console.error(
           `[imageUtils] PDF thumbnail generation failed for '${file.name}':`,
-          pdfError
+          pdfError,
         );
         resolve(null);
         return;
@@ -137,7 +137,7 @@ export async function generateImageThumbnail(
     if (!file.type.startsWith("image/")) {
       // This path should ideally not be hit if FileItem.tsx only calls this for image/* and application/pdf
       console.warn(
-        `[imageUtils] File '${file.name}' of type '${file.type}' is not a processable image type for generic thumbnailer.`
+        `[imageUtils] File '${file.name}' of type '${file.type}' is not a processable image type for generic thumbnailer.`,
       );
       resolve(null);
       return;
@@ -170,7 +170,7 @@ export async function generateImageThumbnail(
         if (!ctx) {
           console.error(
             "[imageUtils] Failed to get canvas context for generic image thumbnail for file:",
-            file.name
+            file.name,
           );
           resolve(null);
           return;
@@ -185,19 +185,19 @@ export async function generateImageThumbnail(
             } else {
               console.error(
                 "[imageUtils] Canvas toBlob returned null for generic image for file:",
-                file.name
+                file.name,
               );
               resolve(null);
             }
           },
           mimeType, // Output format (e.g., 'image/jpeg')
-          quality // Output quality
+          quality, // Output quality
         );
       };
       img.onerror = (error) => {
         console.error(
           `[imageUtils] Image load error for generic image thumbnail for file '${file.name}':`,
-          error
+          error,
         );
         resolve(null);
       };
@@ -207,7 +207,7 @@ export async function generateImageThumbnail(
       } else {
         console.error(
           "[imageUtils] FileReader did not return a valid string result for generic image source for file:",
-          file.name
+          file.name,
         );
         resolve(null);
       }
@@ -215,7 +215,7 @@ export async function generateImageThumbnail(
     reader.onerror = (error) => {
       console.error(
         `[imageUtils] FileReader error for generic image thumbnail for file '${file.name}':`,
-        error
+        error,
       );
       resolve(null);
     };

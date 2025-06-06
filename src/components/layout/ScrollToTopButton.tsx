@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import throttle from 'lodash/throttle';
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import throttle from "lodash/throttle";
 
 // If using lucide-react, uncomment the next line
 // import { ArrowUp } from 'lucide-react';
@@ -20,14 +20,14 @@ const ScrollToTopButton: React.FC = () => {
 
   const throttledScrollHandler = useMemo(
     () => throttle(handleScroll, 100),
-    [handleScroll]
+    [handleScroll],
   );
 
   useEffect(() => {
-    window.addEventListener('scroll', throttledScrollHandler);
+    window.addEventListener("scroll", throttledScrollHandler);
     throttledScrollHandler(); // Initial check on mount
     return () => {
-      window.removeEventListener('scroll', throttledScrollHandler);
+      window.removeEventListener("scroll", throttledScrollHandler);
       throttledScrollHandler.cancel();
     };
   }, [throttledScrollHandler]);
@@ -35,7 +35,7 @@ const ScrollToTopButton: React.FC = () => {
   const scrollToTop = () => {
     window.scrollTo({
       top: 0,
-      behavior: 'smooth',
+      behavior: "smooth",
     });
   };
 
@@ -44,7 +44,7 @@ const ScrollToTopButton: React.FC = () => {
   return (
     <button
       onClick={scrollToTop}
-      className={`scroll-to-top-button ${!isVisible ? 'scroll-to-top-button-hidden' : ''}`}
+      className={`scroll-to-top-button ${!isVisible ? "scroll-to-top-button-hidden" : ""}`}
       aria-label="Scroll to top"
       aria-hidden={!isVisible}
       tabIndex={isVisible ? 0 : -1}

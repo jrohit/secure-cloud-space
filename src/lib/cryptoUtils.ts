@@ -20,57 +20,57 @@ export function generateSalt(length: number = 16): ArrayBuffer {
 
 export async function generateMasterKey(): Promise<string> {
   const key = await window.crypto.subtle.generateKey(
-    { name: 'AES-GCM', length: 256 },
+    { name: "AES-GCM", length: 256 },
     true, // extractable
-    ['encrypt', 'decrypt']
+    ["encrypt", "decrypt"],
   );
-  const exportedKey = await window.crypto.subtle.exportKey('raw', key);
+  const exportedKey = await window.crypto.subtle.exportKey("raw", key);
   return arrayBufferToBase64(exportedKey);
 }
 
 export async function deriveKeyFromPassword(
   password: string,
   salt: ArrayBuffer,
-  iterations: number = 100000
+  iterations: number = 100000,
 ): Promise<CryptoKey> {
   const passwordKey = await window.crypto.subtle.importKey(
-    'raw',
+    "raw",
     new TextEncoder().encode(password),
-    { name: 'PBKDF2' },
+    { name: "PBKDF2" },
     false,
-    ['deriveKey']
+    ["deriveKey"],
   );
 
   return window.crypto.subtle.deriveKey(
     {
-      name: 'PBKDF2',
+      name: "PBKDF2",
       salt: salt,
       iterations: iterations,
-      hash: 'SHA-256',
+      hash: "SHA-256",
     },
     passwordKey,
-    { name: 'AES-GCM', length: 256 },
+    { name: "AES-GCM", length: 256 },
     false, // extractable
-    ['encrypt', 'decrypt']
+    ["encrypt", "decrypt"],
   );
 }
 
 export async function encryptMasterKey(
   masterKeyRaw: ArrayBuffer,
-  derivedKey: CryptoKey
-): Promise<{ iv: ArrayBuffer, ciphertext: ArrayBuffer }> {
+  derivedKey: CryptoKey,
+): Promise<{ iv: ArrayBuffer; ciphertext: ArrayBuffer }> {
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await window.crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: iv },
+    { name: "AES-GCM", iv: iv },
     derivedKey,
-    masterKeyRaw
+    masterKeyRaw,
   );
   return { iv, ciphertext };
 }
 
 export async function decryptFile(
   encryptedFileBuffer: ArrayBuffer,
-  masterKey: CryptoKey
+  masterKey: CryptoKey,
 ): Promise<ArrayBuffer> {
   if (encryptedFileBuffer.byteLength < 12) {
     throw new Error("Invalid encrypted data: too short to contain IV.");
@@ -81,38 +81,44 @@ export async function decryptFile(
 
   try {
     const decryptedContent = await window.crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: iv },
+      { name: "AES-GCM", iv: iv },
       masterKey,
-      ciphertext
+      ciphertext,
     );
     return decryptedContent;
   } catch (error) {
     console.error("File decryption failed:", error);
-    throw new Error("File decryption failed. The key may be incorrect or data corrupted.");
+    throw new Error(
+      "File decryption failed. The key may be incorrect or data corrupted.",
+    );
   }
 }
 
 export async function decryptMasterKey(
   encryptedMasterKeyString: string,
-  passwordForKek: string
+  passwordForKek: string,
 ): Promise<ArrayBuffer> {
-  const parts = encryptedMasterKeyString.split(':');
+  const parts = encryptedMasterKeyString.split(":");
   if (parts.length !== 3) {
-    throw new Error('Invalid encryptedMasterKeyString format. Expected salt:iv:ciphertext');
+    throw new Error(
+      "Invalid encryptedMasterKeyString format. Expected salt:iv:ciphertext",
+    );
   }
 
   const [saltBase64, ivBase64, encryptedMasterKeyCiphertextBase64] = parts;
 
   const saltBytes = base64ToArrayBuffer(saltBase64);
   const ivBytes = base64ToArrayBuffer(ivBase64);
-  const masterKeyCiphertextBytes = base64ToArrayBuffer(encryptedMasterKeyCiphertextBase64);
+  const masterKeyCiphertextBytes = base64ToArrayBuffer(
+    encryptedMasterKeyCiphertextBase64,
+  );
 
   const kek = await deriveKeyFromPassword(passwordForKek, saltBytes);
 
   const decryptedMasterKey = await window.crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: ivBytes },
+    { name: "AES-GCM", iv: ivBytes },
     kek,
-    masterKeyCiphertextBytes
+    masterKeyCiphertextBytes,
   );
 
   return decryptedMasterKey;
@@ -120,13 +126,13 @@ export async function decryptMasterKey(
 
 export async function encryptFile(
   fileArrayBuffer: ArrayBuffer,
-  masterKey: CryptoKey
-): Promise<{ iv: ArrayBuffer, ciphertext: ArrayBuffer }> {
+  masterKey: CryptoKey,
+): Promise<{ iv: ArrayBuffer; ciphertext: ArrayBuffer }> {
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await window.crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: iv },
+    { name: "AES-GCM", iv: iv },
     masterKey,
-    fileArrayBuffer
+    fileArrayBuffer,
   );
   return { iv, ciphertext };
 }

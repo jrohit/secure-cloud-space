@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { CloudUpload } from "lucide-react";
 
@@ -10,7 +9,8 @@ const FilesEmptyState: React.FC = () => {
       </div>
       <h3 className="text-lg font-medium">No files yet</h3>
       <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-sm">
-        Upload files or create folders to organize your content securely in the cloud.
+        Upload files or create folders to organize your content securely in the
+        cloud.
       </p>
     </div>
   );

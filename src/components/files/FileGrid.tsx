@@ -12,11 +12,23 @@ interface FileGridProps {
   onFolderDelete: (folderId: string) => void;
   onFilePreview: (file: File) => void;
   onStarToggle?: (fileId: string, newIsStarred: boolean) => void;
-  onRenameItem: (id: string, type: 'file' | 'folder', currentName: string) => void;
-  onOrganizeItem: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void;
-  onDownloadFile: (fileId: string, fileName: string, originalFileType: string) => void;
+  onRenameItem: (
+    id: string,
+    type: "file" | "folder",
+    currentName: string,
+  ) => void;
+  onOrganizeItem: (
+    id: string,
+    type: "file" | "folder",
+    currentParentId: string | null,
+  ) => void;
+  onDownloadFile: (
+    fileId: string,
+    fileName: string,
+    originalFileType: string,
+  ) => void;
   currentParentId: string | null;
-  viewMode: 'card' | 'list'; // Added
+  viewMode: "card" | "list"; // Added
 }
 
 const FileGrid: React.FC<FileGridProps> = ({
@@ -33,7 +45,7 @@ const FileGrid: React.FC<FileGridProps> = ({
   currentParentId,
   viewMode, // Added
 }) => {
-  if (viewMode === 'list') {
+  if (viewMode === "list") {
     return (
       <div className="flex flex-col">
         {folders.length > 0 && (
@@ -77,7 +89,9 @@ const FileGrid: React.FC<FileGridProps> = ({
   // Card view (existing logic)
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-      {folders.length > 0 && <h2 className="col-span-full text-lg font-semibold">Folders</h2>}
+      {folders.length > 0 && (
+        <h2 className="col-span-full text-lg font-semibold">Folders</h2>
+      )}
       {folders.map((folder) => (
         <FolderItem
           key={folder._id}
@@ -91,7 +105,9 @@ const FileGrid: React.FC<FileGridProps> = ({
         />
       ))}
 
-      {files.length > 0 && <h2 className="col-span-full text-lg font-semibold">Files</h2>}
+      {files.length > 0 && (
+        <h2 className="col-span-full text-lg font-semibold">Files</h2>
+      )}
       {files.map((file) => (
         <FileItem
           key={file._id}

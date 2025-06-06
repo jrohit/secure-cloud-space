@@ -51,14 +51,14 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* Custom Icon Colors */
-    --file-icon-image: theme('colors.cloudDrive.green');
-    --file-icon-pdf: theme('colors.cloudDrive.red');
-    --file-icon-document: theme('colors.cloudDrive.blue');
-    --file-icon-default: theme('colors.cloudDrive.yellow');
-    --folder-icon-color: theme('colors.cloudDrive.blue');
-    --sidebar-icon-drive: theme('colors.cloudDrive.blue');
-    --sidebar-icon-starred: theme('colors.cloudDrive.yellow');
-    --sidebar-icon-trash: theme('colors.red.500'); /* Updated as per prompt */
+    --file-icon-image: theme("colors.cloudDrive.green");
+    --file-icon-pdf: theme("colors.cloudDrive.red");
+    --file-icon-document: theme("colors.cloudDrive.blue");
+    --file-icon-default: theme("colors.cloudDrive.yellow");
+    --folder-icon-color: theme("colors.cloudDrive.blue");
+    --sidebar-icon-drive: theme("colors.cloudDrive.blue");
+    --sidebar-icon-starred: theme("colors.cloudDrive.yellow");
+    --sidebar-icon-trash: theme("colors.red.500"); /* Updated as per prompt */
   }
 
   .dark {
@@ -101,14 +101,14 @@
     /* Custom Icon Colors - Dark Theme Adjustments */
     /* Using Tailwind's default palette shades for dark theme for simplicity */
     /* For more brand consistency, define specific dark HSL values or use existing dark theme vars */
-    --file-icon-image: theme('colors.green.500');
-    --file-icon-pdf: theme('colors.red.500');
-    --file-icon-document: theme('colors.blue.500');
-    --file-icon-default: theme('colors.yellow.500');
-    --folder-icon-color: theme('colors.blue.500');
-    --sidebar-icon-drive: theme('colors.blue.500');
-    --sidebar-icon-starred: theme('colors.yellow.500');
-    --sidebar-icon-trash: theme('colors.red.600'); /* Updated as per prompt */
+    --file-icon-image: theme("colors.green.500");
+    --file-icon-pdf: theme("colors.red.500");
+    --file-icon-document: theme("colors.blue.500");
+    --file-icon-default: theme("colors.yellow.500");
+    --folder-icon-color: theme("colors.blue.500");
+    --sidebar-icon-drive: theme("colors.blue.500");
+    --sidebar-icon-starred: theme("colors.yellow.500");
+    --sidebar-icon-trash: theme("colors.red.600"); /* Updated as per prompt */
   }
 }
 
@@ -133,14 +133,22 @@
   bottom: 20px;
   right: 20px;
   padding: 10px 15px;
-  background-color: var(--primary); /* Use existing CSS variable for background */
-  color: var(--primary-foreground); /* Use existing CSS variable for text color */
+  background-color: var(
+    --primary
+  ); /* Use existing CSS variable for background */
+  color: var(
+    --primary-foreground
+  ); /* Use existing CSS variable for text color */
   border: none;
-  border-radius: var(--radius); /* Use existing CSS variable for border radius */
+  border-radius: var(
+    --radius
+  ); /* Use existing CSS variable for border radius */
   cursor: pointer;
   z-index: 1000; /* Ensure it's above other content */
   opacity: 1;
-  transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+  transition:
+    opacity 0.3s ease-in-out,
+    visibility 0.3s ease-in-out;
   visibility: visible;
 }
 

@@ -1,19 +1,23 @@
-import * as React from 'react';
+import * as React from "react";
 import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-} from '@/components/ui/context-menu';
-import { Trash2, Pencil, FolderCog, Download } from 'lucide-react';
+} from "@/components/ui/context-menu";
+import { Trash2, Pencil, FolderCog, Download } from "lucide-react";
 
 interface ItemContextMenuProps {
-  itemType: 'file' | 'folder';
+  itemType: "file" | "folder";
   itemId: string;
   itemName: string;
   currentParentId: string | null; // Added
-  onDelete: (id: string, type: 'file' | 'folder') => void;
-  onRename: (id: string, type: 'file' | 'folder', currentName: string) => void;
-  onOrganize: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void; // Modified
+  onDelete: (id: string, type: "file" | "folder") => void;
+  onRename: (id: string, type: "file" | "folder", currentName: string) => void;
+  onOrganize: (
+    id: string,
+    type: "file" | "folder",
+    currentParentId: string | null,
+  ) => void; // Modified
   onDownload?: (itemId: string, itemName: string, itemType: string) => void;
 }
 
@@ -29,7 +33,7 @@ const ItemContextMenu: React.FC<ItemContextMenuProps> = ({
 }) => {
   return (
     <ContextMenuContent>
-      {itemType === 'file' && onDownload && (
+      {itemType === "file" && onDownload && (
         <ContextMenuItem onClick={() => onDownload(itemId, itemName, itemType)}>
           <Download className="mr-2 h-4 w-4" />
           <span>Download</span>
@@ -39,7 +43,9 @@ const ItemContextMenu: React.FC<ItemContextMenuProps> = ({
         <Pencil className="mr-2 h-4 w-4" />
         <span>Rename</span>
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => onOrganize(itemId, itemType, currentParentId)}>
+      <ContextMenuItem
+        onClick={() => onOrganize(itemId, itemType, currentParentId)}
+      >
         <FolderCog className="mr-2 h-4 w-4" />
         <span>Organize</span>
       </ContextMenuItem>

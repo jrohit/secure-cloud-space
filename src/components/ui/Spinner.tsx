@@ -1,4 +1,3 @@
-
 import { cn } from "@/lib/utils";
 
 interface SpinnerProps {
@@ -7,6 +6,11 @@ interface SpinnerProps {
 
 export const Spinner = ({ className }: SpinnerProps) => {
   return (
-    <div className={cn("animate-spin rounded-full border-t-2 border-b-2 border-cloudDrive-blue", className)} />
+    <div
+      className={cn(
+        "animate-spin rounded-full border-t-2 border-b-2 border-cloudDrive-blue",
+        className,
+      )}
+    />
   );
 };

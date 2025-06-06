@@ -1,4 +1,4 @@
-import * as React from 'react';
+import * as React from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,22 +7,22 @@ import {
   DialogFooter,
   DialogClose,
   DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Folder as FolderType } from '@/types';
-import { useToast } from '@/components/ui/use-toast';
+} from "@/components/ui/select";
+import { Folder as FolderType } from "@/types";
+import { useToast } from "@/components/ui/use-toast";
 
 interface OrganizeItemDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  itemType: 'file' | 'folder';
+  itemType: "file" | "folder";
   itemName: string;
   // currentParentId: string | null; // Not directly used for selection logic here, but good for context
   availableFolders: FolderType[]; // Filtered list of folders
@@ -37,7 +37,9 @@ const OrganizeItemDialog: React.FC<OrganizeItemDialogProps> = ({
   availableFolders,
   onOrganizeSubmit,
 }) => {
-  const [selectedParentId, setSelectedParentId] = React.useState<string | null>(null);
+  const [selectedParentId, setSelectedParentId] = React.useState<string | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = React.useState(false);
   const { toast } = useToast();
 
@@ -50,18 +52,21 @@ const OrganizeItemDialog: React.FC<OrganizeItemDialogProps> = ({
 
   const handleSubmit = async () => {
     if (selectedParentId === "__SELECT_DESTINATION__") {
-        toast({
-            title: "Validation Error",
-            description: "Please select a destination folder or choose to move to My Drive.",
-            variant: "destructive",
-        });
-        return;
+      toast({
+        title: "Validation Error",
+        description:
+          "Please select a destination folder or choose to move to My Drive.",
+        variant: "destructive",
+      });
+      return;
     }
 
     setIsLoading(true);
     try {
       // If "__ROOT__" is selected, newParentId is null, otherwise it's the selected folder's ID
-      await onOrganizeSubmit(selectedParentId === "__ROOT__" ? null : selectedParentId);
+      await onOrganizeSubmit(
+        selectedParentId === "__ROOT__" ? null : selectedParentId,
+      );
     } catch (error) {
       // Error toast is expected to be handled by the parent component (Dashboard)
     } finally {
@@ -73,7 +78,9 @@ const OrganizeItemDialog: React.FC<OrganizeItemDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Organize {itemType}: {itemName}</DialogTitle>
+          <DialogTitle>
+            Organize {itemType}: {itemName}
+          </DialogTitle>
           <DialogDescription>
             Select a new location for your {itemType}.
           </DialogDescription>
@@ -82,7 +89,9 @@ const OrganizeItemDialog: React.FC<OrganizeItemDialogProps> = ({
           <Button
             variant="outline"
             onClick={() => setSelectedParentId("__ROOT__")}
-            className={selectedParentId === "__ROOT__" ? "ring-2 ring-primary" : ""}
+            className={
+              selectedParentId === "__ROOT__" ? "ring-2 ring-primary" : ""
+            }
           >
             Move to My Drive (root)
           </Button>
@@ -95,14 +104,20 @@ const OrganizeItemDialog: React.FC<OrganizeItemDialogProps> = ({
 
           <Select
             onValueChange={(value) => setSelectedParentId(value)}
-            value={selectedParentId !== null && selectedParentId !== "__ROOT__" ? selectedParentId : undefined}
+            value={
+              selectedParentId !== null && selectedParentId !== "__ROOT__"
+                ? selectedParentId
+                : undefined
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Select a folder..." />
             </SelectTrigger>
             <SelectContent>
               {availableFolders.length === 0 ? (
-                <SelectItem value="no-folders" disabled>No other folders available</SelectItem>
+                <SelectItem value="no-folders" disabled>
+                  No other folders available
+                </SelectItem>
               ) : (
                 availableFolders.map((folder) => (
                   <SelectItem key={folder._id} value={folder._id}>
@@ -122,9 +137,11 @@ const OrganizeItemDialog: React.FC<OrganizeItemDialogProps> = ({
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={isLoading || selectedParentId === "__SELECT_DESTINATION__"}
+            disabled={
+              isLoading || selectedParentId === "__SELECT_DESTINATION__"
+            }
           >
-            {isLoading ? 'Moving...' : 'Move'}
+            {isLoading ? "Moving..." : "Move"}
           </Button>
         </DialogFooter>
       </DialogContent>

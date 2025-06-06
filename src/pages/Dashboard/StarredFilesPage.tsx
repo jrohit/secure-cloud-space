@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { File } from '@/types'; // Assuming File type is defined here
-import { useAuth } from '@/contexts/AuthContext';
-import { filesApi } from '@/services/api';
-import FileGrid from '@/components/files/FileGrid'; // Re-use FileGrid for display
-import { useToast } from '@/components/ui/use-toast';
-import { Spinner } from '@/components/ui/Spinner';
-import FilesEmptyState from '@/components/files/FilesEmptyState'; // For when no starred files
+import React, { useEffect, useState } from "react";
+import { File } from "@/types"; // Assuming File type is defined here
+import { useAuth } from "@/contexts/AuthContext";
+import { filesApi } from "@/services/api";
+import FileGrid from "@/components/files/FileGrid"; // Re-use FileGrid for display
+import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/Spinner";
+import FilesEmptyState from "@/components/files/FilesEmptyState"; // For when no starred files
 
 const StarredFilesPage: React.FC = () => {
   const { token } = useAuth();
@@ -40,31 +40,34 @@ const StarredFilesPage: React.FC = () => {
   // Handler for when a star is toggled on this page
   // This will remove the file from this list if it's unstarred.
   const handleFileStarToggled = (fileId: string, newIsStarred: boolean) => {
-    if (!newIsStarred) { // If file was unstarred
-      setStarredFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
+    if (!newIsStarred) {
+      // If file was unstarred
+      setStarredFiles((prevFiles) => prevFiles.filter((f) => f.id !== fileId));
     } else {
       // If it was starred (shouldn't happen from this page if only showing starred files,
       // but good for consistency if FileGrid is reused elsewhere) - we might need to refetch or add it.
       // For simplicity, if a file is starred *again* (e.g. a bug or odd UI flow), refetching is safest.
-      fetchStarredFiles(); 
+      fetchStarredFiles();
     }
   };
-  
+
   // Placeholder for other actions like delete, preview from this page
   // These would require passing more handlers to FileGrid or handling them here
   const handleFileAction = (action: string, fileId: string) => {
-      console.log(`Action: ${action} on file: ${fileId} from StarredFilesPage`);
-      // Potentially refetch or update list after action
-      // e.g. if a file is deleted, it should be removed from starredFiles state
-      // For now, a delete would make it disappear on next load.
-      // A more robust solution would be to handle delete here too.
-      toast({ title: "Action", description: `${action} on ${fileId} (placeholder)`});
-      if (action === 'delete') {
-        setStarredFiles(prevFiles => prevFiles.filter(f => f.id !== fileId));
-        // Note: This only updates client state. Actual delete API call is not made here yet.
-      }
+    console.log(`Action: ${action} on file: ${fileId} from StarredFilesPage`);
+    // Potentially refetch or update list after action
+    // e.g. if a file is deleted, it should be removed from starredFiles state
+    // For now, a delete would make it disappear on next load.
+    // A more robust solution would be to handle delete here too.
+    toast({
+      title: "Action",
+      description: `${action} on ${fileId} (placeholder)`,
+    });
+    if (action === "delete") {
+      setStarredFiles((prevFiles) => prevFiles.filter((f) => f.id !== fileId));
+      // Note: This only updates client state. Actual delete API call is not made here yet.
+    }
   };
-
 
   if (loading) {
     return (
@@ -94,9 +97,12 @@ const StarredFilesPage: React.FC = () => {
             // This would ideally trigger the same preview dialog as in Dashboard.tsx
             // This might require lifting preview state or creating a reusable preview service/hook.
             // For this step, we'll focus on listing.
-            toast({ title: "Preview", description: `Previewing ${file.name} (placeholder)` });
+            toast({
+              title: "Preview",
+              description: `Previewing ${file.name} (placeholder)`,
+            });
           }}
-          onFileDelete={(fileId) => handleFileAction('delete', fileId)} 
+          onFileDelete={(fileId) => handleFileAction("delete", fileId)}
           // Add other handlers as needed by FileGrid/FileItem for full functionality
         />
       )}

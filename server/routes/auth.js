@@ -104,7 +104,7 @@ router.post("/login", async (req, res) => {
     await redisClient.set(
       `user:${user._id}`,
       JSON.stringify(returnUserDetails),
-      { EX: 3600 }
+      { EX: 3600 },
     ); // Cache for 1 hour
 
     // Return user info and token
@@ -146,7 +146,7 @@ router.get("/me", auth, async (req, res) => {
     await req.redisClient.set(
       `user:${user._id}`,
       JSON.stringify(returnUserDetails),
-      { EX: 3600 }
+      { EX: 3600 },
     );
 
     res.json(returnUserDetails);

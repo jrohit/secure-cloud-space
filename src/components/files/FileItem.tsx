@@ -40,9 +40,17 @@ interface FileItemProps {
   onDelete: () => void;
   onPreview: (file: MyFileType) => void;
   onStarToggle?: (fileId: string, newIsStarred: boolean) => void;
-  onRename: (id: string, type: 'file' | 'folder', currentName: string) => void;
-  onOrganize: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void; // Modified
-  onDownloadFile: (fileId: string, fileName: string, originalFileType: string) => void;
+  onRename: (id: string, type: "file" | "folder", currentName: string) => void;
+  onOrganize: (
+    id: string,
+    type: "file" | "folder",
+    currentParentId: string | null,
+  ) => void; // Modified
+  onDownloadFile: (
+    fileId: string,
+    fileName: string,
+    originalFileType: string,
+  ) => void;
   currentParentId: string | null; // Added
 }
 
@@ -58,7 +66,7 @@ const FileItem: React.FC<FileItemProps> = ({
 }) => {
   const { token, getMasterCryptoKey } = useAuth();
   const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(
-    null
+    null,
   );
   const currentObjectUrlRef = useRef<string | null>(null);
   const { toast } = useToast();
@@ -87,7 +95,7 @@ const FileItem: React.FC<FileItemProps> = ({
         } catch (error) {
           console.error(
             `Error fetching encrypted file for ${file.name} (ID: ${file._id}):`,
-            error
+            error,
           );
           setThumbnailFailed(true);
         } finally {
@@ -120,7 +128,7 @@ const FileItem: React.FC<FileItemProps> = ({
       encryptedFileBuffer &&
       (file.type.startsWith("image/") || file.type === "application/pdf")
     ) {
-      const cacheKey = file._id + '_' + new Date(file.updatedAt).getTime();
+      const cacheKey = file._id + "_" + new Date(file.updatedAt).getTime();
       if (thumbnailCache.has(cacheKey)) {
         const cachedBlob = thumbnailCache.get(cacheKey);
         if (cachedBlob) {
@@ -142,7 +150,7 @@ const FileItem: React.FC<FileItemProps> = ({
 
         if (!actualMasterKey) {
           console.warn(
-            `FileItem: MasterKey not available after call for ${file.name}. Cannot generate thumbnail.`
+            `FileItem: MasterKey not available after call for ${file.name}. Cannot generate thumbnail.`,
           );
           setThumbnailFailed(true);
           return;
@@ -154,7 +162,7 @@ const FileItem: React.FC<FileItemProps> = ({
           try {
             const decryptedBuffer = await decryptFile(
               encryptedFileBuffer,
-              actualMasterKey
+              actualMasterKey,
             );
 
             if (decryptedBuffer && decryptedBuffer.byteLength > 0) {
@@ -165,14 +173,14 @@ const FileItem: React.FC<FileItemProps> = ({
               const tempFileForThumbnail = new window.File(
                 [decryptedBlob],
                 file.name,
-                { type: file.type }
+                { type: file.type },
               );
 
               const thumbnailBlob = await generateImageThumbnail(
                 tempFileForThumbnail,
                 256, // maxWidth
                 256, // maxHeight
-                file.type // Pass original file.type; imageUtils will decide output format
+                file.type, // Pass original file.type; imageUtils will decide output format
               );
 
               if (thumbnailBlob) {
@@ -182,20 +190,20 @@ const FileItem: React.FC<FileItemProps> = ({
                 currentObjectUrlRef.current = objectUrl;
               } else {
                 console.error(
-                  `FileItem: generateImageThumbnail returned null for ${file.name}.`
+                  `FileItem: generateImageThumbnail returned null for ${file.name}.`,
                 );
                 setThumbnailFailed(true);
               }
             } else {
               console.error(
-                `FileItem: Decryption returned null or buffer was empty for ${file.name}.`
+                `FileItem: Decryption returned null or buffer was empty for ${file.name}.`,
               );
               setThumbnailFailed(true);
             }
           } catch (error) {
             console.error(
               `FileItem: Error during decryption or thumbnail generation for ${file.name}:`,
-              error
+              error,
             );
             setThumbnailFailed(true);
           }
@@ -290,97 +298,106 @@ const FileItem: React.FC<FileItemProps> = ({
         <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
           <CardContent className="p-0">
             <div
-          className="aspect-square flex items-center justify-center bg-muted/30 cursor-pointer"
-          onClick={() => onPreview(file)}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") onPreview(file);
-          }}
-        >
-          {(file.type.startsWith("image/") ||
-            file.type === "application/pdf") && // MODIFIED
-          thumbnailObjectUrl &&
-          !thumbnailFailed ? (
-            <img
-              src={thumbnailObjectUrl}
-              alt={`Thumbnail for ${file.name}`}
-              className="w-full h-full object-contain"
-              onError={() => {
-                console.warn(
-                  `Image tag onError for file: ${file.name}. URL: ${thumbnailObjectUrl}`
-                );
-                setThumbnailFailed(true);
+              className="aspect-square flex items-center justify-center bg-muted/30 cursor-pointer"
+              onClick={() => onPreview(file)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") onPreview(file);
               }}
-            />
-          ) : (
-            <FileIconComponent
-              className={cn("h-16 w-16 opacity-80", fileColorClassName)} // Use className
-            />
-          )}
-        </div>
-      </CardContent>
-      <CardFooter className="p-2 flex-col items-start gap-1">
-        <div className="w-full flex justify-between items-start">
-          <div className="truncate flex-1">
-            <h3 className="text-sm font-medium truncate" title={file.name}>
-              {file.name}
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {formatFileSize(file.size)}
-            </p>
-          </div>
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 mr-1"
-              onClick={() =>
-                onStarToggle && onStarToggle(file._id, !file.isStarred)
-              }
-              aria-label={file.isStarred ? "Unstar file" : "Star file"}
             >
-              <Star
-                className={cn(
-                  "h-5 w-5",
-                  file.isStarred
-                    ? "text-yellow-400 fill-yellow-400"
-                    : "text-muted-foreground hover:text-yellow-400"
-                )}
-              />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
+              {(file.type.startsWith("image/") ||
+                file.type === "application/pdf") && // MODIFIED
+              thumbnailObjectUrl &&
+              !thumbnailFailed ? (
+                <img
+                  src={thumbnailObjectUrl}
+                  alt={`Thumbnail for ${file.name}`}
+                  className="w-full h-full object-contain"
+                  onError={() => {
+                    console.warn(
+                      `Image tag onError for file: ${file.name}. URL: ${thumbnailObjectUrl}`,
+                    );
+                    setThumbnailFailed(true);
+                  }}
+                />
+              ) : (
+                <FileIconComponent
+                  className={cn("h-16 w-16 opacity-80", fileColorClassName)} // Use className
+                />
+              )}
+            </div>
+          </CardContent>
+          <CardFooter className="p-2 flex-col items-start gap-1">
+            <div className="w-full flex justify-between items-start">
+              <div className="truncate flex-1">
+                <h3 className="text-sm font-medium truncate" title={file.name}>
+                  {file.name}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {formatFileSize(file.size)}
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 mr-1"
+                  onClick={() =>
+                    onStarToggle && onStarToggle(file._id, !file.isStarred)
+                  }
+                  aria-label={file.isStarred ? "Unstar file" : "Star file"}
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5",
+                      file.isStarred
+                        ? "text-yellow-400 fill-yellow-400"
+                        : "text-muted-foreground hover:text-yellow-400",
+                    )}
+                  />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={handleDownload}
-                  disabled={isDownloading}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  <span>Download</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onDelete()}
-                  className="text-destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  <span>Delete</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-        {/* Added console.log for debugging updatedAt */}
-        <p className="text-xs text-muted-foreground">
-          Modified{" "}
-          {console.log('FileItem updatedAt:', file.updatedAt, 'typeof:', typeof file.updatedAt)}
-          {file.updatedAt ? formatDistanceToNow(new Date(file.updatedAt), { addSuffix: true }) : 'Unknown date'}
-        </p>
-      </CardFooter>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={handleDownload}
+                      disabled={isDownloading}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      <span>Download</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onDelete()}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      <span>Delete</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            {/* Added console.log for debugging updatedAt */}
+            <p className="text-xs text-muted-foreground">
+              Modified{" "}
+              {console.log(
+                "FileItem updatedAt:",
+                file.updatedAt,
+                "typeof:",
+                typeof file.updatedAt,
+              )}
+              {file.updatedAt
+                ? formatDistanceToNow(new Date(file.updatedAt), {
+                    addSuffix: true,
+                  })
+                : "Unknown date"}
+            </p>
+          </CardFooter>
         </Card>
       </ContextMenuTrigger>
       <ItemContextMenu
@@ -392,7 +409,7 @@ const FileItem: React.FC<FileItemProps> = ({
         onRename={onRename} // Pass down from FileGrid
         onOrganize={onOrganize} // Pass down from FileGrid
         onDownload={(itemId, itemName, itemTypeConstant) => {
-          if (itemTypeConstant === 'file') {
+          if (itemTypeConstant === "file") {
             onDownloadFile(itemId, itemName, file.type);
           }
         }}

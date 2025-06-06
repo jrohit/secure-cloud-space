@@ -1,4 +1,3 @@
-
 # Cloud Drive SaaS
 
 A multi-user cloud storage application with MongoDB and Redis.
@@ -14,16 +13,19 @@ A multi-user cloud storage application with MongoDB and Redis.
 ### Backend Setup
 
 1. Navigate to the server directory:
+
    ```
    cd server
    ```
 
 2. Install dependencies:
+
    ```
    npm install
    ```
 
 3. Create a `.env` file in the server directory with:
+
    ```
    PORT=5000
    MONGODB_URI=mongodb://localhost:27017/clouddrive
@@ -41,11 +43,13 @@ A multi-user cloud storage application with MongoDB and Redis.
 ### Frontend Setup
 
 1. In the root directory, install dependencies:
+
    ```
    npm install
    ```
 
 2. Start the application:
+
    ```
    npm run dev
    ```

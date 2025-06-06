@@ -11,7 +11,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Folder as FolderType } from "@/types"; // Already aliased as FolderType
-import { ArrowUp, FolderPlus, LayoutGrid, List, Upload, FolderUp } from "lucide-react"; // Added icons
+import {
+  ArrowUp,
+  FolderPlus,
+  LayoutGrid,
+  List,
+  Upload,
+  FolderUp,
+} from "lucide-react"; // Added icons
 import React, { forwardRef, useEffect, useRef, useState } from "react";
 
 interface FilesToolbarProps {
@@ -51,7 +58,7 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
       viewMode, // Added
       onViewModeChange, // Added
     },
-    ref
+    ref,
   ) => {
     const [folderName, setFolderName] = useState("");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -261,7 +268,7 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
         )}
       </div>
     );
-  }
+  },
 );
 
 export default FilesToolbar;

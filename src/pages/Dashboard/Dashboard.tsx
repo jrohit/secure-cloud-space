@@ -16,7 +16,7 @@ import { filesApi, foldersApi } from "@/services/api";
 import { File, Folder } from "@/types";
 // Removed useRef as toolbarRef is no longer needed for JS sticky
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import throttle from 'lodash/throttle';
+import throttle from "lodash/throttle";
 
 // Cache for decrypted file previews
 const decryptedFileCache = new Map<string, ArrayBuffer>();
@@ -93,23 +93,26 @@ const getAccurateMimeType = (file: globalThis.File): string => {
 
 const getMimeTypeExtension = (mimeType: string): string | null => {
   const defaultExtensions: { [key: string]: string } = {
-    'image/jpeg': '.jpg',
-    'image/png': '.png',
-    'image/gif': '.gif',
-    'application/pdf': '.pdf',
-    'text/plain': '.txt',
-    'text/markdown': '.md',
-    'application/msword': '.doc',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-    'application/vnd.ms-excel': '.xls',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
-    'application/vnd.ms-powerpoint': '.ppt',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
-    'video/mp4': '.mp4',
-    'video/webm': '.webm',
-    'audio/mpeg': '.mp3',
-    'audio/ogg': '.ogg',
-    'application/zip': '.zip',
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "application/pdf": ".pdf",
+    "text/plain": ".txt",
+    "text/markdown": ".md",
+    "application/msword": ".doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      ".docx",
+    "application/vnd.ms-excel": ".xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+      ".xlsx",
+    "application/vnd.ms-powerpoint": ".ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      ".pptx",
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "audio/mpeg": ".mp3",
+    "audio/ogg": ".ogg",
+    "application/zip": ".zip",
     // Add more as needed
   };
   return defaultExtensions[mimeType.toLowerCase()] || null;
@@ -117,12 +120,12 @@ const getMimeTypeExtension = (mimeType: string): string | null => {
 
 // Simple formatBytes helper (can be placed outside component or in a utils file)
 function formatBytes(bytes: number, decimals = 2) {
-  if (bytes === 0) return '0 Bytes';
+  if (bytes === 0) return "0 Bytes";
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
 interface ProcessedFile {
@@ -149,39 +152,47 @@ const Dashboard = () => {
   const [previewFileContent, setPreviewFileContent] =
     useState<ArrayBuffer | null>(null);
   const [previewFileMetadata, setPreviewFileMetadata] = useState<File | null>(
-    null
+    null,
   );
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isUpgradeStorageDialogOpen, setIsUpgradeStorageDialogOpen] =
     useState(false); // Added state for dialog
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number | null>(
-    null
+    null,
   );
   const [folderHistory, setFolderHistory] = useState<Folder[]>([]);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false); // Added for Rename
   const [renameItemInfo, setRenameItemInfo] = useState<{
     id: string;
-    type: 'file' | 'folder';
+    type: "file" | "folder";
     currentName: string;
   } | null>(null); // Added for Rename
   const [isOrganizeDialogOpen, setIsOrganizeDialogOpen] = useState(false); // Added for Organize
   const [organizeItemInfo, setOrganizeItemInfo] = useState<{
     id: string;
-    type: 'file' | 'folder';
+    type: "file" | "folder";
     itemName: string;
     currentParentId: string | null;
   } | null>(null); // Added for Organize
-  const [availableFoldersForMove, setAvailableFoldersForMove] = useState<Folder[]>([]); // Added for Organize
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('card'); // Added for View Toggle
+  const [availableFoldersForMove, setAvailableFoldersForMove] = useState<
+    Folder[]
+  >([]); // Added for Organize
+  const [viewMode, setViewMode] = useState<"card" | "list">("card"); // Added for View Toggle
   // Removed isToolbarSticky, toolbarHeight, toolbarRef, STICKY_THRESHOLD as CSS sticky will be used
 
   // State for folder upload queue and progress
-  const [folderUploadQueue, setFolderUploadQueue] = useState<ProcessedFile[]>([]);
+  const [folderUploadQueue, setFolderUploadQueue] = useState<ProcessedFile[]>(
+    [],
+  );
   const [isUploadingFolder, setIsUploadingFolder] = useState<boolean>(false);
-  const [currentUploadingFolderFile, setCurrentUploadingFolderFile] = useState<string | null>(null);
-  const [processedFolderFilesCount, setProcessedFolderFilesCount] = useState<number>(0);
-  const [totalFilesToUploadInFolder, setTotalFilesToUploadInFolder] = useState<number>(0);
+  const [currentUploadingFolderFile, setCurrentUploadingFolderFile] = useState<
+    string | null
+  >(null);
+  const [processedFolderFilesCount, setProcessedFolderFilesCount] =
+    useState<number>(0);
+  const [totalFilesToUploadInFolder, setTotalFilesToUploadInFolder] =
+    useState<number>(0);
   const isProcessingFolderQueue = useRef<boolean>(false);
 
   // Effect for initial load and when context changes (folder, search)
@@ -201,74 +212,103 @@ const Dashboard = () => {
     }
   }, [token, currentPage, currentFolder, searchQuery, loadFilesAndFolders]);
 
-  const loadFilesAndFolders = useCallback(async (options?: { bustCache?: boolean; pageToLoad?: number }) => {
-    if (!token) return;
+  const loadFilesAndFolders = useCallback(
+    async (options?: { bustCache?: boolean; pageToLoad?: number }) => {
+      if (!token) return;
 
-    const effectivePage = options?.pageToLoad !== undefined ? options.pageToLoad : currentPage;
-    const cacheBusterValue = options?.bustCache ? Date.now().toString() : undefined;
-
-    if (effectivePage === 1) {
-      setLoading(true);
-    } else {
-      if (isLoadingMore || !hasMoreFiles) return;
-      setIsLoadingMore(true);
-    }
-
-    try {
-      const filesResponse = await filesApi.getFiles(
-        token,
-        currentFolder?._id || null,
-        searchQuery,
-        effectivePage,
-        itemsPerPage,
-        cacheBusterValue // Pass to API
-      );
+      const effectivePage =
+        options?.pageToLoad !== undefined ? options.pageToLoad : currentPage;
+      const cacheBusterValue = options?.bustCache
+        ? Date.now().toString()
+        : undefined;
 
       if (effectivePage === 1) {
-        const foldersData = await foldersApi.getFolders(
+        setLoading(true);
+      } else {
+        if (isLoadingMore || !hasMoreFiles) return;
+        setIsLoadingMore(true);
+      }
+
+      try {
+        const filesResponse = await filesApi.getFiles(
           token,
           currentFolder?._id || null,
-          cacheBusterValue // Pass to API
+          searchQuery,
+          effectivePage,
+          itemsPerPage,
+          cacheBusterValue, // Pass to API
         );
-        setFolders(foldersData);
-        setFiles(filesResponse.files);
-        setTotalFilesCount(filesResponse.totalCount);
-        setTotalFilePages(filesResponse.totalPages);
-        setHasMoreFiles(effectivePage < filesResponse.totalPages); // Use effectivePage
-      } else {
-        setFiles(prevFiles => [...prevFiles, ...filesResponse.files]);
-        setTotalFilePages(filesResponse.totalPages);
-        setHasMoreFiles(effectivePage < filesResponse.totalPages); // Use effectivePage
+
+        if (effectivePage === 1) {
+          const foldersData = await foldersApi.getFolders(
+            token,
+            currentFolder?._id || null,
+            cacheBusterValue, // Pass to API
+          );
+          setFolders(foldersData);
+          setFiles(filesResponse.files);
+          setTotalFilesCount(filesResponse.totalCount);
+          setTotalFilePages(filesResponse.totalPages);
+          setHasMoreFiles(effectivePage < filesResponse.totalPages); // Use effectivePage
+        } else {
+          setFiles((prevFiles) => [...prevFiles, ...filesResponse.files]);
+          setTotalFilePages(filesResponse.totalPages);
+          setHasMoreFiles(effectivePage < filesResponse.totalPages); // Use effectivePage
+        }
+      } catch (error) {
+        console.error("Error loading files and folders:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load your files and folders",
+          variant: "destructive",
+        });
+        setHasMoreFiles(false);
+      } finally {
+        if (effectivePage === 1) {
+          // Use effectivePage
+          setLoading(false);
+        } else {
+          setIsLoadingMore(false);
+        }
       }
-    } catch (error) {
-      console.error("Error loading files and folders:", error);
+    },
+    [
+      token,
+      currentFolder,
+      searchQuery,
+      currentPage,
+      itemsPerPage,
+      toast,
+      isLoadingMore,
+      hasMoreFiles,
+      setLoading,
+      setIsLoadingMore,
+      setHasMoreFiles,
+      setFiles,
+      setFolders,
+      setTotalFilesCount,
+      setTotalFilePages,
+    ],
+  );
+
+  const handleDownloadFile = async (
+    fileId: string,
+    fileName: string,
+    originalFileType: string,
+  ) => {
+    if (!token) {
       toast({
         title: "Error",
-        description: "Failed to load your files and folders",
+        description: "Not authenticated.",
         variant: "destructive",
       });
-      setHasMoreFiles(false);
-    } finally {
-      if (effectivePage === 1) { // Use effectivePage
-        setLoading(false);
-      } else {
-        setIsLoadingMore(false);
-      }
-    }
-  }, [
-    token, currentFolder, searchQuery, currentPage, itemsPerPage, toast,
-    isLoadingMore, hasMoreFiles,
-    setLoading, setIsLoadingMore, setHasMoreFiles, setFiles, setFolders,
-    setTotalFilesCount, setTotalFilePages
-  ]);
-
-  const handleDownloadFile = async (fileId: string, fileName: string, originalFileType: string) => {
-    if (!token) {
-      toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
       return;
     }
 
-    const downloadToastId = toast({ title: "Preparing Download", description: `Downloading ${fileName}...` });
+    const downloadToastId = toast({
+      title: "Preparing Download",
+      description: `Downloading ${fileName}...`,
+    });
 
     try {
       const encryptedBlob = await filesApi.downloadFile(token, fileId);
@@ -276,7 +316,13 @@ const Dashboard = () => {
 
       const cryptoKey = await getMasterCryptoKey();
       if (!cryptoKey) {
-        toast({ id: downloadToastId.id, title: "Download Error", description: "Could not retrieve decryption key.", variant: "destructive", duration: 5000 });
+        toast({
+          id: downloadToastId.id,
+          title: "Download Error",
+          description: "Could not retrieve decryption key.",
+          variant: "destructive",
+          duration: 5000,
+        });
         return;
       }
 
@@ -285,27 +331,41 @@ const Dashboard = () => {
       const IV_LENGTH = 12; // Standard for AES-GCM IV
 
       if (decryptedBuffer.byteLength < IV_LENGTH) {
-        console.error("Decrypted buffer is shorter than IV length. This should not happen if IV was prepended.");
-        toast({ id: downloadToastId.id, title: "Download Error", description: "Decrypted data is inconsistent. Cannot process file.", variant: "destructive", duration: 5000 });
+        console.error(
+          "Decrypted buffer is shorter than IV length. This should not happen if IV was prepended.",
+        );
+        toast({
+          id: downloadToastId.id,
+          title: "Download Error",
+          description: "Decrypted data is inconsistent. Cannot process file.",
+          variant: "destructive",
+          duration: 5000,
+        });
         return;
       }
       const fileContentBuffer = decryptedBuffer.slice(IV_LENGTH);
 
-      const decryptedBlob = new Blob([fileContentBuffer], { type: originalFileType });
+      const decryptedBlob = new Blob([fileContentBuffer], {
+        type: originalFileType,
+      });
 
       let finalFileName = fileName;
-      const nameParts = fileName.split('.');
-      const currentExtension = nameParts.length > 1 ? `.${nameParts.pop()?.toLowerCase()}` : null;
+      const nameParts = fileName.split(".");
+      const currentExtension =
+        nameParts.length > 1 ? `.${nameParts.pop()?.toLowerCase()}` : null;
       let expectedExtension = getMimeTypeExtension(originalFileType);
 
-      if (expectedExtension && (!currentExtension || currentExtension !== expectedExtension)) {
+      if (
+        expectedExtension &&
+        (!currentExtension || currentExtension !== expectedExtension)
+      ) {
         if (!currentExtension) {
           finalFileName = `${fileName}${expectedExtension}`;
         }
       }
 
       const url = URL.createObjectURL(decryptedBlob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = finalFileName;
       document.body.appendChild(a);
@@ -313,11 +373,22 @@ const Dashboard = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      toast({ id: downloadToastId.id, title: "Download Started", description: `${fileName} should begin downloading shortly.`, variant: "success", duration: 5000 });
-
+      toast({
+        id: downloadToastId.id,
+        title: "Download Started",
+        description: `${fileName} should begin downloading shortly.`,
+        variant: "success",
+        duration: 5000,
+      });
     } catch (error: any) {
       console.error("Error downloading or decrypting file:", error);
-      toast({ id: downloadToastId.id, title: "Download Error", description: `Failed to download ${fileName}. ${error.message || 'Unknown error'}`, variant: "destructive", duration: 5000 });
+      toast({
+        id: downloadToastId.id,
+        title: "Download Error",
+        description: `Failed to download ${fileName}. ${error.message || "Unknown error"}`,
+        variant: "destructive",
+        duration: 5000,
+      });
     }
   };
 
@@ -330,40 +401,48 @@ const Dashboard = () => {
       document.documentElement.offsetHeight - threshold
     ) {
       if (hasMoreFiles && !isLoadingMore && !loading) {
-        setCurrentPage(prevPage => prevPage + 1);
+        setCurrentPage((prevPage) => prevPage + 1);
       }
     }
   }, [hasMoreFiles, isLoadingMore, loading]); // Add `loading` to prevent fetching during initial load
 
-  const throttledScrollHandler = useMemo(() => throttle(handleScroll, 300), [handleScroll]); // For infinite scroll (remains)
+  const throttledScrollHandler = useMemo(
+    () => throttle(handleScroll, 300),
+    [handleScroll],
+  ); // For infinite scroll (remains)
 
   useEffect(() => {
     // For infinite scroll
-    window.addEventListener('scroll', throttledScrollHandler);
+    window.addEventListener("scroll", throttledScrollHandler);
     // Removed toolbar stickiness scroll handler and height measurement
 
     return () => {
-      window.removeEventListener('scroll', throttledScrollHandler);
+      window.removeEventListener("scroll", throttledScrollHandler);
       throttledScrollHandler.cancel();
       // Removed toolbar stickiness scroll handler cleanup
     };
   }, [throttledScrollHandler]); // Removed throttledToolbarScrollHandler from deps
 
-
   const handleBreadcrumbNavigate = (indexInHistory: number) => {
     setSearchQuery(""); // Clear search query
     // setCurrentPage(1) and setFiles([]) will be handled by the main useEffect for context change
 
-    if (indexInHistory === -1) { // Clicked on "My Drive" or root
+    if (indexInHistory === -1) {
+      // Clicked on "My Drive" or root
       setCurrentFolder(null); // This will trigger the useEffect for context change
       setFolderHistory([]);
     } else if (indexInHistory >= 0 && indexInHistory < folderHistory.length) {
       // Clicked on a folder in the history
       const targetFolder = folderHistory[indexInHistory];
       setCurrentFolder(targetFolder); // This will trigger the useEffect for context change
-      setFolderHistory(prevHistory => prevHistory.slice(0, indexInHistory + 1));
+      setFolderHistory((prevHistory) =>
+        prevHistory.slice(0, indexInHistory + 1),
+      );
     } else {
-      console.warn("Invalid index received from breadcrumb navigation:", indexInHistory);
+      console.warn(
+        "Invalid index received from breadcrumb navigation:",
+        indexInHistory,
+      );
     }
   };
 
@@ -379,7 +458,8 @@ const Dashboard = () => {
     }
 
     // Cache Key
-    const cacheKey = fileToPreview._id + '_' + new Date(fileToPreview.updatedAt).getTime();
+    const cacheKey =
+      fileToPreview._id + "_" + new Date(fileToPreview.updatedAt).getTime();
 
     // Cache Check
     if (decryptedFileCache.has(cacheKey)) {
@@ -392,7 +472,9 @@ const Dashboard = () => {
           setCurrentPreviewIndex(fileIndex);
         } else {
           setCurrentPreviewIndex(null);
-          console.warn("Previewed file (from cache) not found in current files list for navigation indexing.");
+          console.warn(
+            "Previewed file (from cache) not found in current files list for navigation indexing.",
+          );
         }
         setIsPreviewing(true);
         setIsPreviewLoading(false); // Ensure loading is false
@@ -403,7 +485,9 @@ const Dashboard = () => {
         return;
       }
     }
-    console.log(`[Dashboard] Cache miss for preview: ${fileToPreview.name}. Fetching and decrypting.`);
+    console.log(
+      `[Dashboard] Cache miss for preview: ${fileToPreview.name}. Fetching and decrypting.`,
+    );
 
     try {
       setIsPreviewLoading(true);
@@ -415,7 +499,7 @@ const Dashboard = () => {
 
       const encryptedBlob = await filesApi.downloadFile(
         token,
-        fileToPreview._id
+        fileToPreview._id,
       );
       const encryptedBuffer = await encryptedBlob.arrayBuffer();
 
@@ -423,7 +507,7 @@ const Dashboard = () => {
       if (encryptedBuffer.byteLength < 12) {
         // Minimum size for IV
         throw new Error(
-          "Downloaded file data is too short to be valid encrypted content."
+          "Downloaded file data is too short to be valid encrypted content.",
         );
       }
 
@@ -448,20 +532,20 @@ const Dashboard = () => {
 
       console.log(
         "[Dashboard] After decryptFile - decryptedBuffer.byteLength:",
-        decryptedBuffer.byteLength
+        decryptedBuffer.byteLength,
       );
       try {
         const sliceTestDashboard = decryptedBuffer.slice(0);
         console.log(
           "[Dashboard] After decryptFile - decryptedBuffer slice test successful, new buffer byteLength:",
-          sliceTestDashboard.byteLength
+          sliceTestDashboard.byteLength,
         );
         // You could also check if they are the same buffer instance, though slice creates a new one.
         // console.log('[Dashboard] Buffers are same instance after slice:', decryptedBuffer === sliceTestDashboard); // Should be false
       } catch (e) {
         console.error(
           "[Dashboard] Error trying to slice decryptedBuffer immediately after decryptFile:",
-          e
+          e,
         );
         // If this error occurs, the buffer is likely already detached or invalid from decryptFile.
       }
@@ -476,7 +560,7 @@ const Dashboard = () => {
         // Consider how to handle if it does, e.g., log an error or disable navigation.
         setCurrentPreviewIndex(null);
         console.warn(
-          "Previewed file not found in current files list for navigation indexing."
+          "Previewed file not found in current files list for navigation indexing.",
         );
       }
       setIsPreviewing(true); // This will be used to trigger the dialog open state
@@ -504,7 +588,7 @@ const Dashboard = () => {
       const newFolder = await foldersApi.createFolder(
         token,
         name,
-        currentFolder?._id || null
+        currentFolder?._id || null,
       );
       // setFolders((prev) => [...prev, newFolder]); // Optimistic update removed
       toast({
@@ -512,12 +596,13 @@ const Dashboard = () => {
         description: `Folder "${name}" created successfully`,
       });
 
-      if (refreshUserStorageInfo) { await refreshUserStorageInfo(); }
+      if (refreshUserStorageInfo) {
+        await refreshUserStorageInfo();
+      }
       setFiles([]);
       setFolders([]);
       setCurrentPage(1);
       loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
-
     } catch (error) {
       console.error("Error creating folder:", error);
       toast({
@@ -532,7 +617,8 @@ const Dashboard = () => {
     if (isUploadingFolder) {
       toast({
         title: "Folder Upload in Progress",
-        description: "Please wait for the folder upload to complete before uploading individual files.",
+        description:
+          "Please wait for the folder upload to complete before uploading individual files.",
         variant: "destructive",
       });
       return;
@@ -562,10 +648,17 @@ const Dashboard = () => {
     }
 
     // Calculate total upload size
-    const totalUploadSize = filesArray.reduce((acc, file) => acc + file.size, 0);
+    const totalUploadSize = filesArray.reduce(
+      (acc, file) => acc + file.size,
+      0,
+    );
 
     // Perform client-side quota check
-    if (user && typeof user.storageLimit === 'number' && typeof user.storageUsed === 'number') {
+    if (
+      user &&
+      typeof user.storageLimit === "number" &&
+      typeof user.storageUsed === "number"
+    ) {
       if (user.storageUsed + totalUploadSize > user.storageLimit) {
         toast({
           title: "Insufficient Storage",
@@ -584,7 +677,9 @@ const Dashboard = () => {
         return; // Stop the upload process
       }
     } else {
-      console.warn("User storage information not available for client-side quota check. Proceeding with upload.");
+      console.warn(
+        "User storage information not available for client-side quota check. Proceeding with upload.",
+      );
     }
 
     setIsUploading(true);
@@ -594,7 +689,8 @@ const Dashboard = () => {
     let completedFiles = 0;
 
     try {
-      for (let i = 0; i < filesArray.length; i++) { // Use filesArray
+      for (let i = 0; i < filesArray.length; i++) {
+        // Use filesArray
         const file = filesArray[i]; // Use filesArray
 
         // New: Determine originalMimeType using the helper function
@@ -621,7 +717,7 @@ const Dashboard = () => {
           encryptedBlob,
           file.name,
           originalMimeType,
-          currentFolder?._id || null
+          currentFolder?._id || null,
           // thumbnailBlob argument is now omitted
         );
 
@@ -719,12 +815,13 @@ const Dashboard = () => {
         description: "File moved to trash.", // Updated message
       });
 
-      if (refreshUserStorageInfo) { await refreshUserStorageInfo(); }
+      if (refreshUserStorageInfo) {
+        await refreshUserStorageInfo();
+      }
       setFiles([]);
       setFolders([]);
       setCurrentPage(1);
       loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
-
     } catch (error) {
       console.error("Error moving file to trash:", error);
       toast({
@@ -746,22 +843,22 @@ const Dashboard = () => {
         description: "File permanently deleted.",
       });
 
-      if (refreshUserStorageInfo) { await refreshUserStorageInfo(); }
+      if (refreshUserStorageInfo) {
+        await refreshUserStorageInfo();
+      }
       setFiles([]);
       setFolders([]);
       setCurrentPage(1);
       loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
-
     } catch (error) {
       console.error("Error permanently deleting file:", error);
       toast({
         title: "Error",
-        description: `Failed to permanently delete file. ${error instanceof Error ? error.message : ''}`,
+        description: `Failed to permanently delete file. ${error instanceof Error ? error.message : ""}`,
         variant: "destructive",
       });
     }
   };
-
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!token) return;
@@ -774,12 +871,13 @@ const Dashboard = () => {
         description: "Folder and its contents moved to trash", // MODIFIED
       });
 
-      if (refreshUserStorageInfo) { await refreshUserStorageInfo(); }
+      if (refreshUserStorageInfo) {
+        await refreshUserStorageInfo();
+      }
       setFiles([]);
       setFolders([]);
       setCurrentPage(1);
       loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
-
     } catch (error) {
       console.error("Error moving folder to trash:", error); // MODIFIED
       toast({
@@ -793,7 +891,7 @@ const Dashboard = () => {
   const handleNavigateToFolder = (folder: Folder) => {
     // setCurrentPage(1) and setFiles([]) handled by useEffect for context change
     setCurrentFolder(folder); // This will trigger the useEffect for context change
-    setFolderHistory(prev => [...prev, folder]);
+    setFolderHistory((prev) => [...prev, folder]);
     setSearchQuery("");
   };
 
@@ -840,7 +938,11 @@ const Dashboard = () => {
   };
 
   // Placeholder for Rename
-  const handleRenameItem = (id: string, type: 'file' | 'folder', currentName: string) => {
+  const handleRenameItem = (
+    id: string,
+    type: "file" | "folder",
+    currentName: string,
+  ) => {
     setRenameItemInfo({ id, type, currentName });
     setIsRenameDialogOpen(true);
   };
@@ -851,14 +953,14 @@ const Dashboard = () => {
     const { id, type } = renameItemInfo;
 
     try {
-      if (type === 'file') {
+      if (type === "file") {
         const updatedFile = await filesApi.renameFile(token, id, newName);
         // setFiles((prevFiles) => ...); // Optimistic update removed
         toast({
           title: "Success",
           description: `File "${renameItemInfo.currentName}" renamed to "${newName}".`,
         });
-      } else if (type === 'folder') {
+      } else if (type === "folder") {
         // const updatedFolder = await foldersApi.renameFolder(token, id, newName); // API call
         // setFolders((prevFolders) => ...); // Optimistic update removed
         toast({
@@ -869,17 +971,18 @@ const Dashboard = () => {
       setIsRenameDialogOpen(false);
       setRenameItemInfo(null);
 
-      if (refreshUserStorageInfo) { await refreshUserStorageInfo(); } // If rename affects storage/metadata shown
+      if (refreshUserStorageInfo) {
+        await refreshUserStorageInfo();
+      } // If rename affects storage/metadata shown
       setFiles([]);
       setFolders([]);
       setCurrentPage(1);
       loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
-
     } catch (error) {
       console.error(`Error renaming ${type}:`, error);
       toast({
         title: "Error",
-        description: `Failed to rename ${type}. ${error instanceof Error ? error.message : ''}`,
+        description: `Failed to rename ${type}. ${error instanceof Error ? error.message : ""}`,
         variant: "destructive",
       });
       // Optionally, keep the dialog open on error or close it
@@ -889,24 +992,38 @@ const Dashboard = () => {
   };
 
   // Placeholder for Organize
-  const handleOrganizeItem = (id: string, type: 'file' | 'folder', currentParentId: string | null) => {
-    const itemToOrganize = type === 'file'
-      ? files.find(f => f._id === id)
-      : folders.find(f => f._id === id);
+  const handleOrganizeItem = (
+    id: string,
+    type: "file" | "folder",
+    currentParentId: string | null,
+  ) => {
+    const itemToOrganize =
+      type === "file"
+        ? files.find((f) => f._id === id)
+        : folders.find((f) => f._id === id);
 
     if (!itemToOrganize) {
-      toast({ title: "Error", description: "Item not found.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Item not found.",
+        variant: "destructive",
+      });
       return;
     }
 
-    setOrganizeItemInfo({ id, type, itemName: itemToOrganize.name, currentParentId });
+    setOrganizeItemInfo({
+      id,
+      type,
+      itemName: itemToOrganize.name,
+      currentParentId,
+    });
 
     // Prepare available folders for moving:
     // Exclude the current folder itself if item is a folder
     // Exclude current parent of the item (handled by dialog UI not showing current parent as an option implicitly if desired)
     let filteredFolders = [...folders]; // Operate on a copy
-    if (type === 'folder') {
-      filteredFolders = filteredFolders.filter(f => f._id !== id);
+    if (type === "folder") {
+      filteredFolders = filteredFolders.filter((f) => f._id !== id);
       // TODO: Advanced - filter out children of this folder as well
     }
     setAvailableFoldersForMove(filteredFolders);
@@ -919,9 +1036,10 @@ const Dashboard = () => {
     const { id, type, itemName } = organizeItemInfo;
 
     try {
-      if (type === 'file') {
+      if (type === "file") {
         await filesApi.moveFile(token, id, newParentId);
-      } else { // type === 'folder'
+      } else {
+        // type === 'folder'
         await foldersApi.moveFolder(token, id, newParentId);
       }
 
@@ -932,17 +1050,18 @@ const Dashboard = () => {
 
       // Refresh the current view
       // await loadFilesAndFolders(); // Replaced by new logic
-      if (refreshUserStorageInfo) { await refreshUserStorageInfo(); }
+      if (refreshUserStorageInfo) {
+        await refreshUserStorageInfo();
+      }
       setFiles([]);
       setFolders([]);
       setCurrentPage(1);
       loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
-
     } catch (error) {
       console.error(`Error moving ${type}:`, error);
       toast({
         title: "Error",
-        description: `Failed to move ${type}. ${error instanceof Error ? error.message : ''}`,
+        description: `Failed to move ${type}. ${error instanceof Error ? error.message : ""}`,
         variant: "destructive",
       });
     } finally {
@@ -982,7 +1101,8 @@ const Dashboard = () => {
     if (isUploading || isUploadingFolder) {
       toast({
         title: "Upload in Progress",
-        description: "Please wait for the current upload to complete before starting another.",
+        description:
+          "Please wait for the current upload to complete before starting another.",
         variant: "destructive",
       });
       return;
@@ -995,15 +1115,26 @@ const Dashboard = () => {
         const file = filesList[i];
         // Ensure webkitRelativePath exists and is a string
         // Ensure it's File from global scope for webkitRelativePath
-        const globalFile = file as unknown as { webkitRelativePath?: string, name: string, size: number, type: string };
+        const globalFile = file as unknown as {
+          webkitRelativePath?: string;
+          name: string;
+          size: number;
+          type: string;
+        };
 
-        if (typeof globalFile.webkitRelativePath === 'string' && globalFile.webkitRelativePath) {
+        if (
+          typeof globalFile.webkitRelativePath === "string" &&
+          globalFile.webkitRelativePath
+        ) {
           processedFiles.push({
             file: file as globalThis.File, // Cast back to globalThis.File for the object
             relativePath: globalFile.webkitRelativePath,
           });
         } else {
-          console.warn("File without webkitRelativePath encountered:", globalFile.name);
+          console.warn(
+            "File without webkitRelativePath encountered:",
+            globalFile.name,
+          );
           processedFiles.push({
             file: file as globalThis.File,
             relativePath: globalFile.name, // Fallback
@@ -1020,19 +1151,33 @@ const Dashboard = () => {
         totalSizeNeededForFolder += pf.file.size;
       }
 
-      if (user && typeof user.storageLimit === 'number' && typeof user.storageUsed === 'number') {
+      if (
+        user &&
+        typeof user.storageLimit === "number" &&
+        typeof user.storageUsed === "number"
+      ) {
         if (user.storageUsed + totalSizeNeededForFolder > user.storageLimit) {
           toast({
             title: "Insufficient Storage for Folder",
             description: `The selected folder (${formatBytes(totalSizeNeededForFolder)}) exceeds your available storage (${formatBytes(user.storageLimit - user.storageUsed)}). Please upgrade your plan or free up space.`,
             variant: "destructive",
             duration: 9000,
-            action: (<ToastAction altText="Upgrade" onClick={() => setIsUpgradeStorageDialogOpen(true)}> Upgrade Storage </ToastAction>),
+            action: (
+              <ToastAction
+                altText="Upgrade"
+                onClick={() => setIsUpgradeStorageDialogOpen(true)}
+              >
+                {" "}
+                Upgrade Storage{" "}
+              </ToastAction>
+            ),
           });
           return;
         }
       } else {
-        console.warn("User storage information not available for client-side folder quota check. Proceeding with upload, backend will verify.");
+        console.warn(
+          "User storage information not available for client-side folder quota check. Proceeding with upload, backend will verify.",
+        );
       }
 
       setFolderUploadQueue(processedFiles);
@@ -1049,8 +1194,9 @@ const Dashboard = () => {
       setIsUploadingFolder(false); // Ensure this is reset if no files
       toast({
         title: "Empty Folder or No Files",
-        description: "The selected folder is empty or no files could be processed.",
-        variant: "default"
+        description:
+          "The selected folder is empty or no files could be processed.",
+        variant: "default",
       });
     }
   };
@@ -1060,29 +1206,39 @@ const Dashboard = () => {
       relativePath: string, // e.g., "Photos/Summer/Beach" (folder path part only)
       initialParentId: string | null,
       token: string, // Token must be passed in
-      toastFn: typeof toast // Pass the toast function
+      toastFn: typeof toast, // Pass the toast function
     ): Promise<string | null> {
       let currentParentId = initialParentId;
       if (!relativePath) return currentParentId; // No path to create, return initial parent
 
-      const pathSegments = relativePath.split('/').filter(segment => segment.trim() !== '');
+      const pathSegments = relativePath
+        .split("/")
+        .filter((segment) => segment.trim() !== "");
 
       for (const segment of pathSegments) {
-        const cacheKey = `${currentParentId || 'root'}/${segment}`;
+        const cacheKey = `${currentParentId || "root"}/${segment}`;
         if (folderCache.has(cacheKey)) {
           currentParentId = folderCache.get(cacheKey)!;
           continue;
         }
         try {
           // console.log(`[ensureFolderPathExists] Creating folder: ${segment} under parent: ${currentParentId}`);
-          const newFolder = await foldersApi.createFolder(token, segment, currentParentId);
+          const newFolder = await foldersApi.createFolder(
+            token,
+            segment,
+            currentParentId,
+          );
           folderCache.set(cacheKey, newFolder._id);
           currentParentId = newFolder._id;
         } catch (error: any) {
-          console.error(`[ensureFolderPathExists] Error creating folder ${segment} under ${currentParentId}:`, error);
-          toastFn({ // Use the passed toast function
+          console.error(
+            `[ensureFolderPathExists] Error creating folder ${segment} under ${currentParentId}:`,
+            error,
+          );
+          toastFn({
+            // Use the passed toast function
             title: "Folder Creation Error",
-            description: `Failed to create part of folder structure: ${segment}. Error: ${error.message || 'Unknown error'}`,
+            description: `Failed to create part of folder structure: ${segment}. Error: ${error.message || "Unknown error"}`,
             variant: "destructive",
           });
           return null; // Stop if any part of the path fails
@@ -1115,36 +1271,62 @@ const Dashboard = () => {
         try {
           // Ensure token is valid before proceeding with operations that need it
           if (!token) {
-              toast({ title: "Authentication Error", description: "User token not found. Cannot upload.", variant: "destructive" });
-              setIsUploadingFolder(false);
-              setFolderUploadQueue([]);
-              // isProcessingFolderQueue.current = false; // Handled by finally
-              return;
+            toast({
+              title: "Authentication Error",
+              description: "User token not found. Cannot upload.",
+              variant: "destructive",
+            });
+            setIsUploadingFolder(false);
+            setFolderUploadQueue([]);
+            // isProcessingFolderQueue.current = false; // Handled by finally
+            return;
           }
 
           const { file, relativePath } = fileToProcess; // Deconstruct after checking queue
           setCurrentUploadingFolderFile(relativePath); // Confirm current file for UI
 
-          const pathParts = relativePath.split('/');
+          const pathParts = relativePath.split("/");
           pathParts.pop();
-          const fileParentPath = pathParts.join('/');
+          const fileParentPath = pathParts.join("/");
 
-          const targetFolderId = await ensureFolderPathExists(fileParentPath, currentFolder?._id || null, token, toast);
+          const targetFolderId = await ensureFolderPathExists(
+            fileParentPath,
+            currentFolder?._id || null,
+            token,
+            toast,
+          );
 
-          if (targetFolderId === null && fileParentPath !== "") { // Check if folder creation failed and it wasn't for root
-            toast({ title: "Upload Error", description: `Failed to establish folder path for ${relativePath}. Stopping folder upload.`, variant: "destructive" });
+          if (targetFolderId === null && fileParentPath !== "") {
+            // Check if folder creation failed and it wasn't for root
+            toast({
+              title: "Upload Error",
+              description: `Failed to establish folder path for ${relativePath}. Stopping folder upload.`,
+              variant: "destructive",
+            });
             setIsUploadingFolder(false);
             setFolderUploadQueue([]);
             return;
           }
 
-          if (user && typeof user.storageLimit === 'number' && typeof user.storageUsed === 'number') {
+          if (
+            user &&
+            typeof user.storageLimit === "number" &&
+            typeof user.storageUsed === "number"
+          ) {
             if (user.storageUsed + file.size > user.storageLimit) {
               toast({
                 title: "Insufficient Storage",
                 description: `Cannot upload ${file.name}. Required: ${formatBytes(file.size)}, Available: ${formatBytes(user.storageLimit - user.storageUsed)}. Stopping folder upload.`,
                 variant: "destructive",
-                action: (<ToastAction altText="Upgrade" onClick={() => setIsUpgradeStorageDialogOpen(true)}> Upgrade Storage </ToastAction>),
+                action: (
+                  <ToastAction
+                    altText="Upgrade"
+                    onClick={() => setIsUpgradeStorageDialogOpen(true)}
+                  >
+                    {" "}
+                    Upgrade Storage{" "}
+                  </ToastAction>
+                ),
               });
               setIsUploadingFolder(false);
               setFolderUploadQueue([]);
@@ -1154,7 +1336,12 @@ const Dashboard = () => {
 
           const cryptoKey = await getMasterCryptoKey();
           if (!cryptoKey) {
-            toast({ title: "Encryption Key Error", description: "Could not retrieve encryption key. Stopping folder upload.", variant: "destructive" });
+            toast({
+              title: "Encryption Key Error",
+              description:
+                "Could not retrieve encryption key. Stopping folder upload.",
+              variant: "destructive",
+            });
             setIsUploadingFolder(false);
             setFolderUploadQueue([]);
             return;
@@ -1162,29 +1349,44 @@ const Dashboard = () => {
 
           const originalMimeType = getAccurateMimeType(file);
           const fileReader = new FileReader();
-          const fileBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-              fileReader.onload = () => resolve(fileReader.result as ArrayBuffer);
+          const fileBuffer = await new Promise<ArrayBuffer>(
+            (resolve, reject) => {
+              fileReader.onload = () =>
+                resolve(fileReader.result as ArrayBuffer);
               fileReader.onerror = () => reject(fileReader.error);
               fileReader.readAsArrayBuffer(file);
-          });
+            },
+          );
 
           const { iv, ciphertext } = await encryptFile(fileBuffer, cryptoKey);
           const encryptedBlob = new Blob([iv, ciphertext]);
 
-          await filesApi.uploadFile(token, encryptedBlob, file.name, originalMimeType, targetFolderId);
+          await filesApi.uploadFile(
+            token,
+            encryptedBlob,
+            file.name,
+            originalMimeType,
+            targetFolderId,
+          );
 
           // Successful upload of this one file
           if (refreshUserStorageInfo) {
             await refreshUserStorageInfo();
           }
           // The state updates below will trigger the useEffect to re-run for the next file
-          setFolderUploadQueue(prevQueue => prevQueue.slice(1));
-          setProcessedFolderFilesCount(prevCount => prevCount + 1);
+          setFolderUploadQueue((prevQueue) => prevQueue.slice(1));
+          setProcessedFolderFilesCount((prevCount) => prevCount + 1);
           // console.log(`[Folder Upload] "Completed" processing (with lock): ${relativePath}`);
-
         } catch (error: any) {
-          console.error(`[Folder Upload] Error processing file ${fileToProcess.relativePath}:`, error);
-          toast({ title: "Upload Failed", description: `Could not upload file: ${fileToProcess.file.name}. Error: ${error.message || 'Unknown error'}`, variant: "destructive" });
+          console.error(
+            `[Folder Upload] Error processing file ${fileToProcess.relativePath}:`,
+            error,
+          );
+          toast({
+            title: "Upload Failed",
+            description: `Could not upload file: ${fileToProcess.file.name}. Error: ${error.message || "Unknown error"}`,
+            variant: "destructive",
+          });
           setIsUploadingFolder(false);
           setFolderUploadQueue([]);
         } finally {
@@ -1192,8 +1394,12 @@ const Dashboard = () => {
           isProcessingFolderQueue.current = false;
         }
       })(); // End of async IIFE
-
-    } else if (isUploadingFolder && folderUploadQueue.length === 0 && totalFilesToUploadInFolder > 0 && processedFolderFilesCount === totalFilesToUploadInFolder) {
+    } else if (
+      isUploadingFolder &&
+      folderUploadQueue.length === 0 &&
+      totalFilesToUploadInFolder > 0 &&
+      processedFolderFilesCount === totalFilesToUploadInFolder
+    ) {
       setIsUploadingFolder(false);
       setCurrentUploadingFolderFile(null);
       isProcessingFolderQueue.current = false; // Ensure lock is also released on successful completion
@@ -1202,8 +1408,6 @@ const Dashboard = () => {
         title: "Folder Upload Complete",
         description: `Successfully uploaded ${totalFilesToUploadInFolder} files.`,
       });
-
-
 
       // Simplified refresh logic
       if (currentPage === 1) {
@@ -1214,7 +1418,6 @@ const Dashboard = () => {
         setCurrentPage(1);
       }
       // Note: refreshUserStorageInfo is already called after each successful file in the folder upload queue processing.
-
     } else if (!isUploadingFolder && isProcessingFolderQueue.current) {
       // Catch-all: if uploading was stopped externally but lock was somehow still true
       isProcessingFolderQueue.current = false;
@@ -1232,9 +1435,8 @@ const Dashboard = () => {
     refreshUserStorageInfo,
     loadFilesAndFolders, // Added dependency
     toast,
-    setIsUpgradeStorageDialogOpen // Added dependency
+    setIsUpgradeStorageDialogOpen, // Added dependency
   ]);
-
 
   return (
     <div className="flex flex-col h-full">
@@ -1243,8 +1445,8 @@ const Dashboard = () => {
           {searchQuery
             ? `Search results for "${searchQuery}"`
             : currentFolder
-            ? currentFolder.name
-            : "My Drive"}
+              ? currentFolder.name
+              : "My Drive"}
         </h2>
       </div>
 
@@ -1268,7 +1470,8 @@ const Dashboard = () => {
           // Assuming FilesToolbar calls onSearchQueryChange which updates searchQuery state.
           // If onSearchSubmit in toolbar is meant to trigger immediate fetch,
           // then ensure currentPage is 1.
-          if (currentPage !== 1) setCurrentPage(1); else loadFilesAndFolders(); // Trigger if already on page 1
+          if (currentPage !== 1) setCurrentPage(1);
+          else loadFilesAndFolders(); // Trigger if already on page 1
         }}
         folderHistory={folderHistory}
         onBreadcrumbNavigate={handleBreadcrumbNavigate}
@@ -1279,9 +1482,21 @@ const Dashboard = () => {
       {isUploadingFolder && (
         <div className="mt-4 p-4 border rounded-lg space-y-2">
           <h4 className="font-semibold">Uploading Folder...</h4>
-          {currentUploadingFolderFile && <p className="text-sm">Current file: {currentUploadingFolderFile}</p>}
-          <p className="text-sm">Progress: {processedFolderFilesCount} / {totalFilesToUploadInFolder} files</p>
-          <Progress value={(processedFolderFilesCount / totalFilesToUploadInFolder) * 100} className="h-2" />
+          {currentUploadingFolderFile && (
+            <p className="text-sm">
+              Current file: {currentUploadingFolderFile}
+            </p>
+          )}
+          <p className="text-sm">
+            Progress: {processedFolderFilesCount} / {totalFilesToUploadInFolder}{" "}
+            files
+          </p>
+          <Progress
+            value={
+              (processedFolderFilesCount / totalFilesToUploadInFolder) * 100
+            }
+            className="h-2"
+          />
         </div>
       )}
 
@@ -1316,7 +1531,9 @@ const Dashboard = () => {
               </div>
             )}
             {!hasMoreFiles && files.length > 0 && (
-               <p className="text-center text-gray-500 py-4">No more files to load.</p>
+              <p className="text-center text-gray-500 py-4">
+                No more files to load.
+              </p>
             )}
           </>
         )}

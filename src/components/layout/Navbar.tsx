@@ -1,4 +1,3 @@
-
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,10 +19,17 @@ export const Navbar = ({ toggleSidebar }: NavbarProps) => {
   const { user, logout } = useAuth();
 
   return (
-    <header className="bg-background border-b border-border sticky top-0 z-30"> {/* MODIFIED */}
+    <header className="bg-background border-b border-border sticky top-0 z-30">
+      {" "}
+      {/* MODIFIED */}
       <div className="px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            className="md:hidden"
+          >
             <Menu className="h-5 w-5" />
           </Button>
           <div className="hidden md:flex items-center space-x-2">
@@ -33,13 +39,19 @@ export const Navbar = ({ toggleSidebar }: NavbarProps) => {
             <h1 className="text-xl font-semibold">SecureCloudSpace</h1>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+              <Button
+                variant="ghost"
+                className="relative h-10 w-10 rounded-full"
+              >
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src="/placeholder.svg" alt={user?.name || "User"} />
+                  <AvatarImage
+                    src="/placeholder.svg"
+                    alt={user?.name || "User"}
+                  />
                   <AvatarFallback>{user?.name?.[0] || "U"}</AvatarFallback>
                 </Avatar>
               </Button>

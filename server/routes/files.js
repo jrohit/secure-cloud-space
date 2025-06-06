@@ -20,7 +20,10 @@ async function deleteKeysByPattern(redisClient, pattern) {
   if (!redisClient) return;
   try {
     let count = 0;
-    for await (const key of redisClient.scanIterator({ MATCH: pattern, COUNT: 100 })) {
+    for await (const key of redisClient.scanIterator({
+      MATCH: pattern,
+      COUNT: 100,
+    })) {
       await redisClient.del(key);
       count++;
     }
@@ -41,7 +44,7 @@ const storage = multer.diskStorage({
 
     const userBucketPath = path.join(
       process.env.STORAGE_PATH,
-      req.user.bucketId
+      req.user.bucketId,
     );
     let uploadPath = userBucketPath;
 
@@ -73,7 +76,7 @@ router.post("/trash/restore-all", auth, async (req, res) => {
 
     const updateResult = await File.updateMany(
       { userId: userId, isTrashed: true },
-      { $set: { isTrashed: false, trashedAt: null } }
+      { $set: { isTrashed: false, trashedAt: null } },
     );
 
     if (req.redisClient) {
@@ -128,7 +131,7 @@ async function getDisplayPath(fileDoc, FolderModel) {
     } catch (error) {
       console.error(
         `Error fetching folder ${currentFolderId} for path construction:`,
-        error
+        error,
       );
       pathParts.unshift("[Error Fetching Path]");
       currentFolderId = null;
@@ -161,7 +164,7 @@ router.post("/trash/empty", auth, async (req, res) => {
         await fs.remove(file.path);
       } else {
         console.warn(
-          `File path ${file.path} not found for file ID ${file._id} during empty trash. Record will still be deleted.`
+          `File path ${file.path} not found for file ID ${file._id} during empty trash. Record will still be deleted.`,
         );
       }
 
@@ -186,7 +189,7 @@ router.post("/trash/empty", auth, async (req, res) => {
         } catch (redisError) {
           console.error(
             `Redis: Error invalidating user cache for ${userId} after empty trash:`,
-            redisError
+            redisError,
           );
         }
       }
@@ -222,12 +225,10 @@ router.delete("/:id/permanent", auth, async (req, res) => {
     }
 
     if (!file.isTrashed) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "File is not in trash. Please move it to trash before permanent deletion.",
-        });
+      return res.status(400).json({
+        message:
+          "File is not in trash. Please move it to trash before permanent deletion.",
+      });
     }
 
     // 1. Physically delete the file from storage
@@ -235,7 +236,7 @@ router.delete("/:id/permanent", auth, async (req, res) => {
       await fs.remove(file.path);
     } else {
       console.warn(
-        `File path ${file.path} not found for file ID ${file._id} during permanent delete. Record will still be deleted.`
+        `File path ${file.path} not found for file ID ${file._id} during permanent delete. Record will still be deleted.`,
       );
     }
 
@@ -254,7 +255,7 @@ router.delete("/:id/permanent", auth, async (req, res) => {
         } catch (redisError) {
           console.error(
             `Redis: Error invalidating user cache for ${req.user._id} after permanent delete:`,
-            redisError
+            redisError,
           );
         }
       }
@@ -304,7 +305,7 @@ router.get("/trash", auth, async (req, res) => {
           : { ...fileDoc };
         fileObject.displayPath = displayPath;
         return fileObject;
-      })
+      }),
     );
 
     // Cache the result
@@ -312,7 +313,7 @@ router.get("/trash", auth, async (req, res) => {
       await req.redisClient.set(
         cacheKey,
         JSON.stringify(trashedFilesWithDisplayPath),
-        { EX: 300 }
+        { EX: 300 },
       );
     }
 
@@ -380,18 +381,16 @@ router.post(
       }
       // Adjust req.file access to req.files.file[0]
       if (!req.files || !req.files.file || !req.files.file[0]) {
-        return res
-          .status(400)
-          .json({
-            message: "No file uploaded or file processing error by middleware.",
-          });
+        return res.status(400).json({
+          message: "No file uploaded or file processing error by middleware.",
+        });
       }
 
       const mainFile = req.files.file[0]; // Convenience variable for the main file
 
       // Storage check
       const user = await User.findById(req.user._id).select(
-        "storageLimit storageUsed"
+        "storageLimit storageUsed",
       );
       if (!user) {
         // This should ideally not happen if user is authenticated
@@ -444,7 +443,7 @@ router.post(
         } catch (redisError) {
           console.error(
             `Redis: Error invalidating user cache for ${req.user._id} after upload:`,
-            redisError
+            redisError,
           );
         }
       }
@@ -488,7 +487,7 @@ router.post(
       }
       res.status(500).json({ message: "Server error during file upload." });
     }
-  }
+  },
 );
 
 // Get all files
@@ -563,7 +562,9 @@ router.get("/", auth, async (req, res) => {
 
     // Cache files data
     if (req.redisClient) {
-      await req.redisClient.set(cacheKey, JSON.stringify(responsePayload), { EX: 300 }); // Cache for 5 minutes
+      await req.redisClient.set(cacheKey, JSON.stringify(responsePayload), {
+        EX: 300,
+      }); // Cache for 5 minutes
     }
 
     res.json(responsePayload);
@@ -648,7 +649,7 @@ router.get("/:id/download", auth, async (req, res) => {
     // Set content disposition and send file
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${encodeURIComponent(file.name)}"`
+      `attachment; filename="${encodeURIComponent(file.name)}"`,
     );
     res.setHeader("Content-Type", file.type);
 
@@ -745,7 +746,8 @@ router.post("/:id/restore", auth, async (req, res) => {
       }
 
       // If restored to root, or was already in root, invalidate root file listing
-      if (file.folderId === null) { // This covers both cases: moved to root or was already root
+      if (file.folderId === null) {
+        // This covers both cases: moved to root or was already root
         await req.redisClient.del(`files:${req.user._id}:root`);
       }
 
@@ -760,9 +762,13 @@ router.post("/:id/restore", auth, async (req, res) => {
     }
 
     res.json({
-      message: "File restored successfully" + (restoredToRoot ? " to root folder as original parent was unavailable." : "."),
+      message:
+        "File restored successfully" +
+        (restoredToRoot
+          ? " to root folder as original parent was unavailable."
+          : "."),
       file: file, // Send back the updated file document
-      restoredToRoot: restoredToRoot
+      restoredToRoot: restoredToRoot,
     });
   } catch (error) {
     console.error("Error restoring file:", error);

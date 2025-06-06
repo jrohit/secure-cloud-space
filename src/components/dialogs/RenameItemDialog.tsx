@@ -1,4 +1,4 @@
-import * as React from 'react';
+import * as React from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,16 +6,16 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/components/ui/use-toast';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
 
 interface RenameItemDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  itemType: 'file' | 'folder';
+  itemType: "file" | "folder";
   itemId: string; // Though not directly used in this component's logic, good for context
   currentName: string;
   onRenameSubmit: (newName: string) => Promise<void>;
@@ -28,7 +28,7 @@ const RenameItemDialog: React.FC<RenameItemDialogProps> = ({
   currentName,
   onRenameSubmit,
 }) => {
-  const [newName, setNewName] = React.useState('');
+  const [newName, setNewName] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
   const { toast } = useToast();
 
@@ -42,9 +42,9 @@ const RenameItemDialog: React.FC<RenameItemDialogProps> = ({
     e.preventDefault();
     if (!newName.trim()) {
       toast({
-        title: 'Validation Error',
-        description: 'Name cannot be empty.',
-        variant: 'destructive',
+        title: "Validation Error",
+        description: "Name cannot be empty.",
+        variant: "destructive",
       });
       return;
     }
@@ -93,7 +93,7 @@ const RenameItemDialog: React.FC<RenameItemDialogProps> = ({
               </Button>
             </DialogClose>
             <Button type="submit" disabled={isLoading || !newName.trim()}>
-              {isLoading ? 'Renaming...' : 'Rename'}
+              {isLoading ? "Renaming..." : "Rename"}
             </Button>
           </DialogFooter>
         </form>

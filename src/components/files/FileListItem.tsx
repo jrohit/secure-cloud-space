@@ -1,14 +1,18 @@
-import * as React from 'react';
-import { MyFileType } from '@/types';
-import { formatDistanceToNow } from 'date-fns';
-import { File as FileIconLucide, Image, FileText, Star, MoreVertical, Trash2 } from 'lucide-react'; // Added Trash2
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import * as React from "react";
+import { MyFileType } from "@/types";
+import { formatDistanceToNow } from "date-fns";
 import {
-  ContextMenu,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
-import ItemContextMenu from './ItemContextMenu'; // Assuming ItemContextMenu is in the same folder
+  File as FileIconLucide,
+  Image,
+  FileText,
+  Star,
+  MoreVertical,
+  Trash2,
+} from "lucide-react"; // Added Trash2
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
+import ItemContextMenu from "./ItemContextMenu"; // Assuming ItemContextMenu is in the same folder
 
 // Helper to format file size (consider moving to a utils file if used elsewhere)
 function formatFileSize(bytes: number): string {
@@ -43,10 +47,18 @@ interface FileListItemProps {
   file: MyFileType;
   onPreview: (file: MyFileType) => void;
   onStarToggle: (fileId: string, newIsStarred: boolean) => void;
-  onRename: (id: string, type: 'file' | 'folder', currentName: string) => void;
-  onOrganize: (id: string, type: 'file' | 'folder', currentParentId: string | null) => void;
-  onDelete: (id: string, type: 'file' | 'folder') => void;
-  onDownloadFile: (fileId: string, fileName: string, originalFileType: string) => void;
+  onRename: (id: string, type: "file" | "folder", currentName: string) => void;
+  onOrganize: (
+    id: string,
+    type: "file" | "folder",
+    currentParentId: string | null,
+  ) => void;
+  onDelete: (id: string, type: "file" | "folder") => void;
+  onDownloadFile: (
+    fileId: string,
+    fileName: string,
+    originalFileType: string,
+  ) => void;
   currentParentId: string | null;
 }
 
@@ -71,10 +83,18 @@ const FileListItem: React.FC<FileListItemProps> = ({
           onClick={() => onPreview(file)} // Main click action for preview
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onPreview(file); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") onPreview(file);
+          }}
         >
-          <FileDisplayIcon className={cn("h-6 w-6 mr-3 flex-shrink-0", fileColorClassName)} /> {/* Apply color class */}
-          <span className="text-sm font-medium truncate flex-grow min-w-0" title={file.name}>
+          <FileDisplayIcon
+            className={cn("h-6 w-6 mr-3 flex-shrink-0", fileColorClassName)}
+          />{" "}
+          {/* Apply color class */}
+          <span
+            className="text-sm font-medium truncate flex-grow min-w-0"
+            title={file.name}
+          >
             {file.name}
           </span>
           <span className="text-xs text-muted-foreground mx-4 hidden sm:block flex-shrink-0">
@@ -82,20 +102,37 @@ const FileListItem: React.FC<FileListItemProps> = ({
           </span>
           {/* Added console.log for debugging updatedAt */}
           <span className="text-xs text-muted-foreground mr-4 hidden md:block flex-shrink-0">
-            Modified {console.log('FileListItem updatedAt:', file.updatedAt, 'typeof:', typeof file.updatedAt)}
-            {file.updatedAt ? formatDistanceToNow(new Date(file.updatedAt), { addSuffix: true }) : 'Unknown date'}
+            Modified{" "}
+            {console.log(
+              "FileListItem updatedAt:",
+              file.updatedAt,
+              "typeof:",
+              typeof file.updatedAt,
+            )}
+            {file.updatedAt
+              ? formatDistanceToNow(new Date(file.updatedAt), {
+                  addSuffix: true,
+                })
+              : "Unknown date"}
           </span>
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8 mr-1 flex-shrink-0", file.isStarred ? "text-yellow-400 hover:text-yellow-500" : "text-muted-foreground hover:text-yellow-400")}
+            className={cn(
+              "h-8 w-8 mr-1 flex-shrink-0",
+              file.isStarred
+                ? "text-yellow-400 hover:text-yellow-500"
+                : "text-muted-foreground hover:text-yellow-400",
+            )}
             onClick={(e) => {
               e.stopPropagation(); // Prevent row click when starring
               onStarToggle(file._id, !file.isStarred);
             }}
             aria-label={file.isStarred ? "Unstar file" : "Star file"}
           >
-            <Star className={cn("h-5 w-5", file.isStarred && "fill-yellow-400")} />
+            <Star
+              className={cn("h-5 w-5", file.isStarred && "fill-yellow-400")}
+            />
           </Button>
           <Button
             variant="ghost"
@@ -103,7 +140,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
             className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive delete-list-item-button" // Added class
             onClick={(e) => {
               e.stopPropagation(); // Prevent row click
-              onDelete(file._id, 'file');
+              onDelete(file._id, "file");
             }}
             aria-label={`Delete ${file.name}`}
           >
@@ -121,7 +158,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
         onRename={onRename}
         onOrganize={onOrganize}
         onDownload={(itemId, itemName, itemTypeConstant) => {
-          if (itemTypeConstant === 'file') {
+          if (itemTypeConstant === "file") {
             onDownloadFile(itemId, itemName, file.type);
           }
         }}

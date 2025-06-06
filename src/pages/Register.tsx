@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,7 +12,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/Spinner";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 const Register = () => {
   const [name, setName] = useState("");
@@ -40,9 +46,9 @@ const Register = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validatePasswords()) return;
-    
+
     setIsSubmitting(true);
 
     try {
@@ -61,14 +67,14 @@ const Register = () => {
       // 5. Encrypt the master key
       const encryptedMasterKeyData = await encryptMasterKey(
         masterKeyArrayBuffer,
-        kek
+        kek,
       );
 
       // 6. Convert salt, iv, and ciphertext to base64 strings
       const saltBase64 = arrayBufferToBase64(salt);
       const ivBase64 = arrayBufferToBase64(encryptedMasterKeyData.iv);
       const ciphertextBase64 = arrayBufferToBase64(
-        encryptedMasterKeyData.ciphertext
+        encryptedMasterKeyData.ciphertext,
       );
 
       // 7. Concatenate the base64 strings
@@ -146,7 +152,10 @@ const Register = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="confirm-password" className="text-sm font-medium">
+                <label
+                  htmlFor="confirm-password"
+                  className="text-sm font-medium"
+                >
                   Confirm Password
                 </label>
                 <Input

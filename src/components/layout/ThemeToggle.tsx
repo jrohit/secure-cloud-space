@@ -1,7 +1,7 @@
-import * as React from 'react';
-import { Moon, Sun } from 'lucide-react';
-import { useTheme } from '@/contexts/ThemeContext';
-import { Button } from '@/components/ui/button';
+import * as React from "react";
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
+import { Button } from "@/components/ui/button";
 
 export const ThemeToggle: React.FC = () => {
   const { theme, setTheme } = useTheme();
@@ -10,18 +10,23 @@ export const ThemeToggle: React.FC = () => {
   const [effectiveTheme, setEffectiveTheme] = React.useState(theme);
 
   React.useEffect(() => {
-    if (theme === 'system') {
-      setEffectiveTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    if (theme === "system") {
+      setEffectiveTheme(
+        window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light",
+      );
     } else {
       setEffectiveTheme(theme);
     }
 
     // Listener for system theme changes to update the icon when theme is 'system'
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      const handleChange = () => setEffectiveTheme(mediaQuery.matches ? 'dark' : 'light');
-      mediaQuery.addEventListener('change', handleChange);
-      return () => mediaQuery.removeEventListener('change', handleChange);
+    if (theme === "system") {
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const handleChange = () =>
+        setEffectiveTheme(mediaQuery.matches ? "dark" : "light");
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
     }
   }, [theme]);
 
@@ -29,10 +34,10 @@ export const ThemeToggle: React.FC = () => {
     // If current theme is 'system', toggling should switch to 'light' or 'dark' explicitly.
     // Or, if we want to cycle through 'light' -> 'dark' -> 'system', the logic would be different.
     // For a simple light/dark toggle that can override 'system':
-    if (effectiveTheme === 'light') {
-      setTheme('dark');
+    if (effectiveTheme === "light") {
+      setTheme("dark");
     } else {
-      setTheme('light');
+      setTheme("light");
     }
   };
 
@@ -43,7 +48,7 @@ export const ThemeToggle: React.FC = () => {
       onClick={toggleTheme}
       aria-label="Toggle theme"
     >
-      {effectiveTheme === 'dark' ? (
+      {effectiveTheme === "dark" ? (
         <Sun className="h-[1.2rem] w-[1.2rem]" />
       ) : (
         <Moon className="h-[1.2rem] w-[1.2rem]" />
