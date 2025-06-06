@@ -607,7 +607,15 @@ const Dashboard = () => {
         setUploadProgress(Math.round((completedFiles / totalFiles) * 100));
       }
 
-      loadFilesAndFolders();
+      // loadFilesAndFolders(); // Replaced by new logic below
+
+      if (currentPage === 1) {
+        setFiles([]);
+        setFolders([]);
+        loadFilesAndFolders();
+      } else {
+        setCurrentPage(1);
+      }
 
       toast({
         title: "Success",
@@ -1190,11 +1198,21 @@ const Dashboard = () => {
         title: "Folder Upload Complete",
         description: `Successfully uploaded ${totalFilesToUploadInFolder} files.`,
       });
-      const refreshData = async () => { // Keep this async wrapper for await
-        if (refreshUserStorageInfo) { await refreshUserStorageInfo(); }
-        loadFilesAndFolders();
+
+      const finalRefreshTasks = async () => {
+          if (refreshUserStorageInfo) {
+              await refreshUserStorageInfo();
+          }
+          if (currentPage === 1) {
+              setFiles([]);
+              setFolders([]);
+              loadFilesAndFolders();
+          } else {
+              setCurrentPage(1);
+          }
       };
-      refreshData();
+      finalRefreshTasks();
+
     } else if (!isUploadingFolder && isProcessingFolderQueue.current) {
       // Catch-all: if uploading was stopped externally but lock was somehow still true
       isProcessingFolderQueue.current = false;
