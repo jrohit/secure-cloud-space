@@ -6,6 +6,7 @@ import FilesEmptyState from "@/components/files/FilesEmptyState";
 import FilesToolbar from "@/components/files/FilesToolbar";
 import FilePreviewDialog from "@/components/previews/FilePreviewDialog";
 import { Spinner } from "@/components/ui/Spinner";
+import { Progress } from "@/components/ui/progress"; // Added for folder upload progress
 import { ToastAction } from "@/components/ui/toast"; // Added
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +20,8 @@ import throttle from 'lodash/throttle';
 
 // Cache for decrypted file previews
 const decryptedFileCache = new Map<string, ArrayBuffer>();
+// Cache for folder IDs: 'parentId_or_root/folderName' -> folderId
+const folderCache = new Map<string, string>();
 
 // Helper function for MIME type inference
 const getAccurateMimeType = (file: globalThis.File): string => {
@@ -98,6 +101,11 @@ function formatBytes(bytes: number, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+interface ProcessedFile {
+  file: globalThis.File; // Use globalThis.File to avoid conflict with local File type
+  relativePath: string;
+}
+
 const Dashboard = () => {
   const { user, token, getMasterCryptoKey, refreshUserStorageInfo } = useAuth(); // Added refreshUserStorageInfo
   const { toast } = useToast();
@@ -143,6 +151,13 @@ const Dashboard = () => {
   const [availableFoldersForMove, setAvailableFoldersForMove] = useState<Folder[]>([]); // Added for Organize
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card'); // Added for View Toggle
   // Removed isToolbarSticky, toolbarHeight, toolbarRef, STICKY_THRESHOLD as CSS sticky will be used
+
+  // State for folder upload queue and progress
+  const [folderUploadQueue, setFolderUploadQueue] = useState<ProcessedFile[]>([]);
+  const [isUploadingFolder, setIsUploadingFolder] = useState<boolean>(false);
+  const [currentUploadingFolderFile, setCurrentUploadingFolderFile] = useState<string | null>(null);
+  const [processedFolderFilesCount, setProcessedFolderFilesCount] = useState<number>(0);
+  const [totalFilesToUploadInFolder, setTotalFilesToUploadInFolder] = useState<number>(0);
 
   // Effect for initial load and when context changes (folder, search)
   useEffect(() => {
@@ -408,6 +423,14 @@ const Dashboard = () => {
   };
 
   const handleUploadFiles = async (filesList: FileList) => {
+    if (isUploadingFolder) {
+      toast({
+        title: "Folder Upload in Progress",
+        description: "Please wait for the folder upload to complete before uploading individual files.",
+        variant: "destructive",
+      });
+      return;
+    }
     const filesArray = Array.from(filesList); // Changed variable name for clarity
     if (!token) {
       // Check for token first
@@ -858,6 +881,221 @@ const Dashboard = () => {
     }
   };
 
+  const handleUploadFolder = (filesList: FileList) => {
+    folderCache.clear(); // Clear folder cache at the start of a new folder upload
+    if (isUploading || isUploadingFolder) {
+      toast({
+        title: "Upload in Progress",
+        description: "Please wait for the current upload to complete before starting another.",
+        variant: "destructive",
+      });
+      return;
+    }
+    console.log("Folder selected, raw FileList:", filesList);
+
+    const processedFiles: ProcessedFile[] = [];
+    if (filesList) {
+      for (let i = 0; i < filesList.length; i++) {
+        const file = filesList[i];
+        // Ensure webkitRelativePath exists and is a string
+        // Ensure it's File from global scope for webkitRelativePath
+        const globalFile = file as unknown as { webkitRelativePath?: string, name: string, size: number, type: string };
+
+        if (typeof globalFile.webkitRelativePath === 'string' && globalFile.webkitRelativePath) {
+          processedFiles.push({
+            file: file as globalThis.File, // Cast back to globalThis.File for the object
+            relativePath: globalFile.webkitRelativePath,
+          });
+        } else {
+          console.warn("File without webkitRelativePath encountered:", globalFile.name);
+          processedFiles.push({
+            file: file as globalThis.File,
+            relativePath: globalFile.name, // Fallback
+          });
+        }
+      }
+    }
+
+    console.log("Processed files for folder upload:", processedFiles);
+
+    if (processedFiles.length > 0) {
+      let totalSizeNeededForFolder = 0;
+      for (const pf of processedFiles) {
+        totalSizeNeededForFolder += pf.file.size;
+      }
+
+      if (user && typeof user.storageLimit === 'number' && typeof user.storageUsed === 'number') {
+        if (user.storageUsed + totalSizeNeededForFolder > user.storageLimit) {
+          toast({
+            title: "Insufficient Storage for Folder",
+            description: `The selected folder (${formatBytes(totalSizeNeededForFolder)}) exceeds your available storage (${formatBytes(user.storageLimit - user.storageUsed)}). Please upgrade your plan or free up space.`,
+            variant: "destructive",
+            duration: 9000,
+            action: (<ToastAction altText="Upgrade" onClick={() => setIsUpgradeStorageDialogOpen(true)}> Upgrade Storage </ToastAction>),
+          });
+          return;
+        }
+      } else {
+        console.warn("User storage information not available for client-side folder quota check. Proceeding with upload, backend will verify.");
+      }
+
+      setFolderUploadQueue(processedFiles);
+      setTotalFilesToUploadInFolder(processedFiles.length);
+      setProcessedFolderFilesCount(0);
+      setCurrentUploadingFolderFile(null);
+      setIsUploadingFolder(true); // This will trigger the useEffect
+
+      toast({
+        title: "Folder Upload Starting (Simulated)",
+        description: `Preparing to "upload" ${processedFiles.length} files.`,
+      });
+    } else {
+      setIsUploadingFolder(false); // Ensure this is reset if no files
+      toast({
+        title: "Empty Folder or No Files",
+        description: "The selected folder is empty or no files could be processed.",
+        variant: "default"
+      });
+    }
+  };
+
+  useEffect(() => {
+    async function ensureFolderPathExists(
+      relativePath: string, // e.g., "Photos/Summer/Beach" (folder path part only)
+      initialParentId: string | null,
+      token: string, // Token must be passed in
+      toastFn: typeof toast // Pass the toast function
+    ): Promise<string | null> {
+      let currentParentId = initialParentId;
+      if (!relativePath) return currentParentId; // No path to create, return initial parent
+
+      const pathSegments = relativePath.split('/').filter(segment => segment.trim() !== '');
+
+      for (const segment of pathSegments) {
+        const cacheKey = `${currentParentId || 'root'}/${segment}`;
+        if (folderCache.has(cacheKey)) {
+          currentParentId = folderCache.get(cacheKey)!;
+          continue;
+        }
+        try {
+          // console.log(`[ensureFolderPathExists] Creating folder: ${segment} under parent: ${currentParentId}`);
+          const newFolder = await foldersApi.createFolder(token, segment, currentParentId);
+          folderCache.set(cacheKey, newFolder._id);
+          currentParentId = newFolder._id;
+        } catch (error: any) {
+          console.error(`[ensureFolderPathExists] Error creating folder ${segment} under ${currentParentId}:`, error);
+          toastFn({ // Use the passed toast function
+            title: "Folder Creation Error",
+            description: `Failed to create part of folder structure: ${segment}. Error: ${error.message || 'Unknown error'}`,
+            variant: "destructive",
+          });
+          return null; // Stop if any part of the path fails
+        }
+      }
+      return currentParentId;
+    }
+
+    const processNextFileInQueue = async () => {
+      if (!isUploadingFolder || folderUploadQueue.length === 0 || !token) {
+        if (isUploadingFolder && folderUploadQueue.length === 0 && totalFilesToUploadInFolder > 0 && processedFolderFilesCount === totalFilesToUploadInFolder) {
+             // All files in the folder have been processed
+            setIsUploadingFolder(false);
+            setCurrentUploadingFolderFile(null);
+            toast({
+              title: "Folder Upload Complete",
+              description: `Successfully uploaded ${totalFilesToUploadInFolder} files.`,
+            });
+            loadFilesAndFolders(); // Refresh file list
+            if (refreshUserStorageInfo) { // Refresh storage info if all files done
+                await refreshUserStorageInfo();
+            }
+        }
+        return;
+      }
+
+      const nextFileToProcess = folderUploadQueue[0];
+      setCurrentUploadingFolderFile(nextFileToProcess.relativePath);
+      const { file, relativePath } = nextFileToProcess;
+
+      try {
+        console.log(`[Folder Upload] Starting to process: ${relativePath}`);
+        const pathParts = relativePath.split('/');
+        pathParts.pop(); // Remove filename to get parent path
+        const fileParentPath = pathParts.join('/');
+
+        const targetFolderId = await ensureFolderPathExists(fileParentPath, currentFolder?._id || null, token, toast);
+
+        if (targetFolderId === undefined) { // Check for undefined explicitly if ensureFolderPathExists can return it on root.
+                                          // For now, it returns null on error or the ID.
+            // This case means it's the root of the upload (currentFolder or actual root)
+            // ensureFolderPathExists would return initialParentId if relativePath is empty
+        }
+
+        if (targetFolderId === null && fileParentPath !== "") { // Folder creation failed and it wasn't meant for the root
+          toast({ title: "Upload Error", description: `Failed to establish folder path for ${relativePath}. Stopping folder upload.`, variant: "destructive" });
+          setIsUploadingFolder(false);
+          setFolderUploadQueue([]);
+          return;
+        }
+
+        if (user && typeof user.storageLimit === 'number' && typeof user.storageUsed === 'number') {
+          if (user.storageUsed + file.size > user.storageLimit) {
+            toast({
+              title: "Insufficient Storage",
+              description: `Cannot upload ${file.name}. Required: ${formatBytes(file.size)}, Available: ${formatBytes(user.storageLimit - user.storageUsed)}. Stopping folder upload.`,
+              variant: "destructive",
+              action: (<ToastAction altText="Upgrade" onClick={() => setIsUpgradeStorageDialogOpen(true)}> Upgrade Storage </ToastAction>),
+            });
+            setIsUploadingFolder(false);
+            setFolderUploadQueue([]);
+            return;
+          }
+        }
+
+        const cryptoKey = await getMasterCryptoKey();
+        if (!cryptoKey) {
+          toast({ title: "Upload Error", description: "Encryption key not available. Stopping folder upload.", variant: "destructive" });
+          setIsUploadingFolder(false);
+          setFolderUploadQueue([]);
+          return;
+        }
+
+        const originalMimeType = getAccurateMimeType(file);
+        const fileReader = new FileReader();
+        const fileBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+          fileReader.onload = () => resolve(fileReader.result as ArrayBuffer);
+          fileReader.onerror = () => reject(fileReader.error);
+          fileReader.readAsArrayBuffer(file);
+        });
+
+        const { iv, ciphertext } = await encryptFile(fileBuffer, cryptoKey);
+        const encryptedBlob = new Blob([iv, ciphertext]);
+
+        // Use targetFolderId from ensureFolderPathExists, which could be the initialParentId if fileParentPath was empty
+        await filesApi.uploadFile(token!, encryptedBlob, file.name, originalMimeType, targetFolderId);
+
+        // Successfully uploaded this file
+        setFolderUploadQueue(prevQueue => prevQueue.slice(1));
+        setProcessedFolderFilesCount(prevCount => prevCount + 1);
+         if (refreshUserStorageInfo) { // Refresh storage after each file for more immediate feedback
+            await refreshUserStorageInfo();
+        }
+        console.log(`[Folder Upload] Completed processing: ${relativePath}`);
+
+      } catch (error: any) {
+        console.error(`[Folder Upload] Error processing file ${relativePath}:`, error);
+        toast({ title: "Upload Failed", description: `Could not upload file: ${file.name}. Error: ${error.message}`, variant: "destructive" });
+        setIsUploadingFolder(false);
+        setFolderUploadQueue([]);
+        return;
+      }
+    };
+
+    processNextFileInQueue();
+
+  }, [isUploadingFolder, folderUploadQueue, totalFilesToUploadInFolder, token, currentFolder, getMasterCryptoKey, refreshUserStorageInfo, toast, user]);
+
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between">
@@ -877,7 +1115,9 @@ const Dashboard = () => {
         onNavigateUp={handleNavigateUp}
         onCreateFolder={handleCreateFolder}
         onUploadFiles={handleUploadFiles}
+        onUploadFolder={handleUploadFolder}
         isUploading={isUploading}
+        isUploadingFolder={isUploadingFolder} // Pass this down
         uploadProgress={uploadProgress}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
@@ -895,6 +1135,15 @@ const Dashboard = () => {
         viewMode={viewMode} // Pass viewMode
         onViewModeChange={setViewMode} // Pass handler
       />
+
+      {isUploadingFolder && (
+        <div className="mt-4 p-4 border rounded-lg space-y-2">
+          <h4 className="font-semibold">Uploading Folder...</h4>
+          {currentUploadingFolderFile && <p className="text-sm">Current file: {currentUploadingFolderFile}</p>}
+          <p className="text-sm">Progress: {processedFolderFilesCount} / {totalFilesToUploadInFolder} files</p>
+          <Progress value={(processedFolderFilesCount / totalFilesToUploadInFolder) * 100} className="h-2" />
+        </div>
+      )}
 
       <div className="flex-1 overflow-auto">
         {loading ? (

@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Folder as FolderType } from "@/types"; // Already aliased as FolderType
-import { ArrowUp, FolderPlus, LayoutGrid, List, Upload } from "lucide-react"; // Added icons
+import { ArrowUp, FolderPlus, LayoutGrid, List, Upload, FolderUp } from "lucide-react"; // Added icons
 import React, { forwardRef, useEffect, useRef, useState } from "react";
 
 interface FilesToolbarProps {
@@ -19,7 +19,9 @@ interface FilesToolbarProps {
   onNavigateUp: () => void;
   onCreateFolder: (name: string) => void;
   onUploadFiles: (files: FileList) => void;
+  onUploadFolder: (files: FileList) => void;
   isUploading: boolean;
+  isUploadingFolder?: boolean;
   uploadProgress: number;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
@@ -37,7 +39,9 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
       onNavigateUp,
       onCreateFolder,
       onUploadFiles,
+      onUploadFolder,
       isUploading,
+      isUploadingFolder,
       uploadProgress,
       searchQuery,
       onSearchQueryChange,
@@ -69,6 +73,7 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
     }, [localSearchQuery]); // Added dependencies based on usage
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const folderInputRef = useRef<HTMLInputElement>(null);
 
     const handleCreateFolder = () => {
       if (folderName.trim()) {
@@ -192,14 +197,37 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
             onChange={handleFileUpload}
             accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,application/pdf,text/plain,text/markdown,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/heic,image/heif,.heic,.heif"
           />
+          <input
+            type="file"
+            className="hidden"
+            ref={folderInputRef}
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                onUploadFolder(e.target.files);
+                e.target.value = ""; // Clear the input
+              }
+            }}
+            webkitdirectory=""
+            directory=""
+            multiple
+          />
           <Button
             variant="outline"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
+            disabled={isUploading || isUploadingFolder}
           >
             <Upload className="h-4 w-4 mr-2" />
             Upload Files
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => folderInputRef.current?.click()}
+            disabled={isUploading || isUploadingFolder}
+          >
+            <FolderUp className="h-4 w-4 mr-2" />
+            Upload Folder
           </Button>
           {/* View Mode Toggles */}
           <div className="flex items-center gap-1 ml-auto">
