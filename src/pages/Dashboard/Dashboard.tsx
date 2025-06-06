@@ -91,6 +91,30 @@ const getAccurateMimeType = (file: globalThis.File): string => {
   return browserType || "application/octet-stream";
 };
 
+const getMimeTypeExtension = (mimeType: string): string | null => {
+  const defaultExtensions: { [key: string]: string } = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'application/pdf': '.pdf',
+    'text/plain': '.txt',
+    'text/markdown': '.md',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.ms-powerpoint': '.ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    'video/mp4': '.mp4',
+    'video/webm': '.webm',
+    'audio/mpeg': '.mp3',
+    'audio/ogg': '.ogg',
+    'application/zip': '.zip',
+    // Add more as needed
+  };
+  return defaultExtensions[mimeType.toLowerCase()] || null;
+};
+
 // Simple formatBytes helper (can be placed outside component or in a utils file)
 function formatBytes(bytes: number, decimals = 2) {
   if (bytes === 0) return '0 Bytes';
@@ -245,10 +269,21 @@ const Dashboard = () => {
 
       const decryptedBlob = new Blob([decryptedBuffer], { type: originalFileType });
 
+      let finalFileName = fileName;
+      const nameParts = fileName.split('.');
+      const currentExtension = nameParts.length > 1 ? `.${nameParts.pop()?.toLowerCase()}` : null;
+      let expectedExtension = getMimeTypeExtension(originalFileType);
+
+      if (expectedExtension && (!currentExtension || currentExtension !== expectedExtension)) {
+        if (!currentExtension) {
+          finalFileName = `${fileName}${expectedExtension}`;
+        }
+      }
+
       const url = URL.createObjectURL(decryptedBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = finalFileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
