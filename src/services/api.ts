@@ -87,6 +87,7 @@ export const filesApi = {
     if (limit !== undefined) {
       params.append('limit', limit.toString());
     }
+    params.append('_cb', Date.now().toString()); // Cache buster
     const queryString = params.toString();
     const url = `${API_URL}/files${queryString ? `?${queryString}` : ''}`;
     
@@ -232,6 +233,7 @@ export const foldersApi = {
     if (parentId) {
         params.append('parentId', parentId);
     }
+    params.append('_cb', Date.now().toString()); // Cache buster
     const queryString = params.toString();
     const url = `${API_URL}/folders${queryString ? `?${queryString}` : ''}`;
     
