@@ -259,10 +259,26 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     }
 
     if (fileType.startsWith("image/") && imageUrl) {
+      const imageStyle: React.CSSProperties = {
+        transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`,
+        cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+        transition: 'transform 0.15s ease-out', // Matches Tailwind class duration-150
+      };
+
+      if (scale === 1) {
+        imageStyle.width = '100%';
+        imageStyle.height = '100%';
+        // object-contain will use these to fit the image within the container
+      } else {
+        // When zoomed, allow the image's scaled dimensions to be its natural size * scale
+        imageStyle.maxWidth = 'none';
+        imageStyle.maxHeight = 'none';
+      }
+
       return (
         <div
           ref={imageContainerRef}
-          className="w-full h-full overflow-hidden cursor-grab"
+          className="w-full h-full overflow-hidden" // Removed cursor-grab from here, it's on imageStyle
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -272,13 +288,8 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
             ref={imageRef}
             src={imageUrl}
             alt={fileName}
-            className="object-contain transition-transform duration-150 ease-out"
-            style={{
-              transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`,
-              maxWidth: 'none',
-              maxHeight: 'none',
-              cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
-            }}
+            className="object-contain" // Removed transition-transform, it's in style now
+            style={imageStyle}
             draggable="false"
           />
         </div>
