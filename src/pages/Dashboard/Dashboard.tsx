@@ -796,94 +796,148 @@ const Dashboard = () => {
 
   const handleDeleteFile = async (fileId: string) => {
     if (!token) return;
-    scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0; // Store scroll position
-    setDeleteOpId(Date.now()); // Signal delete operation
+    scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0;
+    setDeleteOpId(Date.now());
+
+    const fileToDelete = files.find(f => f._id === fileId);
+    if (!fileToDelete) {
+      console.error("File not found for optimistic delete:", fileId);
+      setDeleteOpId(null);
+      return;
+    }
+
+    // Optimistic update
+    setFiles(prevFiles => prevFiles.filter(f => f._id !== fileId));
+    setTotalFilesCount(prevCount => {
+      const newTotalCount = prevCount - 1;
+      setTotalFilePages(Math.ceil(newTotalCount / itemsPerPage));
+      return newTotalCount;
+    });
 
     try {
       await filesApi.trashFile(token, fileId);
       toast({
         title: "Success",
-        description: "File moved to trash.", // Updated message
+        description: `File "${fileToDelete.name}" moved to trash.`,
       });
-
       if (refreshUserStorageInfo) {
         await refreshUserStorageInfo();
       }
-      setFiles([]);
-      setFolders([]);
-      setCurrentPage(1);
-      loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
+      // Data consistency checks or refetching specific page can be added here if needed
     } catch (error) {
-      console.error("Error moving file to trash:", error);
-      setDeleteOpId(null); // Clear delete signal on error if needed
+      console.error(`Error moving file "${fileToDelete.name}" to trash:`, error);
       toast({
         title: "Error",
-        description: "Failed to move file to trash",
+        description: `Failed to move file "${fileToDelete.name}" to trash. Restoring...`,
         variant: "destructive",
       });
+      // Revert optimistic update
+      setFiles(prevFiles => [...prevFiles, fileToDelete].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())); // Example sort, adjust as needed
+      setTotalFilesCount(prevCount => {
+        const newTotalCount = prevCount + 1;
+        setTotalFilePages(Math.ceil(newTotalCount / itemsPerPage));
+        return newTotalCount;
+      });
+      setDeleteOpId(null);
     }
   };
 
   const handleDeleteFilePermanently = async (fileId: string) => {
     if (!token) return;
-    scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0; // Store scroll position
-    setDeleteOpId(Date.now()); // Signal delete operation
+    // Note: Permanent delete is often not done optimistically due to its destructive nature,
+    // but for consistency with the request, we'll implement it similarly.
+    // A modal confirmation is highly recommended before this function is even called.
+
+    scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0;
+    setDeleteOpId(Date.now());
+
+    const fileToDelete = files.find(f => f._id === fileId);
+    if (!fileToDelete) {
+      console.error("File not found for optimistic permanent delete:", fileId);
+      setDeleteOpId(null);
+      return;
+    }
+
+    // Optimistic update (assuming it's from a view like "Trash" where it's already "soft-deleted")
+    setFiles(prevFiles => prevFiles.filter(f => f._id !== fileId));
+    // totalFilesCount might not need adjustment if this view is separate (e.g. Trash view)
+    // For now, let's assume it does if it's part of the main file list count.
+    // If this function is only called from a "Trash" view, totalFilesCount might not be relevant here.
+    // However, refreshUserStorageInfo() will update the true count from backend.
 
     try {
       await filesApi.deleteFilePermanently(token, fileId);
       toast({
         title: "Success",
-        description: "File permanently deleted.",
+        description: `File "${fileToDelete.name}" permanently deleted.`,
+      });
+      if (refreshUserStorageInfo) {
+        await refreshUserStorageInfo(); // This will fetch the correct storage usage.
+      }
+      // No need to manually adjust totalFilesCount here if refreshUserStorageInfo updates it,
+      // or if this view doesn't rely on that specific count.
+      // For now, we'll assume the file was part of the countable files and adjust.
+      setTotalFilesCount(prevCount => {
+        const newTotalCount = prevCount - 1;
+        setTotalFilePages(Math.ceil(newTotalCount / itemsPerPage));
+        return newTotalCount;
       });
 
-      if (refreshUserStorageInfo) {
-        await refreshUserStorageInfo();
-      }
-      setFiles([]);
-      setFolders([]);
-      setCurrentPage(1);
-      loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
+
     } catch (error) {
-      console.error("Error permanently deleting file:", error);
-      setDeleteOpId(null); // Clear delete signal on error if needed
+      console.error(`Error permanently deleting file "${fileToDelete.name}":`, error);
       toast({
         title: "Error",
-        description: `Failed to permanently delete file. ${
-          error instanceof Error ? error.message : ""
-        }`,
+        description: `Failed to permanently delete file "${fileToDelete.name}". Restoring...`,
         variant: "destructive",
+      });
+      setFiles(prevFiles => [...prevFiles, fileToDelete].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setDeleteOpId(null);
+      // Revert totalFilesCount if it was optimistically changed for this view
+      setTotalFilesCount(prevCount => {
+        const newTotalCount = prevCount + 1;
+        setTotalFilePages(Math.ceil(newTotalCount / itemsPerPage));
+        return newTotalCount;
       });
     }
   };
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!token) return;
-    scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0; // Store scroll position
-    setDeleteOpId(Date.now()); // Signal delete operation
+    scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0;
+    setDeleteOpId(Date.now());
+
+    const folderToDelete = folders.find(f => f._id === folderId);
+    if (!folderToDelete) {
+      console.error("Folder not found for optimistic delete:", folderId);
+      setDeleteOpId(null);
+      return;
+    }
+
+    // Optimistic update
+    setFolders(prevFolders => prevFolders.filter(f => f._id !== folderId));
+    // Note: Folders themselves don't affect totalFilesCount in the current setup.
+    // If they did, or if there was a totalFoldersCount, it would be updated here.
 
     try {
       await foldersApi.deleteFolder(token, folderId);
-      // setFolders((prev) => prev.filter((folder) => folder._id !== folderId)); // Optimistic update removed
       toast({
         title: "Success",
-        description: "Folder and its contents moved to trash", // MODIFIED
+        description: `Folder "${folderToDelete.name}" and its contents moved to trash.`,
       });
-
       if (refreshUserStorageInfo) {
-        await refreshUserStorageInfo();
+        await refreshUserStorageInfo(); // This will also update storage used by deleting folder contents.
       }
-      setFiles([]);
-      setFolders([]);
-      setCurrentPage(1);
-      loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
     } catch (error) {
-      console.error("Error moving folder to trash:", error); // MODIFIED
-      setDeleteOpId(null); // Clear delete signal on error if needed
+      console.error(`Error moving folder "${folderToDelete.name}" to trash:`, error);
       toast({
         title: "Error",
-        description: "Failed to move folder to trash", // MODIFIED
+        description: `Failed to move folder "${folderToDelete.name}" to trash. Restoring...`,
         variant: "destructive",
       });
+      // Revert optimistic update
+      setFolders(prevFolders => [...prevFolders, folderToDelete].sort((a,b) => a.name.localeCompare(b.name))); // Example sort
+      setDeleteOpId(null);
     }
   };
 

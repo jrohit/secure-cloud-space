@@ -9,8 +9,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/Spinner"; // Assuming you have a Spinner component
+import { Button } from "@/components/ui/button"; // Added for zoom controls
 import { marked } from "marked";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RefreshCcw } from "lucide-react"; // Added zoom icons
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
@@ -51,6 +52,55 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
   const [pdfObjectUrl, setPdfObjectUrl] = useState<string | null>(null);
   const pdfObjectUrlRef = useRef<string | null>(null);
 
+  // State for zoom and pan
+  const [scale, setScale] = useState<number>(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+
+  // Zoom handlers
+  const handleZoomIn = () => setScale(prevScale => Math.min(prevScale * 1.2, 5));
+  const handleZoomOut = () => setScale(prevScale => Math.max(prevScale / 1.2, 0.2));
+  const handleZoomReset = () => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  // Panning handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (scale <= 1) return; // Allow dragging only when zoomed
+    e.preventDefault(); // Prevent text selection or other default behaviors
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging || scale <= 1) return;
+    e.preventDefault();
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Effect to reset position when scale is 1 (or image changes)
+  useEffect(() => {
+    if (scale === 1) {
+      setPosition({ x: 0, y: 0 });
+    }
+  }, [scale, imageUrl]); // imageUrl dependency ensures reset for new images
+
+
   useEffect(() => {
     // Revoke old object URLs before creating new ones or if component is not open
     if (imageUrl && imageUrl.startsWith("blob:")) {
@@ -75,6 +125,7 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     setNumPdfPages(null);
     setPdfPageNumber(1);
     setPdfObjectUrl(null);
+    handleZoomReset(); // Reset zoom/pan when dialog opens or file changes
 
     if (!fileContent || !isOpen) {
       return;
@@ -209,11 +260,28 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
     if (fileType.startsWith("image/") && imageUrl) {
       return (
-        <img
-          src={imageUrl}
-          alt={fileName}
-          className="w-full h-full object-contain"
-        />
+        <div
+          ref={imageContainerRef}
+          className="w-full h-full overflow-hidden cursor-grab"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp} // Stop dragging if mouse leaves container
+        >
+          <img
+            ref={imageRef}
+            src={imageUrl}
+            alt={fileName}
+            className="object-contain transition-transform duration-150 ease-out"
+            style={{
+              transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`,
+              maxWidth: 'none',
+              maxHeight: 'none',
+              cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+            }}
+            draggable="false"
+          />
+        </div>
       );
     }
 
@@ -278,7 +346,8 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
               pageNumber={pdfPageNumber}
               renderTextLayer={true}
               renderAnnotationLayer={true}
-              width={window.innerWidth}
+              // width={window.innerWidth} // Removed to allow scale to dictate size
+              scale={scale} // Apply zoom scale
             />
           </Document>
           {numPdfPages && (
@@ -334,7 +403,26 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
           <DialogTitle className="truncate pr-6">{fileName}</DialogTitle>
           {/* <DialogDescription>Type: {fileType}</DialogDescription> */}
         </DialogHeader>
-        <div className="flex-grow overflow-auto">{renderContent()}</div>
+        <div className="flex-grow overflow-auto relative"> {/* Added relative for positioning zoom controls */}
+          {renderContent()}
+          {/* Zoom Controls */}
+          {(fileType.startsWith('image/') && imageUrl) || (fileType === 'application/pdf' && pdfObjectUrl) ? (
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 bg-background/70 backdrop-blur-sm p-2 rounded-lg shadow-lg flex items-center gap-1">
+              <Button variant="ghost" size="icon" onClick={handleZoomOut} aria-label="Zoom out">
+                <ZoomOut className="h-5 w-5" />
+              </Button>
+              <span className="text-sm text-foreground min-w-[45px] text-center tabular-nums">
+                {Math.round(scale * 100)}%
+              </span>
+              <Button variant="ghost" size="icon" onClick={handleZoomIn} aria-label="Zoom in">
+                <ZoomIn className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={handleZoomReset} aria-label="Reset zoom">
+                <RefreshCcw className="h-5 w-5" />
+              </Button>
+            </div>
+          ) : null}
+        </div>
         <DialogFooter>
           <button
             onClick={onClose}
