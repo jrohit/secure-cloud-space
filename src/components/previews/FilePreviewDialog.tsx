@@ -57,16 +57,21 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const previewAreaRef = useRef<HTMLDivElement | null>(null); // Ref for the main preview area
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
 
-  // Zoom handlers
-  const handleZoomIn = () => setScale(prevScale => Math.min(prevScale * 1.2, 5));
-  const handleZoomOut = () => setScale(prevScale => Math.max(prevScale / 1.2, 0.2));
-  const handleZoomReset = () => {
+  // Zoom handlers (memoized with useCallback)
+  const handleZoomIn = React.useCallback(() => setScale(prevScale => Math.min(prevScale * 1.1, 5)), []);
+  const handleZoomOut = React.useCallback(() => setScale(prevScale => Math.max(prevScale / 1.1, 0.2)), []);
+  const handleZoomReset = React.useCallback(() => {
     setScale(1);
     setPosition({ x: 0, y: 0 });
+  }, []);
+
+  // Panning handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
   };
 
   // Panning handlers
@@ -99,6 +104,34 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
       setPosition({ x: 0, y: 0 });
     }
   }, [scale, imageUrl]); // imageUrl dependency ensures reset for new images
+
+  // Effect for wheel zoom listener
+  useEffect(() => {
+    const currentPreviewArea = previewAreaRef.current;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (!((fileType.startsWith('image/') && imageUrl) || (fileType === 'application/pdf' && pdfObjectUrl))) {
+        return;
+      }
+
+      event.preventDefault();
+      if (event.deltaY < 0) {
+        handleZoomIn();
+      } else if (event.deltaY > 0) {
+        handleZoomOut();
+      }
+    };
+
+    if (currentPreviewArea && isOpen) {
+      currentPreviewArea.addEventListener('wheel', handleWheel, { passive: false });
+    }
+
+    return () => {
+      if (currentPreviewArea) {
+        currentPreviewArea.removeEventListener('wheel', handleWheel);
+      }
+    };
+  }, [isOpen, fileType, imageUrl, pdfObjectUrl, handleZoomIn, handleZoomOut]);
 
 
   useEffect(() => {
@@ -414,7 +447,7 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
           <DialogTitle className="truncate pr-6">{fileName}</DialogTitle>
           {/* <DialogDescription>Type: {fileType}</DialogDescription> */}
         </DialogHeader>
-        <div className="flex-grow overflow-auto relative"> {/* Added relative for positioning zoom controls */}
+        <div className="flex-grow overflow-auto relative" ref={previewAreaRef}> {/* Assign ref and ensure relative positioning */}
           {renderContent()}
           {/* Zoom Controls */}
           {(fileType.startsWith('image/') && imageUrl) || (fileType === 'application/pdf' && pdfObjectUrl) ? (
