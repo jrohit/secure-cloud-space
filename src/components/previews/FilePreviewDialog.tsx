@@ -72,10 +72,6 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
   // Panning handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-  };
-
-  // Panning handlers
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (scale <= 1) return; // Allow dragging only when zoomed
     e.preventDefault(); // Prevent text selection or other default behaviors
     setIsDragging(true);
