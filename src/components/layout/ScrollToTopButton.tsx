@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
 import throttle from "lodash/throttle";
+import { ArrowUp } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 // If using lucide-react, uncomment the next line
 // import { ArrowUp } from 'lucide-react';
@@ -20,7 +21,7 @@ const ScrollToTopButton: React.FC = () => {
 
   const throttledScrollHandler = useMemo(
     () => throttle(handleScroll, 100),
-    [handleScroll],
+    [handleScroll]
   );
 
   useEffect(() => {
@@ -44,13 +45,15 @@ const ScrollToTopButton: React.FC = () => {
   return (
     <button
       onClick={scrollToTop}
-      className={`scroll-to-top-button ${!isVisible ? "scroll-to-top-button-hidden" : ""}`}
+      className={`scroll-to-top-button ${
+        !isVisible ? "scroll-to-top-button-hidden" : ""
+      }`}
       aria-label="Scroll to top"
       aria-hidden={!isVisible}
       tabIndex={isVisible ? 0 : -1}
     >
       {/* If using lucide-react: <ArrowUp size={20} /> */}
-      Top
+      <ArrowUp size={40} />
     </button>
   );
 };

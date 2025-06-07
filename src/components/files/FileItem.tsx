@@ -1,12 +1,6 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import ItemContextMenu from "./ItemContextMenu"; // Import ItemContextMenu
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +25,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import ItemContextMenu from "./ItemContextMenu"; // Import ItemContextMenu
 
 // Define the cache for thumbnails - Stores Blob objects now
 const thumbnailCache = new Map<string, Blob>();
@@ -44,12 +39,12 @@ interface FileItemProps {
   onOrganize: (
     id: string,
     type: "file" | "folder",
-    currentParentId: string | null,
+    currentParentId: string | null
   ) => void; // Modified
   onDownloadFile: (
     fileId: string,
     fileName: string,
-    originalFileType: string,
+    originalFileType: string
   ) => void;
   currentParentId: string | null; // Added
 }
@@ -66,7 +61,7 @@ const FileItem: React.FC<FileItemProps> = ({
 }) => {
   const { token, getMasterCryptoKey } = useAuth();
   const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(
-    null,
+    null
   );
   const currentObjectUrlRef = useRef<string | null>(null);
   const { toast } = useToast();
@@ -95,7 +90,7 @@ const FileItem: React.FC<FileItemProps> = ({
         } catch (error) {
           console.error(
             `Error fetching encrypted file for ${file.name} (ID: ${file._id}):`,
-            error,
+            error
           );
           setThumbnailFailed(true);
         } finally {
@@ -136,21 +131,15 @@ const FileItem: React.FC<FileItemProps> = ({
           setThumbnailObjectUrl(newObjectUrl);
           currentObjectUrlRef.current = newObjectUrl;
           setThumbnailFailed(false); // Ensure failed state is reset if cache hit is successful
-          // console.log(`FileItem: Used cached BLOB for ${file.name} (ID: ${file._id})`);
           return; // Return early as we found a valid blob in cache
         }
-        // If cachedBlob was undefined (shouldn't happen if .has was true, but good practice)
-        // console.warn(`FileItem: Cache had key for ${file.name} but blob was undefined. Regenerating.`);
       }
-      // console.log(`FileItem: Cache miss or invalid blob for ${file.name} (ID: ${file._id}). Generating.`);
-
-      // MODIFIED
       const processEncryptedBuffer = async () => {
         const actualMasterKey = await getMasterCryptoKey();
 
         if (!actualMasterKey) {
           console.warn(
-            `FileItem: MasterKey not available after call for ${file.name}. Cannot generate thumbnail.`,
+            `FileItem: MasterKey not available after call for ${file.name}. Cannot generate thumbnail.`
           );
           setThumbnailFailed(true);
           return;
@@ -162,7 +151,7 @@ const FileItem: React.FC<FileItemProps> = ({
           try {
             const decryptedBuffer = await decryptFile(
               encryptedFileBuffer,
-              actualMasterKey,
+              actualMasterKey
             );
 
             if (decryptedBuffer && decryptedBuffer.byteLength > 0) {
@@ -173,14 +162,14 @@ const FileItem: React.FC<FileItemProps> = ({
               const tempFileForThumbnail = new window.File(
                 [decryptedBlob],
                 file.name,
-                { type: file.type },
+                { type: file.type }
               );
 
               const thumbnailBlob = await generateImageThumbnail(
                 tempFileForThumbnail,
                 256, // maxWidth
                 256, // maxHeight
-                file.type, // Pass original file.type; imageUtils will decide output format
+                file.type // Pass original file.type; imageUtils will decide output format
               );
 
               if (thumbnailBlob) {
@@ -190,20 +179,20 @@ const FileItem: React.FC<FileItemProps> = ({
                 currentObjectUrlRef.current = objectUrl;
               } else {
                 console.error(
-                  `FileItem: generateImageThumbnail returned null for ${file.name}.`,
+                  `FileItem: generateImageThumbnail returned null for ${file.name}.`
                 );
                 setThumbnailFailed(true);
               }
             } else {
               console.error(
-                `FileItem: Decryption returned null or buffer was empty for ${file.name}.`,
+                `FileItem: Decryption returned null or buffer was empty for ${file.name}.`
               );
               setThumbnailFailed(true);
             }
           } catch (error) {
             console.error(
               `FileItem: Error during decryption or thumbnail generation for ${file.name}:`,
-              error,
+              error
             );
             setThumbnailFailed(true);
           }
@@ -211,12 +200,6 @@ const FileItem: React.FC<FileItemProps> = ({
         await decryptAndGenerateThumb();
       };
       processEncryptedBuffer();
-    } else if (
-      (file.type.startsWith("image/") || file.type === "application/pdf") &&
-      !encryptedFileBuffer
-    ) {
-      // MODIFIED
-      // console.log(`FileItem SecondEffect: Image/PDF file ${file.name}, but encryptedFileBuffer is not yet available.`);
     }
 
     return () => {
@@ -316,7 +299,7 @@ const FileItem: React.FC<FileItemProps> = ({
                   className="w-full h-full object-contain"
                   onError={() => {
                     console.warn(
-                      `Image tag onError for file: ${file.name}. URL: ${thumbnailObjectUrl}`,
+                      `Image tag onError for file: ${file.name}. URL: ${thumbnailObjectUrl}`
                     );
                     setThumbnailFailed(true);
                   }}
@@ -353,7 +336,7 @@ const FileItem: React.FC<FileItemProps> = ({
                       "h-5 w-5",
                       file.isStarred
                         ? "text-yellow-400 fill-yellow-400"
-                        : "text-muted-foreground hover:text-yellow-400",
+                        : "text-muted-foreground hover:text-yellow-400"
                     )}
                   />
                 </Button>
@@ -365,7 +348,9 @@ const FileItem: React.FC<FileItemProps> = ({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
-                      onClick={handleDownload}
+                      onClick={() => {
+                        onDownloadFile(file._id, file.name, file.type);
+                      }}
                       disabled={isDownloading}
                     >
                       <Download className="mr-2 h-4 w-4" />
@@ -382,15 +367,8 @@ const FileItem: React.FC<FileItemProps> = ({
                 </DropdownMenu>
               </div>
             </div>
-            {/* Added console.log for debugging updatedAt */}
             <p className="text-xs text-muted-foreground">
               Modified{" "}
-              {console.log(
-                "FileItem updatedAt:",
-                file.updatedAt,
-                "typeof:",
-                typeof file.updatedAt,
-              )}
               {file.updatedAt
                 ? formatDistanceToNow(new Date(file.updatedAt), {
                     addSuffix: true,

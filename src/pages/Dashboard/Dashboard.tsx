@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { decryptFile, encryptFile } from "@/lib/cryptoUtils";
 import { filesApi, foldersApi } from "@/services/api";
-import { File, Folder } from "@/types";
+import { MyFileType as File, Folder } from "@/types";
 // Removed useRef as toolbarRef is no longer needed for JS sticky
 import throttle from "lodash/throttle";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -316,7 +316,6 @@ const Dashboard = () => {
       const cryptoKey = await getMasterCryptoKey();
       if (!cryptoKey) {
         toast({
-          id: downloadToastId.id,
           title: "Download Error",
           description: "Could not retrieve decryption key.",
           variant: "destructive",
@@ -326,23 +325,7 @@ const Dashboard = () => {
       }
 
       const decryptedBuffer = await decryptFile(encryptedBuffer, cryptoKey);
-
-      const IV_LENGTH = 12; // Standard for AES-GCM IV
-
-      if (decryptedBuffer.byteLength < IV_LENGTH) {
-        console.error(
-          "Decrypted buffer is shorter than IV length. This should not happen if IV was prepended."
-        );
-        toast({
-          id: downloadToastId.id,
-          title: "Download Error",
-          description: "Decrypted data is inconsistent. Cannot process file.",
-          variant: "destructive",
-          duration: 5000,
-        });
-        return;
-      }
-      const fileContentBuffer = decryptedBuffer.slice(IV_LENGTH);
+      const fileContentBuffer = decryptedBuffer.slice(0);
 
       const decryptedBlob = new Blob([fileContentBuffer], {
         type: originalFileType,
@@ -373,16 +356,14 @@ const Dashboard = () => {
       URL.revokeObjectURL(url);
 
       toast({
-        id: downloadToastId.id,
         title: "Download Started",
         description: `${fileName} should begin downloading shortly.`,
-        variant: "success",
+        variant: "default",
         duration: 5000,
       });
     } catch (error: any) {
       console.error("Error downloading or decrypting file:", error);
       toast({
-        id: downloadToastId.id,
         title: "Download Error",
         description: `Failed to download ${fileName}. ${
           error.message || "Unknown error"

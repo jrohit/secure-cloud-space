@@ -1,17 +1,16 @@
-import * as React from "react";
+import { Button } from "@/components/ui/button";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { cn } from "@/lib/utils";
 import { MyFileType } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import {
   File as FileIconLucide,
-  Image,
   FileText,
+  Image,
   Star,
-  MoreVertical,
   Trash2,
 } from "lucide-react"; // Added Trash2
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
+import * as React from "react";
 import ItemContextMenu from "./ItemContextMenu"; // Assuming ItemContextMenu is in the same folder
 
 // Helper to format file size (consider moving to a utils file if used elsewhere)
@@ -51,13 +50,13 @@ interface FileListItemProps {
   onOrganize: (
     id: string,
     type: "file" | "folder",
-    currentParentId: string | null,
+    currentParentId: string | null
   ) => void;
   onDelete: (id: string, type: "file" | "folder") => void;
   onDownloadFile: (
     fileId: string,
     fileName: string,
-    originalFileType: string,
+    originalFileType: string
   ) => void;
   currentParentId: string | null;
 }
@@ -74,7 +73,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
 }) => {
   const FileDisplayIcon = getFileIcon(file.type);
   const fileColorClassName = getFileColorClassName(file.type); // Get color class
-
+  console.log("ddd ", onDownloadFile);
   return (
     <ContextMenu>
       <ContextMenuTrigger>
@@ -103,12 +102,6 @@ const FileListItem: React.FC<FileListItemProps> = ({
           {/* Added console.log for debugging updatedAt */}
           <span className="text-xs text-muted-foreground mr-4 hidden md:block flex-shrink-0">
             Modified{" "}
-            {console.log(
-              "FileListItem updatedAt:",
-              file.updatedAt,
-              "typeof:",
-              typeof file.updatedAt,
-            )}
             {file.updatedAt
               ? formatDistanceToNow(new Date(file.updatedAt), {
                   addSuffix: true,
@@ -122,7 +115,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
               "h-8 w-8 mr-1 flex-shrink-0",
               file.isStarred
                 ? "text-yellow-400 hover:text-yellow-500"
-                : "text-muted-foreground hover:text-yellow-400",
+                : "text-muted-foreground hover:text-yellow-400"
             )}
             onClick={(e) => {
               e.stopPropagation(); // Prevent row click when starring

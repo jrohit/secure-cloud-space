@@ -15,8 +15,12 @@ interface FolderItemProps {
     type: "file" | "folder",
     currentParentId: string | null
   ) => void; // Modified
-  currentParentId: string | null; // Added
-  onDownloadFile: () => void;
+  onDownloadFile: (
+    fileId: string,
+    fileName: string,
+    originalFileType: string
+  ) => void;
+  currentParentId: string | null;
 }
 
 const FolderItem: React.FC<FolderItemProps> = ({
@@ -54,13 +58,6 @@ const FolderItem: React.FC<FolderItemProps> = ({
               >
                 {folder.name}
               </span>
-              {/* Console log for debugging, kept as requested */}
-              {console.log(
-                "FolderItem updatedAt:",
-                folder.updatedAt,
-                "typeof:",
-                typeof folder.updatedAt
-              )}
               <span className="text-xs text-muted-foreground truncate">
                 {folder.updatedAt
                   ? formatDistanceToNow(new Date(folder.updatedAt), {

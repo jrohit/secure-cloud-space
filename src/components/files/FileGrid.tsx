@@ -1,4 +1,4 @@
-import { File, Folder } from "@/types";
+import { MyFileType as File, Folder } from "@/types";
 import FileItem from "./FileItem";
 import FileListItem from "./FileListItem"; // Added
 import FolderItem from "./FolderItem";
@@ -67,19 +67,22 @@ const FileGrid: React.FC<FileGridProps> = ({
         {files.length > 0 && (
           <>
             <h2 className="text-lg font-semibold my-2 px-2">Files</h2>
-            {files.map((file) => (
-              <FileListItem
-                key={file._id}
-                file={file}
-                onPreview={onFilePreview}
-                onStarToggle={onStarToggle!} // Assuming onStarToggle will be provided if needed
-                onRename={onRenameItem}
-                onOrganize={onOrganizeItem}
-                onDelete={(id, type) => onFileDelete(id)} // Adjusted
-                onDownloadFile={onDownloadFile}
-                currentParentId={currentParentId}
-              />
-            ))}
+            {files.map((file) => {
+              console.log("hello filegrid ", onDownloadFile);
+              return (
+                <FileListItem
+                  key={file._id}
+                  file={file}
+                  onPreview={onFilePreview}
+                  onStarToggle={onStarToggle!} // Assuming onStarToggle will be provided if needed
+                  onRename={onRenameItem}
+                  onOrganize={onOrganizeItem}
+                  onDelete={(id, type) => onFileDelete(id)} // Adjusted
+                  onDownloadFile={onDownloadFile}
+                  currentParentId={currentParentId}
+                />
+              );
+            })}
           </>
         )}
       </div>
@@ -119,6 +122,7 @@ const FileGrid: React.FC<FileGridProps> = ({
             onStarToggle={onStarToggle}
             onRename={onRenameItem}
             onOrganize={onOrganizeItem}
+            onDownloadFile={onDownloadFile}
             currentParentId={currentParentId}
           />
         ))}
