@@ -1582,8 +1582,13 @@ const Dashboard = () => {
   // Effect for scroll restoration
   useEffect(() => {
     if (scrollPositionRef.current !== null && !loading) {
-      window.scrollTo(0, scrollPositionRef.current);
-      scrollPositionRef.current = null; // Reset after restoring
+      const restoreScroll = () => {
+        if (scrollPositionRef.current !== null) { // Double check ref has not been nulled elsewhere
+          window.scrollTo(0, scrollPositionRef.current);
+          scrollPositionRef.current = null; // Reset after attempting to restore
+        }
+      };
+      requestAnimationFrame(restoreScroll);
     }
   }, [files, folders, loading]); // Dependencies for scroll restoration
 
