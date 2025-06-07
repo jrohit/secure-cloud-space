@@ -66,18 +66,47 @@ const FileGrid: React.FC<FileGridProps> = ({
   const listRef = useRef<VariableSizeList | null>(null);
   const currentScrollOffsetRef = useRef<number>(0);
   const prevDeleteOpIdRef = useRef<number | null | undefined>(deleteOpId);
+  const topVisibleItemIdRef = useRef<string | null>(null); // Ref for top visible item ID
 
   if (viewMode === "list") {
     const listItems: ListItemType[] = [];
 
     useEffect(() => {
+      let timeoutId: NodeJS.Timeout | null = null;
+
       if (listRef.current && deleteOpId !== null && deleteOpId !== prevDeleteOpIdRef.current) {
-        // A delete operation was just signaled
-        listRef.current.scrollTo(currentScrollOffsetRef.current);
+        const listInstance = listRef.current; // Capture current instance for the closure
+
+        timeoutId = setTimeout(() => {
+          if (topVisibleItemIdRef.current) {
+            const targetItemId = topVisibleItemIdRef.current;
+            const newIndex = listItems.findIndex(item => item.id === targetItemId);
+
+            if (newIndex !== -1) {
+              listInstance.scrollToItem(newIndex, 'start');
+            } else {
+              // Fallback: Item was deleted or not found
+              if (currentScrollOffsetRef.current !== undefined) {
+                listInstance.scrollTo(currentScrollOffsetRef.current);
+              }
+            }
+          } else if (currentScrollOffsetRef.current !== undefined) {
+            // Fallback if no topVisibleItemId was ever set
+            listInstance.scrollTo(currentScrollOffsetRef.current);
+          }
+        }, 50); // 50ms delay
       }
-      // Always update the ref to the current deleteOpId after the effect runs
+
+      // Always update the ref to the current deleteOpId after the effect's main logic setup
       prevDeleteOpIdRef.current = deleteOpId;
-    }, [listItems, deleteOpId]); // listRef and currentScrollOffsetRef are stable refs
+
+      return () => {
+        // Cleanup: clear the timeout if the component unmounts or dependencies change before firing
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+      };
+    }, [listItems, deleteOpId]); // listRef, topVisibleItemIdRef, currentScrollOffsetRef are stable refs
 
     if (folders.length > 0) {
       listItems.push({
@@ -167,6 +196,13 @@ const FileGrid: React.FC<FileGridProps> = ({
               className="custom-scrollbar-class" // Optional
               onScroll={({ scrollOffset }) => { // Store current scroll offset
                 currentScrollOffsetRef.current = scrollOffset;
+              }}
+              onItemsRendered={({ visibleStartIndex }) => {
+                if (listItems.length > 0 && visibleStartIndex < listItems.length) {
+                  topVisibleItemIdRef.current = listItems[visibleStartIndex].id;
+                } else {
+                  topVisibleItemIdRef.current = null; // Reset if list is empty or index out of bounds
+                }
               }}
             >
               {Row}
