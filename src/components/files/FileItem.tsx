@@ -47,6 +47,8 @@ interface FileItemProps {
     originalFileType: string
   ) => void;
   currentParentId: string | null; // Added
+  selectedItems: Set<string>;
+  onItemSelect: (itemId: string) => void;
 }
 
 const FileItem: React.FC<FileItemProps> = ({
@@ -58,8 +60,11 @@ const FileItem: React.FC<FileItemProps> = ({
   onOrganize, // Modified
   onDownloadFile,
   currentParentId, // Added
+  selectedItems,
+  onItemSelect,
 }) => {
   const { token, getMasterCryptoKey } = useAuth();
+  const isSelected = selectedItems.has(file._id);
   const [thumbnailObjectUrl, setThumbnailObjectUrl] = useState<string | null>(
     null
   );
@@ -278,15 +283,24 @@ const FileItem: React.FC<FileItemProps> = ({
   return (
     <ContextMenu>
       <ContextMenuTrigger>
-        <Card className="overflow-hidden transition-all duration-200 hover:shadow-md">
+        <Card
+          className={cn(
+            "overflow-hidden transition-all duration-200 hover:shadow-md",
+            { "ring-2 ring-blue-500 dark:ring-blue-700": isSelected }
+          )}
+        >
           <CardContent className="p-0">
             <div
               className="aspect-square flex items-center justify-center bg-muted/30 cursor-pointer"
-              onClick={() => onPreview(file)}
+              onClick={() => onItemSelect(file._id)} // Single click selects
+              onDoubleClick={() => onPreview(file)} // Double click previews
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") onPreview(file);
+                if (e.key === "Enter" || e.key === " ") {
+                  // For accessibility, Enter/Space on a focused item usually performs the primary action (double click)
+                  onPreview(file);
+                }
               }}
             >
               {(file.type.startsWith("image/") ||

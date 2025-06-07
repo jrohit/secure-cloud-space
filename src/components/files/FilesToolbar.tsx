@@ -19,6 +19,8 @@ import {
   List,
   RefreshCcw,
   Upload,
+  DownloadCloud, // Added for Bulk Download
+  Trash, // Added for Bulk Delete
 } from "lucide-react"; // Added icons
 import React, { forwardRef, useEffect, useRef, useState } from "react";
 
@@ -39,6 +41,9 @@ interface FilesToolbarProps {
   viewMode: "card" | "list"; // Added
   onViewModeChange: (mode: "card" | "list") => void; // Added
   reloadFilesAndFolders: (resetCached: boolean) => void;
+  selectedItemsCount: number; // Added for bulk actions
+  onBulkDownload: () => void; // Added for bulk actions
+  onBulkDelete: () => void; // Added for bulk actions
 }
 
 const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
@@ -60,6 +65,9 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
       viewMode, // Added
       onViewModeChange, // Added
       reloadFilesAndFolders,
+      selectedItemsCount, // Added
+      onBulkDownload, // Added
+      onBulkDelete, // Added
     },
     ref
   ) => {
@@ -238,6 +246,27 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
           >
             <FolderUp className="h-4 w-4 mr-2" />
             Upload Folder
+          </Button>
+          {/* Bulk Action Buttons */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onBulkDownload}
+            disabled={selectedItemsCount === 0}
+            className="h-9"
+          >
+            <DownloadCloud className="h-4 w-4 mr-2" />
+            Download Selected ({selectedItemsCount})
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onBulkDelete}
+            disabled={selectedItemsCount === 0}
+            className="h-9"
+          >
+            <Trash className="h-4 w-4 mr-2" />
+            Delete Selected ({selectedItemsCount})
           </Button>
           <Button
             variant="outline"

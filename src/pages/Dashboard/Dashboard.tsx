@@ -133,6 +133,7 @@ interface ProcessedFile {
 }
 
 const Dashboard = () => {
+  const scrollPositionRef = useRef<number | null>(null); // Added for scroll restoration
   const { user, token, getMasterCryptoKey, refreshUserStorageInfo } = useAuth(); // Added refreshUserStorageInfo
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
@@ -193,6 +194,7 @@ const Dashboard = () => {
   const [totalFilesToUploadInFolder, setTotalFilesToUploadInFolder] =
     useState<number>(0);
   const isProcessingFolderQueue = useRef<boolean>(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set()); // Added for selection
 
   // Effect for initial load and when context changes (folder, search)
   useEffect(() => {
@@ -792,7 +794,7 @@ const Dashboard = () => {
 
   const handleDeleteFile = async (fileId: string) => {
     if (!token) return;
-    const scrollY = window.scrollY;
+    scrollPositionRef.current = window.scrollY; // Store scroll position
 
     try {
       await filesApi.trashFile(token, fileId);
@@ -820,7 +822,7 @@ const Dashboard = () => {
 
   const handleDeleteFilePermanently = async (fileId: string) => {
     if (!token) return;
-    const scrollY = window.scrollY;
+    scrollPositionRef.current = window.scrollY; // Store scroll position
 
     try {
       await filesApi.deleteFilePermanently(token, fileId);
@@ -850,6 +852,7 @@ const Dashboard = () => {
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!token) return;
+    scrollPositionRef.current = window.scrollY; // Store scroll position
 
     try {
       await foldersApi.deleteFolder(token, folderId);
@@ -1444,6 +1447,146 @@ const Dashboard = () => {
     setIsUpgradeStorageDialogOpen, // Added dependency
   ]);
 
+  // Placeholder functions for bulk actions
+  const handleBulkDownload = async () => {
+    if (selectedItems.size === 0) {
+      toast({
+        title: "No Items Selected",
+        description: "Please select items to download.",
+        variant: "default",
+      });
+      return;
+    }
+
+    const filesToDownload: File[] = [];
+    for (const itemId of selectedItems) {
+      const file = files.find((f) => f._id === itemId);
+      if (file) {
+        filesToDownload.push(file);
+      }
+    }
+
+    if (filesToDownload.length === 0) {
+      toast({
+        title: "No Files Selected",
+        description: "Only files can be downloaded. No files were found in your selection.",
+        variant: "default",
+      });
+      return;
+    }
+
+    for (const fileToDownload of filesToDownload) {
+      try {
+        // Assuming handleDownloadFile shows its own toasts for success/failure per file
+        await handleDownloadFile(
+          fileToDownload._id,
+          fileToDownload.name,
+          fileToDownload.type
+        );
+      } catch (error) {
+        // This catch is a fallback, as handleDownloadFile should manage its errors.
+        console.error(
+          `Error during bulk download for file ${fileToDownload.name}:`,
+          error
+        );
+        toast({
+          title: "Download Error",
+          description: `Failed to initiate download for ${fileToDownload.name}.`,
+          variant: "destructive",
+        });
+      }
+    }
+
+    setSelectedItems(new Set()); // Clear selection after initiating all downloads
+    toast({
+      title: "Bulk Download Started",
+      description: `Initiated download for ${filesToDownload.length} file(s).`,
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.size === 0) {
+      toast({
+        title: "No Items Selected",
+        description: "Please select items to delete.",
+        variant: "default",
+      });
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Are you sure you want to delete ${selectedItems.size} item(s)? This will move them to trash.`
+      )
+    ) {
+      return;
+    }
+
+    const itemsToDelete = Array.from(selectedItems); // Create a copy for iteration
+    let deletedCount = 0;
+    // It's important to await each deletion if they modify the same underlying data
+    // or if subsequent operations depend on the completion of previous ones.
+    // The current handleDeleteFile/Folder functions trigger individual reloads.
+    // This will cause multiple reloads. A future optimization would be to
+    // batch the API calls and do a single reload.
+    for (const itemId of itemsToDelete) {
+      const isFile = files.some((f) => f._id === itemId);
+      const isFolder = folders.some((fo) => fo._id === itemId);
+
+      try {
+        if (isFile) {
+          await handleDeleteFile(itemId); // Assumes this function handles its own errors/toasts
+          deletedCount++;
+        } else if (isFolder) {
+          await handleDeleteFolder(itemId); // Assumes this function handles its own errors/toasts
+          deletedCount++;
+        } else {
+          console.warn(`Item with ID ${itemId} not found as file or folder.`);
+          // Optionally, show a toast for items not found if necessary
+        }
+      } catch (error) {
+        // This catch block might be redundant if handleDeleteFile/Folder handle their own errors.
+        // However, it's here as a safeguard for unexpected issues during the loop.
+        console.error(`Error during bulk delete for item ${itemId}:`, error);
+        toast({
+          title: "Deletion Error",
+          description: `Failed to delete item ${itemId}.`,
+          variant: "destructive",
+        });
+      }
+    }
+
+    setSelectedItems(new Set()); // Clear selection
+    toast({
+      title: "Bulk Delete Complete",
+      description: `${deletedCount} item(s) moved to trash.`,
+    });
+    // Note: The list will be reloaded multiple times by individual delete handlers.
+    // This is not optimal but is the current behavior of those handlers.
+    // For a better UX, batch API calls and then do a single refresh.
+  };
+
+  // Handler for item selection
+  const handleItemSelect = (itemId: string) => {
+    setSelectedItems((prevSelectedItems) => {
+      const newSelectedItems = new Set(prevSelectedItems);
+      if (newSelectedItems.has(itemId)) {
+        newSelectedItems.delete(itemId);
+      } else {
+        newSelectedItems.add(itemId);
+      }
+      return newSelectedItems;
+    });
+  };
+
+  // Effect for scroll restoration
+  useEffect(() => {
+    if (scrollPositionRef.current !== null && !loading) {
+      window.scrollTo(0, scrollPositionRef.current);
+      scrollPositionRef.current = null; // Reset after restoring
+    }
+  }, [files, folders, loading]); // Dependencies for scroll restoration
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between">
@@ -1486,6 +1629,9 @@ const Dashboard = () => {
         reloadFilesAndFolders={() => {
           loadFilesAndFolders({ bustCache: true, pageToLoad: 1 }); // Trigger reload
         }}
+        selectedItemsCount={selectedItems.size} // Pass selected items count
+        onBulkDownload={handleBulkDownload} // Updated to actual bulk download handler
+        onBulkDelete={handleBulkDelete} // Updated to actual bulk delete handler
       />
 
       {isUploadingFolder && (
@@ -1533,6 +1679,8 @@ const Dashboard = () => {
               onDownloadFile={handleDownloadFile}
               currentParentId={currentFolder?._id || null}
               viewMode={viewMode}
+              selectedItems={selectedItems} // Added for selection
+              onItemSelect={handleItemSelect} // Added for selection
             />
             {isLoadingMore && (
               <div className="flex justify-center py-4">

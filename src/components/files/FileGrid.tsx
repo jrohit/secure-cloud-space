@@ -29,6 +29,8 @@ interface FileGridProps {
   ) => void;
   currentParentId: string | null;
   viewMode: "card" | "list"; // Added
+  selectedItems: Set<string>; // Added for selection
+  onItemSelect: (itemId: string) => void; // Added for selection
 }
 
 const FileGrid: React.FC<FileGridProps> = ({
@@ -44,6 +46,8 @@ const FileGrid: React.FC<FileGridProps> = ({
   onDownloadFile,
   currentParentId,
   viewMode, // Added
+  selectedItems, // Added for selection
+  onItemSelect, // Added for selection
 }) => {
   if (viewMode === "list") {
     return (
@@ -60,6 +64,8 @@ const FileGrid: React.FC<FileGridProps> = ({
                 onRename={onRenameItem}
                 onOrganize={onOrganizeItem}
                 currentParentId={currentParentId}
+                selectedItems={selectedItems} // Pass prop
+                onItemSelect={onItemSelect} // Pass prop
               />
             ))}
           </>
@@ -80,6 +86,8 @@ const FileGrid: React.FC<FileGridProps> = ({
                   onDelete={(id, type) => onFileDelete(id)} // Adjusted
                   onDownloadFile={onDownloadFile}
                   currentParentId={currentParentId}
+                  selectedItems={selectedItems} // Pass prop
+                  onItemSelect={onItemSelect} // Pass prop
                 />
               );
             })}
@@ -106,6 +114,8 @@ const FileGrid: React.FC<FileGridProps> = ({
             onOrganize={onOrganizeItem}
             onDownloadFile={onDownloadFile}
             currentParentId={currentParentId}
+            selectedItems={selectedItems} // Pass prop
+            onItemSelect={onItemSelect} // Pass prop
           />
         ))}
       </div>
@@ -124,6 +134,8 @@ const FileGrid: React.FC<FileGridProps> = ({
             onOrganize={onOrganizeItem}
             onDownloadFile={onDownloadFile}
             currentParentId={currentParentId}
+            selectedItems={selectedItems} // Pass prop
+            onItemSelect={onItemSelect} // Pass prop
           />
         ))}
       </div>

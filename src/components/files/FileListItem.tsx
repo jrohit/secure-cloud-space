@@ -59,6 +59,8 @@ interface FileListItemProps {
     originalFileType: string
   ) => void;
   currentParentId: string | null;
+  selectedItems: Set<string>;
+  onItemSelect: (itemId: string) => void;
 }
 
 const FileListItem: React.FC<FileListItemProps> = ({
@@ -70,24 +72,36 @@ const FileListItem: React.FC<FileListItemProps> = ({
   onDelete,
   onDownloadFile,
   currentParentId,
+  selectedItems,
+  onItemSelect,
 }) => {
   const FileDisplayIcon = getFileIcon(file.type);
   const fileColorClassName = getFileColorClassName(file.type); // Get color class
+  const isSelected = selectedItems.has(file._id);
   console.log("ddd ", onDownloadFile);
   return (
     <ContextMenu>
       <ContextMenuTrigger>
         <div
-          className="flex items-center w-full p-2 hover:bg-muted/50 rounded-md cursor-pointer border-b border-border/60"
-          onClick={() => onPreview(file)} // Main click action for preview
+          className={cn(
+            "flex items-center w-full p-2 hover:bg-muted/50 rounded-md cursor-pointer border-b border-border/60",
+            { "bg-blue-100 dark:bg-blue-900": isSelected }
+          )}
+          onClick={() => onItemSelect(file._id)} // Single click selects
+          onDoubleClick={() => onPreview(file)} // Double click previews
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") onPreview(file);
+            if (e.key === "Enter" || e.key === " ") {
+              // For accessibility, Enter/Space on a focused item usually performs the primary action (double click)
+              onPreview(file);
+            }
           }}
         >
           <FileDisplayIcon
-            className={cn("h-6 w-6 mr-3 flex-shrink-0", fileColorClassName)}
+            className={cn("h-6 w-6 mr-3 flex-shrink-0", fileColorClassName, {
+              "text-white dark:text-black": isSelected, // Example: Adjust icon color if selected
+            })}
           />{" "}
           {/* Apply color class */}
           <span
