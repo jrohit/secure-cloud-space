@@ -134,6 +134,7 @@ interface ProcessedFile {
 
 const Dashboard = () => {
   const scrollPositionRef = useRef<number | null>(null); // Added for scroll restoration
+  const scrollableContainerRef = useRef<HTMLDivElement | null>(null); // Ref for the scrollable container
   const { user, token, getMasterCryptoKey, refreshUserStorageInfo } = useAuth(); // Added refreshUserStorageInfo
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
@@ -794,7 +795,7 @@ const Dashboard = () => {
 
   const handleDeleteFile = async (fileId: string) => {
     if (!token) return;
-    scrollPositionRef.current = window.scrollY; // Store scroll position
+    scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0; // Store scroll position
 
     try {
       await filesApi.trashFile(token, fileId);
@@ -822,7 +823,7 @@ const Dashboard = () => {
 
   const handleDeleteFilePermanently = async (fileId: string) => {
     if (!token) return;
-    scrollPositionRef.current = window.scrollY; // Store scroll position
+    scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0; // Store scroll position
 
     try {
       await filesApi.deleteFilePermanently(token, fileId);
@@ -852,7 +853,7 @@ const Dashboard = () => {
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!token) return;
-    scrollPositionRef.current = window.scrollY; // Store scroll position
+    scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0; // Store scroll position
 
     try {
       await foldersApi.deleteFolder(token, folderId);
@@ -1583,8 +1584,8 @@ const Dashboard = () => {
   useEffect(() => {
     if (scrollPositionRef.current !== null && !loading) {
       const restoreScroll = () => {
-        if (scrollPositionRef.current !== null) { // Double check ref has not been nulled elsewhere
-          window.scrollTo(0, scrollPositionRef.current);
+        if (scrollPositionRef.current !== null && scrollableContainerRef.current) {
+          scrollableContainerRef.current.scrollTo(0, scrollPositionRef.current);
           scrollPositionRef.current = null; // Reset after attempting to restore
         }
       };
@@ -1660,7 +1661,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" ref={scrollableContainerRef}>
         {loading ? (
           <div className="flex justify-center py-12">
             <Spinner className="h-12 w-12" />
