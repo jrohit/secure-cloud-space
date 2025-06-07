@@ -20,6 +20,7 @@ interface FolderListItemProps {
   currentParentId: string | null;
   selectedItems: Set<string>;
   onItemSelect: (itemId: string) => void;
+  style?: React.CSSProperties; // Added for react-window
 }
 
 const FolderListItem: React.FC<FolderListItemProps> = ({
@@ -31,12 +32,14 @@ const FolderListItem: React.FC<FolderListItemProps> = ({
   currentParentId,
   selectedItems,
   onItemSelect,
+  style, // Added for react-window
 }) => {
   const isSelected = selectedItems.has(folder._id);
   return (
     <ContextMenu>
       <ContextMenuTrigger>
         <div
+          style={style} // Apply style for react-window
           className={cn(
             "flex items-center w-full p-2 hover:bg-muted/50 rounded-md cursor-pointer border-b border-border/60",
             { "bg-blue-100 dark:bg-blue-900": isSelected }

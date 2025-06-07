@@ -196,6 +196,7 @@ const Dashboard = () => {
     useState<number>(0);
   const isProcessingFolderQueue = useRef<boolean>(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set()); // Added for selection
+  const [deleteOpId, setDeleteOpId] = useState<number | null>(null); // Added for delete operation tracking
 
   // Effect for initial load and when context changes (folder, search)
   useEffect(() => {
@@ -796,6 +797,7 @@ const Dashboard = () => {
   const handleDeleteFile = async (fileId: string) => {
     if (!token) return;
     scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0; // Store scroll position
+    setDeleteOpId(Date.now()); // Signal delete operation
 
     try {
       await filesApi.trashFile(token, fileId);
@@ -813,6 +815,7 @@ const Dashboard = () => {
       loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
     } catch (error) {
       console.error("Error moving file to trash:", error);
+      setDeleteOpId(null); // Clear delete signal on error if needed
       toast({
         title: "Error",
         description: "Failed to move file to trash",
@@ -824,6 +827,7 @@ const Dashboard = () => {
   const handleDeleteFilePermanently = async (fileId: string) => {
     if (!token) return;
     scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0; // Store scroll position
+    setDeleteOpId(Date.now()); // Signal delete operation
 
     try {
       await filesApi.deleteFilePermanently(token, fileId);
@@ -841,6 +845,7 @@ const Dashboard = () => {
       loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
     } catch (error) {
       console.error("Error permanently deleting file:", error);
+      setDeleteOpId(null); // Clear delete signal on error if needed
       toast({
         title: "Error",
         description: `Failed to permanently delete file. ${
@@ -854,6 +859,7 @@ const Dashboard = () => {
   const handleDeleteFolder = async (folderId: string) => {
     if (!token) return;
     scrollPositionRef.current = scrollableContainerRef.current?.scrollTop ?? 0; // Store scroll position
+    setDeleteOpId(Date.now()); // Signal delete operation
 
     try {
       await foldersApi.deleteFolder(token, folderId);
@@ -872,6 +878,7 @@ const Dashboard = () => {
       loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
     } catch (error) {
       console.error("Error moving folder to trash:", error); // MODIFIED
+      setDeleteOpId(null); // Clear delete signal on error if needed
       toast({
         title: "Error",
         description: "Failed to move folder to trash", // MODIFIED
@@ -1522,6 +1529,7 @@ const Dashboard = () => {
     ) {
       return;
     }
+    setDeleteOpId(Date.now()); // Signal bulk delete operation
 
     const itemsToDelete = Array.from(selectedItems); // Create a copy for iteration
     let deletedCount = 0;
@@ -1582,16 +1590,20 @@ const Dashboard = () => {
 
   // Effect for scroll restoration
   useEffect(() => {
-    if (scrollPositionRef.current !== null && !loading) {
+    if (viewMode === 'card' && scrollPositionRef.current !== null && !loading) {
       const restoreScroll = () => {
         if (scrollPositionRef.current !== null && scrollableContainerRef.current) {
           scrollableContainerRef.current.scrollTo(0, scrollPositionRef.current);
-          scrollPositionRef.current = null; // Reset after attempting to restore
+          scrollPositionRef.current = null;
         }
       };
       requestAnimationFrame(restoreScroll);
+    } else if (viewMode === 'list') {
+      // When in list view, ensure dashboard's scrollPositionRef is cleared
+      // as FileGrid's react-window will handle its own scrolling.
+      scrollPositionRef.current = null;
     }
-  }, [files, folders, loading]); // Dependencies for scroll restoration
+  }, [files, folders, loading, viewMode]); // Add viewMode to dependencies
 
   return (
     <div className="flex flex-col h-full">
@@ -1687,6 +1699,7 @@ const Dashboard = () => {
               viewMode={viewMode}
               selectedItems={selectedItems} // Added for selection
               onItemSelect={handleItemSelect} // Added for selection
+              deleteOpId={deleteOpId} // Pass deleteOpId
             />
             {isLoadingMore && (
               <div className="flex justify-center py-4">
