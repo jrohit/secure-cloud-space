@@ -1,21 +1,26 @@
-import React, { useEffect, useState, useRef } from "react";
-import heic2any from "heic2any";
+import { Button } from "@/components/ui/button"; // Added for zoom controls
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/Spinner"; // Assuming you have a Spinner component
-import { Button } from "@/components/ui/button"; // Added for zoom controls
+import heic2any from "heic2any";
+import {
+  ChevronLeft,
+  ChevronRight,
+  RefreshCcw,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react"; // Added zoom icons
 import { marked } from "marked";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RefreshCcw } from "lucide-react"; // Added zoom icons
+import pdfWorkerEntryPoint from "pdfjs-dist/build/pdf.worker.min.mjs?worker&url"; // New import
+import React, { useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
-import pdfWorkerEntryPoint from "pdfjs-dist/build/pdf.worker.min.mjs?worker&url"; // New import
 
 // Configure pdfjs worker
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerEntryPoint; // Changed to use Vite's worker URL
@@ -61,38 +66,56 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-
   // Zoom handlers (memoized with useCallback)
-  const handleZoomIn = React.useCallback(() => setScale(prevScale => Math.min(prevScale * 1.1, 5)), []);
-  const handleZoomOut = React.useCallback(() => setScale(prevScale => Math.max(prevScale / 1.1, 0.2)), []);
-  const handleZoomReset = React.useCallback(() => {
-    setScale(1);
-    setPosition({ x: 0, y: 0 });
-  }, []);
+  const [zoom, setZoom] = useState(1);
+  const startPos = useRef({ x: 0, y: 0 });
 
-  // Panning handlers
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (scale <= 1) return; // Allow dragging only when zoomed
-    e.preventDefault(); // Prevent text selection or other default behaviors
-    setIsDragging(true);
-    setDragStart({
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
+  const MIN_ZOOM = 0.1;
+  const MAX_ZOOM = 5;
+  const ZOOM_STEP = 0.1;
+
+  const handleZoomIn = () => {
+    setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
+  };
+
+  const handleZoomOut = () => {
+    setZoom((prev) => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
+  };
+
+  const handleWheelMain = (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+    setZoom((prev) => {
+      const newZoom = prev + delta;
+      return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newZoom));
     });
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging || scale <= 1) return;
-    e.preventDefault();
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    startPos.current = {
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    };
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
     setPosition({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
+      x: e.clientX - startPos.current.x,
+      y: e.clientY - startPos.current.y,
     });
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
   };
+
+  const handleZoomReset = React.useCallback(() => {
+    setScale(1);
+    setPosition({ x: 0, y: 0 });
+    setZoom(1);
+  }, []);
 
   // Effect to reset position when scale is 1 (or image changes)
   useEffect(() => {
@@ -106,20 +129,20 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     const currentPreviewArea = previewAreaRef.current;
 
     const handleWheel = (event: WheelEvent) => {
-      if (!((fileType.startsWith('image/') && imageUrl) || (fileType === 'application/pdf' && pdfObjectUrl))) {
+      if (
+        !(
+          (fileType.startsWith("image/") && imageUrl) ||
+          (fileType === "application/pdf" && pdfObjectUrl)
+        )
+      ) {
         return;
       }
 
       event.preventDefault();
 
-      if (fileType.startsWith('image/') && imageUrl) {
-        const WHEEL_ZOOM_STEP_IMAGE = 0.1; // Additive step for images
-        if (event.deltaY < 0) { // Zoom In
-          setScale(prev => Math.min(prev + WHEEL_ZOOM_STEP_IMAGE, 5));
-        } else if (event.deltaY > 0) { // Zoom Out
-          setScale(prev => Math.max(prev - WHEEL_ZOOM_STEP_IMAGE, 0.2));
-        }
-      } else if (fileType === 'application/pdf' && pdfObjectUrl) {
+      if (fileType.startsWith("image/") && imageUrl) {
+        handleWheelMain(event);
+      } else if (fileType === "application/pdf" && pdfObjectUrl) {
         // PDFs continue to use the multiplicative handlers
         if (event.deltaY < 0) {
           handleZoomIn(); // Memoized: prevScale * 1.1
@@ -130,16 +153,17 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     };
 
     if (currentPreviewArea && isOpen) {
-      currentPreviewArea.addEventListener('wheel', handleWheel, { passive: false });
+      currentPreviewArea.addEventListener("wheel", handleWheel, {
+        passive: false,
+      });
     }
 
     return () => {
       if (currentPreviewArea) {
-        currentPreviewArea.removeEventListener('wheel', handleWheel);
+        currentPreviewArea.removeEventListener("wheel", handleWheel);
       }
     };
   }, [isOpen, fileType, imageUrl, pdfObjectUrl, handleZoomIn, handleZoomOut]);
-
 
   useEffect(() => {
     // Revoke old object URLs before creating new ones or if component is not open
@@ -190,23 +214,23 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
           } catch (conversionError: any) {
             console.error(
               "[PreviewDialog] HEIC conversion attempt failed:",
-              conversionError,
+              conversionError
             );
             if (
               conversionError &&
               conversionError.message &&
               conversionError.message.includes(
-                "Image is already browser readable",
+                "Image is already browser readable"
               )
             ) {
               console.log(
-                "[PreviewDialog] Fallback: HEIC error indicates image was already readable. Using original blob for preview.",
+                "[PreviewDialog] Fallback: HEIC error indicates image was already readable. Using original blob for preview."
               );
               const objectUrl = URL.createObjectURL(originalHeicBlob);
               setImageUrl(objectUrl);
             } else {
               console.warn(
-                "[PreviewDialog] Fallback: True HEIC conversion error. Preview may not be available.",
+                "[PreviewDialog] Fallback: True HEIC conversion error. Preview may not be available."
               );
               setImageUrl(null); // Or set a placeholder/error image URL
             }
@@ -270,26 +294,6 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
   };
 
   const renderContent = () => {
-    // At the beginning of renderContent or just before the main if/else chain for types
-    if (fileContent && fileType === "application/pdf") {
-      console.log(
-        "[PreviewDialog] Entry - fileContent.byteLength:",
-        fileContent.byteLength,
-      );
-      try {
-        const sliceTestAtEntry = fileContent.slice(0);
-        console.log(
-          "[PreviewDialog] Entry - fileContent slice test successful, new buffer byteLength:",
-          sliceTestAtEntry.byteLength,
-        );
-      } catch (e) {
-        console.error(
-          "[PreviewDialog] Entry - Error trying to slice fileContent upon receiving in dialog:",
-          e,
-        );
-      }
-    }
-
     if (!fileContent) {
       return (
         <div className="flex justify-center items-center h-64">
@@ -300,19 +304,19 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
     if (fileType.startsWith("image/") && imageUrl) {
       const imageStyle: React.CSSProperties = {
-        transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`,
-        cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
-        transition: 'transform 0.15s ease-out', // Matches Tailwind class duration-150
+        transform: `scale(${zoom}) translate(${position.x}px, ${position.y}px)`,
+        cursor: zoom > 1 ? (isDragging ? "grabbing" : "grab") : "default",
+        transition: "transform 0.15s ease-out", // Matches Tailwind class duration-150
       };
 
       if (scale === 1) {
-        imageStyle.width = '100%';
-        imageStyle.height = '100%';
+        imageStyle.width = "100%";
+        imageStyle.height = "100%";
         // object-contain will use these to fit the image within the container
       } else {
         // When zoomed, allow the image's scaled dimensions to be its natural size * scale
-        imageStyle.maxWidth = 'none';
-        imageStyle.maxHeight = 'none';
+        imageStyle.maxWidth = "none";
+        imageStyle.maxHeight = "none";
       }
 
       return (
@@ -370,11 +374,6 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
           </div>
         );
       }
-
-      console.log(
-        "FilePreviewDialog: Attempting to render PDF using object URL:",
-        pdfObjectUrl,
-      );
 
       return (
         <div className="w-full h-full flex flex-col items-center overflow-auto">
@@ -454,21 +453,39 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
           <DialogTitle className="truncate pr-6">{fileName}</DialogTitle>
           {/* <DialogDescription>Type: {fileType}</DialogDescription> */}
         </DialogHeader>
-        <div className="flex-grow overflow-auto relative" ref={previewAreaRef}> {/* Assign ref and ensure relative positioning */}
+        <div className="flex-grow overflow-auto relative" ref={previewAreaRef}>
+          {" "}
+          {/* Assign ref and ensure relative positioning */}
           {renderContent()}
           {/* Zoom Controls */}
-          {(fileType.startsWith('image/') && imageUrl) || (fileType === 'application/pdf' && pdfObjectUrl) ? (
+          {(fileType.startsWith("image/") && imageUrl) ||
+          (fileType === "application/pdf" && pdfObjectUrl) ? (
             <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 bg-background/70 backdrop-blur-sm p-2 rounded-lg shadow-lg flex items-center gap-1">
-              <Button variant="ghost" size="icon" onClick={handleZoomOut} aria-label="Zoom out">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleZoomOut}
+                aria-label="Zoom out"
+              >
                 <ZoomOut className="h-5 w-5" />
               </Button>
               <span className="text-sm text-foreground min-w-[45px] text-center tabular-nums">
-                {Math.round(scale * 100)}%
+                {Math.round(zoom * 100)}%
               </span>
-              <Button variant="ghost" size="icon" onClick={handleZoomIn} aria-label="Zoom in">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleZoomIn}
+                aria-label="Zoom in"
+              >
                 <ZoomIn className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={handleZoomReset} aria-label="Reset zoom">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleZoomReset}
+                aria-label="Reset zoom"
+              >
                 <RefreshCcw className="h-5 w-5" />
               </Button>
             </div>
