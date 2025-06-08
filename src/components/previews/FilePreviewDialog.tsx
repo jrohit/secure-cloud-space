@@ -111,10 +111,21 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
       }
 
       event.preventDefault();
-      if (event.deltaY < 0) {
-        handleZoomIn();
-      } else if (event.deltaY > 0) {
-        handleZoomOut();
+
+      if (fileType.startsWith('image/') && imageUrl) {
+        const WHEEL_ZOOM_STEP_IMAGE = 0.1; // Additive step for images
+        if (event.deltaY < 0) { // Zoom In
+          setScale(prev => Math.min(prev + WHEEL_ZOOM_STEP_IMAGE, 5));
+        } else if (event.deltaY > 0) { // Zoom Out
+          setScale(prev => Math.max(prev - WHEEL_ZOOM_STEP_IMAGE, 0.2));
+        }
+      } else if (fileType === 'application/pdf' && pdfObjectUrl) {
+        // PDFs continue to use the multiplicative handlers
+        if (event.deltaY < 0) {
+          handleZoomIn(); // Memoized: prevScale * 1.1
+        } else if (event.deltaY > 0) {
+          handleZoomOut(); // Memoized: prevScale / 1.1
+        }
       }
     };
 
