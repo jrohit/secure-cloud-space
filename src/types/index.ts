@@ -7,6 +7,7 @@ export interface User {
   encryptedMasterKey?: string; // Renamed and aligned with server
   storageLimit?: number; // New
   storageUsed?: number; // New
+  avatarUrl?: string; // Added for user avatar
 }
 
 export interface MyFileType {

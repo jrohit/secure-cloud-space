@@ -50,7 +50,7 @@ export const Navbar = ({ toggleSidebar }: NavbarProps) => {
               >
                 <Avatar className="h-10 w-10">
                   <AvatarImage
-                    src="/placeholder.svg"
+                    src={user?.avatarUrl || "/placeholder.svg"} // Use user's avatarUrl
                     alt={user?.name || "User"}
                   />
                   <AvatarFallback>{user?.name?.[0] || "U"}</AvatarFallback>

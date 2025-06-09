@@ -31,6 +31,7 @@ interface AuthContextType {
   logout: () => void;
   getMasterCryptoKey: () => Promise<CryptoKey | null>; // Added
   refreshUserStorageInfo: () => Promise<void>; // Added
+  updateUserAvatar: (newAvatarUrl: string) => void; // Added for avatar updates
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -286,6 +287,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
+  const updateUserAvatar = (newAvatarUrl: string) => {
+    setUser((prevUser) => {
+      if (prevUser) {
+        const updatedUser = { ...prevUser, avatarUrl: newAvatarUrl };
+        // If user object were fully persisted in localStorage by other functions, update it here.
+        // For this setup, primarily updating context state for UI reactivity.
+        // e.g., localStorage.setItem('user', JSON.stringify(updatedUser));
+        return updatedUser;
+      }
+      return null;
+    });
+    // Note: In a real app, this would typically be followed by an API call to persist
+    // the change to the backend, which would then return the *final* (e.g., CDN) URL.
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -299,6 +315,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         logout,
         getMasterCryptoKey, // Added
         refreshUserStorageInfo, // Added
+        updateUserAvatar, // Added
       }}
     >
       {children}

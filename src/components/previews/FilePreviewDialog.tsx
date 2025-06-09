@@ -74,23 +74,20 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
   const MIN_ZOOM = 0.1;
   const MAX_ZOOM = 5;
-  const ZOOM_STEP = 0.1;
+  const ZOOM_STEP = 0.1; // May become unused or repurposed if all zoom is multiplicative
 
   const handleZoomIn = () => {
-    setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
+    setZoom((prev) => Math.min(prev * 1.1, MAX_ZOOM));
   };
 
   const handleZoomOut = () => {
-    setZoom((prev) => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
+    setZoom((prev) => Math.max(prev / 1.1, MIN_ZOOM));
   };
 
   const handleWheelMain = (e) => {
     e.preventDefault();
-    const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
-    setZoom((prev) => {
-      const newZoom = prev + delta;
-      return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, newZoom));
-    });
+    const delta = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    setZoom((prev) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * delta)));
   };
 
   const handleMouseDown = (e) => {
@@ -342,16 +339,6 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
         // object-contain will use these to fit the image within the container
       } else {
         // When zoomed or rotated, allow the image's scaled dimensions to be its natural size * scale
-        imageStyle.maxWidth = "none";
-        imageStyle.maxHeight = "none";
-      }
-
-      return (
-        imageStyle.width = "100%";
-        imageStyle.height = "100%";
-        // object-contain will use these to fit the image within the container
-      } else {
-        // When zoomed, allow the image's scaled dimensions to be its natural size * scale
         imageStyle.maxWidth = "none";
         imageStyle.maxHeight = "none";
       }
