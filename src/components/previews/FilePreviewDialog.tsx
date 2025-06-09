@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCcw,
+  RotateCw, // Added RotateCw icon
   ZoomIn,
   ZoomOut,
 } from "lucide-react"; // Added zoom icons
@@ -68,6 +69,7 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
   // Zoom handlers (memoized with useCallback)
   const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0); // Added rotation state
   const startPos = useRef({ x: 0, y: 0 });
 
   const MIN_ZOOM = 0.1;
@@ -111,10 +113,15 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     setIsDragging(false);
   };
 
+  const handleRotate = () => {
+    setRotation((prevRotation) => (prevRotation + 90) % 360);
+  };
+
   const handleZoomReset = React.useCallback(() => {
     setScale(1);
     setPosition({ x: 0, y: 0 });
     setZoom(1);
+    setRotation(0); // Reset rotation
   }, []);
 
   // Effect to reset position when scale is 1 (or image changes)
@@ -129,27 +136,34 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
     const currentPreviewArea = previewAreaRef.current;
 
     const handleWheel = (event: WheelEvent) => {
-      if (
-        !(
-          (fileType.startsWith("image/") && imageUrl) ||
-          (fileType === "application/pdf" && pdfObjectUrl)
-        )
-      ) {
+      const isTextFile =
+        (fileType === "text/plain" || fileType === "text/markdown") &&
+        textString;
+      const isImageFile = fileType.startsWith("image/") && imageUrl;
+      const isPdfFile = fileType === "application/pdf" && pdfObjectUrl;
+
+      if (!(isImageFile || isPdfFile || isTextFile)) {
         return;
       }
 
-      event.preventDefault();
+      // Only zoom if Ctrl or Command key is pressed
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault(); // Prevent page scrolling when zooming
 
-      if (fileType.startsWith("image/") && imageUrl) {
-        handleWheelMain(event);
-      } else if (fileType === "application/pdf" && pdfObjectUrl) {
-        // PDFs continue to use the multiplicative handlers
-        if (event.deltaY < 0) {
-          handleZoomIn(); // Memoized: prevScale * 1.1
-        } else if (event.deltaY > 0) {
-          handleZoomOut(); // Memoized: prevScale / 1.1
+        if (isImageFile || isTextFile) {
+          // Use handleWheelMain for images and text files
+          handleWheelMain(event);
+        } else if (isPdfFile) {
+          // PDFs continue to use the direct zoom handlers for now
+          // (could also be unified with handleWheelMain if PDF rendering scale is directly tied to `zoom` state)
+          if (event.deltaY < 0) {
+            handleZoomIn();
+          } else if (event.deltaY > 0) {
+            handleZoomOut();
+          }
         }
       }
+      // If Ctrl/Cmd is not pressed, do nothing and allow default scroll behavior
     };
 
     if (currentPreviewArea && isOpen) {
@@ -163,7 +177,18 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
         currentPreviewArea.removeEventListener("wheel", handleWheel);
       }
     };
-  }, [isOpen, fileType, imageUrl, pdfObjectUrl, handleZoomIn, handleZoomOut]);
+  }, [
+    isOpen,
+    fileType,
+    imageUrl,
+    pdfObjectUrl,
+    textString, // Added textString
+    handleZoomIn,
+    handleZoomOut,
+    // handleWheelMain is not a dependency as it's defined in the component scope
+    // and doesn't change based on props/state. If it were memoized with useCallback,
+    // it should be included. For now, this is fine.
+  ]);
 
   useEffect(() => {
     // Revoke old object URLs before creating new ones or if component is not open
@@ -304,12 +329,24 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
     if (fileType.startsWith("image/") && imageUrl) {
       const imageStyle: React.CSSProperties = {
-        transform: `scale(${zoom}) translate(${position.x}px, ${position.y}px)`,
-        cursor: zoom > 1 ? (isDragging ? "grabbing" : "grab") : "default",
+        transform: `translate(${position.x}px, ${position.y}px) rotate(${rotation}deg) scale(${zoom})`,
+        cursor: zoom > 1 || rotation !== 0 ? (isDragging ? "grabbing" : "grab") : "default", // Adjust cursor logic for rotation
         transition: "transform 0.15s ease-out", // Matches Tailwind class duration-150
       };
 
-      if (scale === 1) {
+      // The scale === 1 condition for width/height 100% might behave unexpectedly with rotation.
+      // For now, let's keep it, but this might need review if rotated images don't fit as expected.
+      if (zoom === 1 && rotation === 0) { // Only apply 100% width/height if no zoom and no rotation
+        imageStyle.width = "100%";
+        imageStyle.height = "100%";
+        // object-contain will use these to fit the image within the container
+      } else {
+        // When zoomed or rotated, allow the image's scaled dimensions to be its natural size * scale
+        imageStyle.maxWidth = "none";
+        imageStyle.maxHeight = "none";
+      }
+
+      return (
         imageStyle.width = "100%";
         imageStyle.height = "100%";
         // object-contain will use these to fit the image within the container
@@ -342,7 +379,14 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
 
     if (fileType === "text/plain" && textString !== null) {
       return (
-        <pre className="whitespace-pre-wrap break-all h-full overflow-auto p-4 bg-muted">
+        <pre
+          className="whitespace-pre-wrap break-all h-full overflow-auto p-4 bg-muted"
+          style={{
+            transform: `rotate(${rotation}deg) scale(${zoom})`,
+            transformOrigin: "top left", // Consider 'center center' if rotation looks odd
+            transition: "transform 0.15s ease-out",
+          }}
+        >
           {textString}
         </pre>
       );
@@ -355,7 +399,12 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
       return (
         <div
           dangerouslySetInnerHTML={{ __html: rawMarkup }}
-          className="prose dark:prose-invert h-full overflow-auto p-4"
+          className="prose dark:prose-invert h-full overflow-auto p-4" // Ensure overflow-auto is on a parent if this div itself is scaled
+          style={{
+            transform: `rotate(${rotation}deg) scale(${zoom})`,
+            transformOrigin: "top left", // Consider 'center center' if rotation looks odd
+            transition: "transform 0.15s ease-out",
+          }}
         />
       );
     }
@@ -397,7 +446,8 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
               renderTextLayer={true}
               renderAnnotationLayer={true}
               // width={window.innerWidth} // Removed to allow scale to dictate size
-              scale={scale} // Apply zoom scale
+              scale={zoom} // Apply zoom state for PDF scaling
+              rotate={rotation} // Apply rotation for PDF
             />
           </Document>
           {numPdfPages && (
@@ -459,7 +509,9 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
           {renderContent()}
           {/* Zoom Controls */}
           {(fileType.startsWith("image/") && imageUrl) ||
-          (fileType === "application/pdf" && pdfObjectUrl) ? (
+          (fileType === "application/pdf" && pdfObjectUrl) ||
+          ((fileType === "text/plain" || fileType === "text/markdown") &&
+            textString) ? (
             <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 bg-background/70 backdrop-blur-sm p-2 rounded-lg shadow-lg flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -487,6 +539,14 @@ const FilePreviewDialog: React.FC<FilePreviewDialogProps> = ({
                 aria-label="Reset zoom"
               >
                 <RefreshCcw className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleRotate}
+                aria-label="Rotate"
+              >
+                <RotateCw className="h-5 w-5" />
               </Button>
             </div>
           ) : null}

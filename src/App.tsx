@@ -13,6 +13,7 @@ import TrashPage from "./pages/Dashboard/TrashPage"; // Import TrashPage
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import ProfilePage from "./pages/ProfilePage"; // Import ProfilePage
 import Register from "./pages/Register";
 
 import pdfWorkerEntryPoint from "pdfjs-dist/build/pdf.worker.min.mjs?worker&url"; // New import
@@ -52,7 +53,20 @@ const App = () => (
               <Route path="trash" element={<TrashPage />} />{" "}
               {/* Use TrashPage here */}
               <Route path="settings" element={<Dashboard />} />
+              {/* Consider if /dashboard/profile is more appropriate if settings is also under /dashboard */}
             </Route>
+
+            {/* Profile Page Route - Protected and within DashboardLayout */}
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <ProfilePage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
 
             {/* 404 route */}
             <Route path="*" element={<NotFound />} />
