@@ -70,39 +70,23 @@ export const authApi = {
   },
 
   updateUserProfile: async (userId: string, data: { avatarUrl?: string }, token: string): Promise<User> => {
-    console.log(`Simulating API call to update user ${userId} with avatarUrl: ${data.avatarUrl} using token ${token}`);
-    // Simulate backend behavior:
-    // In a real app, this would be an actual API call to PATCH /api/users/me or /api/users/${userId}
-    // For now, we'll use a mock in-memory store for the purpose of this simulation.
+    // The userId parameter is not strictly necessary if updating the authenticated user ('/auth/me').
+    // However, it's kept here if the API design might need it or for consistency if other profile fields were updated.
+    // For a /auth/me endpoint, the backend identifies the user via the token.
+    console.log(`Calling API to update user ${userId} with avatarUrl: ${data.avatarUrl}`);
 
-    const baseUser = { // Define a more complete base mock if currentUserForMocks is null
-      id: userId,
-      name: "User Name", // Placeholder name
-      email: "user@example.com", // Placeholder email
-      createdAt: new Date().toISOString(),
-      storageLimit: 1073741824, // 1GB
-      storageUsed: 0,
-    };
+    const response = await fetch(`${API_URL}/auth/me`, { // Endpoint for updating the authenticated user
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data), // Send only the data to be updated, e.g., { avatarUrl: "..." }
+    });
 
-    if (!authApi.currentUserForMocks) {
-      authApi.currentUserForMocks = {
-        ...baseUser,
-        avatarUrl: data.avatarUrl,
-        updatedAt: new Date().toISOString()
-      };
-    } else {
-      authApi.currentUserForMocks = {
-        ...authApi.currentUserForMocks,
-        id: userId, // ensure id is consistent if called for different users (though unlikely in 'me' context)
-        avatarUrl: data.avatarUrl,
-        updatedAt: new Date().toISOString()
-      };
-    }
-    // console.log("Updated mock user:", authApi.currentUserForMocks);
-    return Promise.resolve(authApi.currentUserForMocks);
+    return handleResponse<User>(response); // Use the existing helper to handle response and errors
   },
-  // Temporary mock store for simulation
-  currentUserForMocks: null as User | null,
+  // currentUserForMocks is removed as it was part of the mock implementation.
 };
 
 // Files API
