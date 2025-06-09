@@ -1,5 +1,4 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
-import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useAuth } from '../../contexts/AuthContext'; // Import useAuth
 
 const ProfilePage: React.FC = () => {
@@ -97,15 +96,5 @@ const ProfilePage: React.FC = () => {
     </div>
   );
 };
-        </label>
-        <input
-          type="file"
-          id="avatarInput"
-          accept="image/*"
-          onChange={handleFileChange}
-          style={{ display: 'none' }} // Hide the default input, trigger via label
-        />
-// Note: The previous JSX for avatar display and file input was integrated into the new structure above.
-// The section below is effectively removed by the replacement of the return statement's content.
 
 export default ProfilePage;
