@@ -68,6 +68,41 @@ export const authApi = {
     });
     return handleResponse<User>(response);
   },
+
+  updateUserProfile: async (userId: string, data: { avatarUrl?: string }, token: string): Promise<User> => {
+    console.log(`Simulating API call to update user ${userId} with avatarUrl: ${data.avatarUrl} using token ${token}`);
+    // Simulate backend behavior:
+    // In a real app, this would be an actual API call to PATCH /api/users/me or /api/users/${userId}
+    // For now, we'll use a mock in-memory store for the purpose of this simulation.
+
+    const baseUser = { // Define a more complete base mock if currentUserForMocks is null
+      id: userId,
+      name: "User Name", // Placeholder name
+      email: "user@example.com", // Placeholder email
+      createdAt: new Date().toISOString(),
+      storageLimit: 1073741824, // 1GB
+      storageUsed: 0,
+    };
+
+    if (!authApi.currentUserForMocks) {
+      authApi.currentUserForMocks = {
+        ...baseUser,
+        avatarUrl: data.avatarUrl,
+        updatedAt: new Date().toISOString()
+      };
+    } else {
+      authApi.currentUserForMocks = {
+        ...authApi.currentUserForMocks,
+        id: userId, // ensure id is consistent if called for different users (though unlikely in 'me' context)
+        avatarUrl: data.avatarUrl,
+        updatedAt: new Date().toISOString()
+      };
+    }
+    // console.log("Updated mock user:", authApi.currentUserForMocks);
+    return Promise.resolve(authApi.currentUserForMocks);
+  },
+  // Temporary mock store for simulation
+  currentUserForMocks: null as User | null,
 };
 
 // Files API

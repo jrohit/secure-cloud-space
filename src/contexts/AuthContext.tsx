@@ -269,7 +269,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     });
   };
 
-  const refreshUserStorageInfo = async () => {
+  const refreshUserStorageInfo = useCallback(async () => {
     if (!token) {
       // console.warn("Cannot refresh user storage info: no token available.");
       return;
@@ -285,22 +285,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         variant: "destructive",
       });
     }
-  };
+  }, [token, setUser, toast]); // Added dependencies for useCallback
 
-  const updateUserAvatar = (newAvatarUrl: string) => {
-    setUser((prevUser) => {
-      if (prevUser) {
-        const updatedUser = { ...prevUser, avatarUrl: newAvatarUrl };
-        // If user object were fully persisted in localStorage by other functions, update it here.
-        // For this setup, primarily updating context state for UI reactivity.
-        // e.g., localStorage.setItem('user', JSON.stringify(updatedUser));
-        return updatedUser;
-      }
-      return null;
-    });
-    // Note: In a real app, this would typically be followed by an API call to persist
-    // the change to the backend, which would then return the *final* (e.g., CDN) URL.
-  };
+  const updateUserAvatar = useCallback(async (newAvatarUrl: string) => {
+    if (!user || !token) {
+      toast({ title: "Error", description: "You must be logged in to update your avatar.", variant: "destructive" });
+      return;
+    }
+    try {
+      // Simulate backend call: Pass the newAvatarUrl (which is currently a blob URL)
+      // A real backend would need the file uploaded, then URL to that file saved.
+      // For this simulation, we pretend the blob URL is what we save.
+      const updatedUserFromApi = await authApi.updateUserProfile(user.id, { avatarUrl: newAvatarUrl }, token);
+
+      setUser(updatedUserFromApi); // Update context with user data from API response
+
+      // Optionally, update localStorage if the full user object is stored there,
+      // though this app seems to refetch user on load based on token.
+      // if (updatedUserFromApi) {
+      //   localStorage.setItem('user', JSON.stringify(updatedUserFromApi));
+      // }
+
+      toast({ title: "Avatar Updated", description: "Your avatar has been updated (simulated)." });
+    } catch (error) {
+      console.error("Failed to update avatar:", error);
+      toast({ title: "Avatar Update Failed", description: "Could not update your avatar.", variant: "destructive" });
+    }
+  }, [user, token, setUser, toast]); // Ensure all dependencies are listed
 
   return (
     <AuthContext.Provider
