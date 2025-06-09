@@ -10,7 +10,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Menu, User, Settings, LogOut } from "lucide-react";
-import { Link } from "react-router-dom"; // Import Link
+// Link will be removed
+import ProfileDialog from "../dialogs/ProfileDialog"; // Import ProfileDialog
+import { useState } from "react"; // Import useState
 
 interface NavbarProps {
   toggleSidebar: () => void;
@@ -18,12 +20,12 @@ interface NavbarProps {
 
 export const Navbar = ({ toggleSidebar }: NavbarProps) => {
   const { user, logout } = useAuth();
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
   return (
-    <header className="bg-background border-b border-border sticky top-0 z-30">
-      {" "}
-      {/* MODIFIED */}
-      <div className="px-4 h-16 flex items-center justify-between">
+    <> {/* Changed to Fragment to allow ProfileDialog as a sibling */}
+      <header className="bg-background border-b border-border sticky top-0 z-30">
+        <div className="px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -60,11 +62,12 @@ export const Navbar = ({ toggleSidebar }: NavbarProps) => {
             <DropdownMenuContent className="w-56" align="end">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link to="/profile">
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
-                </Link>
+              <DropdownMenuItem
+                onSelect={() => setIsProfileDialogOpen(true)}
+                className="cursor-pointer"
+              >
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
               </DropdownMenuItem>
               <DropdownMenuItem className="cursor-pointer"> {/* Assuming settings page is not yet implemented or handled differently */}
                 <Settings className="mr-2 h-4 w-4" />
@@ -80,5 +83,10 @@ export const Navbar = ({ toggleSidebar }: NavbarProps) => {
         </div>
       </div>
     </header>
+    <ProfileDialog
+      isOpen={isProfileDialogOpen}
+      onClose={() => setIsProfileDialogOpen(false)}
+    />
+  </>
   );
 };
