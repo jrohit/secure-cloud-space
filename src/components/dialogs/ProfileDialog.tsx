@@ -1,4 +1,11 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
+import * as RechartsPrimitive from "recharts"; // For BarChart, XAxis etc.
+import {
+  ChartContainer,
+  // ChartTooltip, // Not directly used if using custom Tooltip in BarChart
+  // ChartTooltipContent, // Will use custom content in BarChart's Tooltip prop
+  type ChartConfig
+} from "@/components/ui/chart";
 import {
   Dialog,
   DialogContent,
@@ -12,15 +19,32 @@ import { Button } from "@/components/ui/button";
 // Input from "@/components/ui/input" is not strictly needed for the styled file input
 import { useAuth } from '../../contexts/AuthContext'; // Adjusted path for dialogs folder
 
+// Helper function to format bytes
+const formatBytes = (bytes: number, decimals = 2) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
 interface ProfileDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 const ProfileDialog: React.FC<ProfileDialogProps> = ({ isOpen, onClose }) => {
-  const { user, updateUserAvatar } = useAuth();
+  const { user, updateUserAvatar, refreshUserStorageInfo } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isAvatarEnlarged, setIsAvatarEnlarged] = useState(false); // State for enlarged view
+
+  useEffect(() => {
+    if (isOpen && refreshUserStorageInfo) {
+      refreshUserStorageInfo();
+    }
+  }, [isOpen, refreshUserStorageInfo]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -63,12 +87,28 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
+  const sUsed = user?.storageUsed || 0;
+  const sLimit = user?.storageLimit || 1; // Avoid division by zero for percentage calculation, actual display is fine.
+                                        // Ensure limit is at least 1 for domain if sUsed is 0.
+  const chartData = [{ name: 'Storage', used: sUsed, limit: Math.max(sLimit, sUsed, 1) }]; // Ensure domain max is at least used or 1
+
+  const chartConfig = {
+    used: {
+      label: 'Used',
+      color: 'hsl(var(--primary))',
+    },
+    limit: { // For background or tooltip
+      label: 'Limit',
+      color: 'hsl(var(--muted))',
+    }
+  } satisfies ChartConfig;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[525px]"> {/* Example width, adjust as needed */}
-        <DialogHeader>
-          <DialogTitle>User Profile</DialogTitle>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[525px]"> {/* Example width, adjust as needed */}
+          <DialogHeader>
+            <DialogTitle>User Profile</DialogTitle>
           {/* <DialogDescription>
             View or update your profile information.
           </DialogDescription> */}
@@ -76,10 +116,10 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ isOpen, onClose }) => {
 
         <div style={{ paddingTop: '1rem', paddingBottom: '1rem' }}> {/* Added some padding */}
           {user && (
-            <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #eee', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
-              <h3 style={{ marginTop: '0', marginBottom: '10px', borderBottom: '1px solid #ddd', paddingBottom: '8px', fontSize: '1.1em' }}>Account Details</h3>
-              <p style={{ margin: '4px 0' }}><strong>Name:</strong> {user.name || 'N/A'}</p>
-              <p style={{ margin: '4px 0' }}><strong>Email:</strong> {user.email || 'N/A'}</p>
+            <div className="mb-5 p-4 border rounded-lg bg-card text-card-foreground shadow-sm">
+              <h3 className="mt-0 mb-2 pb-2 text-lg font-semibold border-b border-border">Account Details</h3>
+              <p className="my-1 text-sm"><strong>Name:</strong> {user.name || 'N/A'}</p>
+              <p className="my-1 text-sm"><strong>Email:</strong> {user.email || 'N/A'}</p>
             </div>
           )}
 
@@ -94,7 +134,13 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ isOpen, onClose }) => {
                 border: '2px solid #ccc',
                 objectFit: 'cover',
                 display: 'block',
-                margin: '0 auto 15px auto'
+                margin: '0 auto 15px auto',
+                cursor: previewUrl && !previewUrl.endsWith('/placeholder.svg') ? 'pointer' : 'default',
+              }}
+              onClick={() => {
+                if (previewUrl && !previewUrl.endsWith('/placeholder.svg')) {
+                  setIsAvatarEnlarged(true);
+                }
               }}
             />
             <label htmlFor="avatarInputDialog" style={{ display: 'inline-block', padding: '8px 12px', cursor: 'pointer', color: 'white', backgroundColor: '#007bff', borderRadius: '5px', fontSize: '0.9em' }}>
@@ -114,6 +160,59 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ isOpen, onClose }) => {
               <p>Selected file: {selectedFile.name}</p>
             </div>
           )}
+
+          {/* Storage Quota Chart */}
+          <div className="mt-6"> {/* Increased top margin */}
+            <h4 className="mb-2 text-md font-semibold text-foreground">Storage Quota</h4>
+            {(user?.storageLimit !== undefined && user?.storageUsed !== undefined) ? (
+              <>
+                <ChartContainer config={chartConfig} className="h-[40px] w-full"> {/* Adjusted height */}
+                  <RechartsPrimitive.BarChart
+                    accessibilityLayer
+                    data={chartData}
+                    layout="vertical"
+                    margin={{ left: 0, right: 0, top: 0, bottom: 0 }} // Adjusted margins
+                  >
+                    <RechartsPrimitive.XAxis type="number" domain={[0, chartData[0].limit]} hide />
+                    <RechartsPrimitive.YAxis type="category" dataKey="name" hide />
+                    <RechartsPrimitive.Tooltip
+                      cursor={{ fill: 'transparent' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const usedVal = payload[0].payload.used;
+                          const limitVal = payload[0].payload.limit;
+                          const percentage = limitVal > 0 ? (usedVal / limitVal) * 100 : 0;
+                          return (
+                            <div className="rounded-lg border bg-background p-2 shadow-sm text-sm">
+                              <p className="text-foreground">
+                                {formatBytes(usedVal)} used
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                ({percentage.toFixed(1)}% of {formatBytes(limitVal)})
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <RechartsPrimitive.Bar
+                      dataKey="used"
+                      fill="var(--color-used)"
+                      radius={4}
+                      background={{ fill: "hsl(var(--muted))", radius: 4 }}
+                      barSize={20} // Adjusted bar size
+                    />
+                  </RechartsPrimitive.BarChart>
+                </ChartContainer>
+                <div className="mt-1 text-xs text-muted-foreground text-center">
+                  {formatBytes(sUsed)} of {formatBytes(sLimit)}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Storage information not available.</p>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
@@ -124,6 +223,19 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ isOpen, onClose }) => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {isAvatarEnlarged && previewUrl && !previewUrl.endsWith('/placeholder.svg') && (
+      <Dialog open={isAvatarEnlarged} onOpenChange={setIsAvatarEnlarged}>
+        <DialogContent className="p-0 max-w-fit flex justify-center items-center bg-transparent border-0 shadow-none">
+          <img
+            src={previewUrl}
+            alt="Enlarged Avatar"
+            className="max-w-[80vw] max-h-[80vh] object-contain rounded-md"
+          />
+        </DialogContent>
+      </Dialog>
+    )}
+  </>
   );
 };
 
