@@ -1,5 +1,5 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
-import { useAuth } from '../../contexts/AuthContext'; // Import useAuth
+import { useAuth } from '../contexts/AuthContext'; // Corrected import path
 
 const ProfilePage: React.FC = () => {
   const { user, updateUserAvatar } = useAuth(); // Get user and updateUserAvatar from context
