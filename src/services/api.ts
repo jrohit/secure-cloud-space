@@ -69,24 +69,28 @@ export const authApi = {
     return handleResponse<User>(response);
   },
 
-  updateUserProfile: async (userId: string, data: { avatarUrl?: string }, token: string): Promise<User> => {
-    // The userId parameter is not strictly necessary if updating the authenticated user ('/auth/me').
-    // However, it's kept here if the API design might need it or for consistency if other profile fields were updated.
-    // For a /auth/me endpoint, the backend identifies the user via the token.
-    console.log(`Calling API to update user ${userId} with avatarUrl: ${data.avatarUrl}`);
+  // Renamed and reworked to handle file upload for avatar
+  uploadAndSetAvatar: async (userId: string, file: File, token: string): Promise<User> => {
+    // userId might not be strictly necessary if the backend uses the token to identify the user for '/auth/me/avatar'
+    console.log(`Calling API to upload avatar for user ${userId}: ${file.name}`);
 
-    const response = await fetch(`${API_URL}/auth/me`, { // Endpoint for updating the authenticated user
-      method: 'PATCH',
+    const formData = new FormData();
+    formData.append('avatar', file, file.name); // 'avatar' is the field name the backend expects for the file
+
+    const response = await fetch(`${API_URL}/auth/me/avatar`, { // Dedicated endpoint for avatar upload
+      method: 'POST', // Or PATCH, depending on API design for file uploads affecting user profile
       headers: {
-        'Content-Type': 'application/json',
+        // 'Content-Type': 'multipart/form-data' is automatically set by the browser when FormData is used as the body.
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify(data), // Send only the data to be updated, e.g., { avatarUrl: "..." }
+      body: formData,
     });
 
-    return handleResponse<User>(response); // Use the existing helper to handle response and errors
+    return handleResponse<User>(response); // Expects the updated User object from the backend
   },
-  // currentUserForMocks is removed as it was part of the mock implementation.
+  // Note: If there was other profile data to update (e.g., name, email as text fields),
+  // a separate updateUserProfile function sending JSON could be maintained or created.
+  // This change focuses on making avatar updates use FormData.
 };
 
 // Files API

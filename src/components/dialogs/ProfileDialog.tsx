@@ -61,9 +61,9 @@ const ProfileDialog: React.FC<ProfileDialogProps> = ({ isOpen, onClose }) => {
       const file = event.target.files[0];
       setSelectedFile(file);
       const newPreviewUrl = URL.createObjectURL(file);
-      setPreviewUrl(newPreviewUrl);
+      setPreviewUrl(newPreviewUrl); // For local preview
       if (updateUserAvatar) {
-        updateUserAvatar(newPreviewUrl); // Update context for live preview in Navbar, etc.
+        updateUserAvatar(file); // Pass the File object itself
       }
     } else {
       setSelectedFile(null);

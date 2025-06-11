@@ -31,7 +31,7 @@ interface AuthContextType {
   logout: () => void;
   getMasterCryptoKey: () => Promise<CryptoKey | null>; // Added
   refreshUserStorageInfo: () => Promise<void>; // Added
-  updateUserAvatar: (newAvatarUrl: string) => void; // Added for avatar updates
+  updateUserAvatar: (file: File) => Promise<void>; // Changed signature to accept File object
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -287,31 +287,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [token, setUser, toast]); // Added dependencies for useCallback
 
-  const updateUserAvatar = useCallback(async (newAvatarUrl: string) => {
+  const updateUserAvatar = useCallback(async (file: File) => {
     if (!user || !token) {
       toast({ title: "Error", description: "You must be logged in to update your avatar.", variant: "destructive" });
       return;
     }
     try {
-      // Simulate backend call: Pass the newAvatarUrl (which is currently a blob URL)
-      // A real backend would need the file uploaded, then URL to that file saved.
-      // For this simulation, we pretend the blob URL is what we save.
-      const updatedUserFromApi = await authApi.updateUserProfile(user.id, { avatarUrl: newAvatarUrl }, token);
+      // Call the new API function that handles FormData upload
+      const updatedUserFromApi = await authApi.uploadAndSetAvatar(user.id, file, token);
 
-      setUser(updatedUserFromApi); // Update context with user data from API response
+      setUser(updatedUserFromApi); // Update context with the user data from the API response
 
-      // Optionally, update localStorage if the full user object is stored there,
-      // though this app seems to refetch user on load based on token.
-      // if (updatedUserFromApi) {
-      //   localStorage.setItem('user', JSON.stringify(updatedUserFromApi));
-      // }
-
-      toast({ title: "Avatar Updated", description: "Your avatar has been updated (simulated)." });
+      toast({ title: "Avatar Updated", description: "Your avatar has been successfully updated." });
     } catch (error) {
       console.error("Failed to update avatar:", error);
-      toast({ title: "Avatar Update Failed", description: "Could not update your avatar.", variant: "destructive" });
+      // Attempt to parse a more specific error message if the error object has a 'message' property
+      const errorMessage = (error instanceof Error && error.message) ? error.message : "Could not update your avatar.";
+      toast({ title: "Avatar Update Failed", description: errorMessage, variant: "destructive" });
     }
-  }, [user, token, setUser, toast]); // Ensure all dependencies are listed
+  }, [user, token, setUser, toast]); // Dependencies for useCallback
 
   return (
     <AuthContext.Provider
