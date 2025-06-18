@@ -16,6 +16,7 @@ import { MyFileType as File, Folder } from "@/types";
 // Removed useRef as toolbarRef is no longer needed for JS sticky
 import throttle from "lodash/throttle";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDataRefresh } from "@/contexts/DataRefreshContext"; // Import useDataRefresh
 
 // Cache for decrypted file previews
 const decryptedFileCache = new Map<string, ArrayBuffer>();
@@ -136,6 +137,7 @@ const Dashboard = () => {
   const scrollPositionRef = useRef<number | null>(null); // Added for scroll restoration
   const scrollableContainerRef = useRef<HTMLDivElement | null>(null); // Ref for the scrollable container
   const { user, token, getMasterCryptoKey, refreshUserStorageInfo } = useAuth(); // Added refreshUserStorageInfo
+  const { registerDataRefreshFunction } = useDataRefresh(); // Use the context hook
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -1668,6 +1670,30 @@ const Dashboard = () => {
   const areAllItemsSelected = selectedItems.size > 0 && selectedItems.size === totalNumberOfItems;
   const hasSelection = selectedItems.size > 0;
   const hasItems = files.length > 0 || folders.length > 0;
+
+  // Define the actual refresh logic for this component
+  const performDataRefresh = useCallback(async () => {
+    console.log("[Dashboard] Performing data refresh...");
+    // Ensure refreshUserStorageInfo is awaited if it's async
+    if (refreshUserStorageInfo) {
+      await refreshUserStorageInfo();
+    }
+    // Assuming loadFilesAndFolders handles its own loading states.
+    // It should also probably reset files/folders and page number if called externally like this.
+    // The current loadFilesAndFolders is complex; a simpler top-level refresh might be:
+    // setCurrentPage(1); // This will trigger its own useEffect to load page 1
+    // loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
+    // For now, directly call with options ensuring it refreshes page 1.
+    await loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
+  }, [loadFilesAndFolders, refreshUserStorageInfo]);
+
+  // Register the refresh function with the context
+  useEffect(() => {
+    registerDataRefreshFunction(performDataRefresh);
+    // Cleanup: Unregister or set to null if Dashboard unmounts, though typically Dashboard is long-lived.
+    // return () => registerDataRefreshFunction(async () => {}); // Or some other way to clear
+  }, [registerDataRefreshFunction, performDataRefresh]);
+
 
   // Effect for scroll restoration
   useEffect(() => {

@@ -12,12 +12,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext"; // Import useDataRefresh
 import { filesApi, foldersApi } from "@/services/api";
 import { MyFileType, Folder } from "@/types"; // Folder is imported from types
 import React, { useEffect, useState, useCallback } from "react";
 
 const TrashPage: React.FC = () => {
-  const { token, refreshUserStorageInfo } = useAuth();
+  const { token } = useAuth(); // Removed refreshUserStorageInfo from here
+  const { requestDataRefresh } = useDataRefresh(); // Use the context hook
   const { toast } = useToast();
   const [trashedFiles, setTrashedFiles] = useState<MyFileType[]>([]);
   const [trashedFolders, setTrashedFolders] = useState<Folder[]>([]);
@@ -108,7 +110,7 @@ const TrashPage: React.FC = () => {
           title: "Success",
           description: `File "${file.name}" permanently deleted.`,
         });
-        await refreshUserStorageInfo();
+        requestDataRefresh(); // Call context refresh
       } catch (error) {
         setTrashedFiles(originalFiles); // Revert
         toast({
@@ -127,7 +129,7 @@ const TrashPage: React.FC = () => {
           title: "Success",
           description: `Folder "${folder.name}" and its contents permanently deleted.`,
         });
-        await refreshUserStorageInfo();
+        requestDataRefresh(); // Call context refresh
       } catch (error) {
         setTrashedFolders(originalFolders); // Revert
         toast({
@@ -151,7 +153,7 @@ const TrashPage: React.FC = () => {
         title: "Success",
         description: result.message || "File trash emptied successfully.",
       });
-      await refreshUserStorageInfo();
+      requestDataRefresh(); // Call context refresh
     } catch (error) {
       toast({
         title: "Error",
@@ -200,7 +202,7 @@ const TrashPage: React.FC = () => {
         title: "Success",
         description: result.message || "Folder trash emptied successfully.",
       });
-      await refreshUserStorageInfo();
+      requestDataRefresh(); // Call context refresh
     } catch (error) {
       toast({
         title: "Error",
