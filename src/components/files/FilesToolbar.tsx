@@ -23,6 +23,7 @@ import {
   Trash, // Added for Bulk Delete
 } from "lucide-react"; // Added icons
 import React, { forwardRef, useEffect, useRef, useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox"; // Import Checkbox
 
 interface FilesToolbarProps {
   currentFolder: FolderType | null;
@@ -44,6 +45,12 @@ interface FilesToolbarProps {
   selectedItemsCount: number; // Added for bulk actions
   onBulkDownload: () => void; // Added for bulk actions
   onBulkDelete: () => void; // Added for bulk actions
+  // Props for Select All Checkbox
+  onSelectAll: () => void;
+  onClearSelection: () => void;
+  areAllItemsSelected: boolean;
+  hasSelection: boolean;
+  hasItems: boolean;
 }
 
 const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
@@ -68,6 +75,12 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
       selectedItemsCount, // Added
       onBulkDownload, // Added
       onBulkDelete, // Added
+      // Destructure Select All props
+      onSelectAll,
+      onClearSelection,
+      areAllItemsSelected,
+      hasSelection,
+      hasItems,
     },
     ref
   ) => {
@@ -128,6 +141,22 @@ const FilesToolbar = forwardRef<HTMLDivElement, FilesToolbarProps>(
       >
         {/* Breadcrumbs Section */}
         <div className="flex items-center space-x-1 text-sm pt-2 mb-2 overflow-x-auto pb-1 min-w-0">
+          {/* Select All Checkbox */}
+          <div className="flex items-center mr-2">
+            <Checkbox
+              id="select-all-checkbox"
+              disabled={!hasItems}
+              checked={areAllItemsSelected ? true : hasSelection ? "indeterminate" : false}
+              onCheckedChange={() => {
+                if (areAllItemsSelected) {
+                  onClearSelection();
+                } else {
+                  onSelectAll();
+                }
+              }}
+              aria-label="Select all items"
+            />
+          </div>
           <button
             onClick={() => onBreadcrumbNavigate(-1)}
             className="font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap p-0 focus:outline-none focus:ring-0 bg-transparent border-none disabled:opacity-75 disabled:cursor-not-allowed"

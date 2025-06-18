@@ -1650,6 +1650,25 @@ const Dashboard = () => {
     });
   };
 
+  // Handler to clear all selected items
+  const handleClearSelection = () => {
+    setSelectedItems(new Set());
+  };
+
+  // Handler to select all current files and folders
+  const handleSelectAll = () => {
+    const allItemIds = new Set<string>();
+    files.forEach(file => allItemIds.add(file._id));
+    folders.forEach(folder => allItemIds.add(folder._id));
+    setSelectedItems(allItemIds);
+  };
+
+  // Determine if all items are selected
+  const totalNumberOfItems = files.length + folders.length;
+  const areAllItemsSelected = selectedItems.size > 0 && selectedItems.size === totalNumberOfItems;
+  const hasSelection = selectedItems.size > 0;
+  const hasItems = files.length > 0 || folders.length > 0;
+
   // Effect for scroll restoration
   useEffect(() => {
     if (viewMode === 'card' && scrollPositionRef.current !== null && !loading) {
@@ -1712,6 +1731,12 @@ const Dashboard = () => {
         selectedItemsCount={selectedItems.size} // Pass selected items count
         onBulkDownload={handleBulkDownload} // Updated to actual bulk download handler
         onBulkDelete={handleBulkDelete} // Updated to actual bulk delete handler
+        // Props for Select All Checkbox in Toolbar
+        onSelectAll={handleSelectAll}
+        onClearSelection={handleClearSelection}
+        areAllItemsSelected={areAllItemsSelected}
+        hasSelection={hasSelection}
+        hasItems={hasItems}
       />
 
       {isUploadingFolder && (
@@ -1762,6 +1787,10 @@ const Dashboard = () => {
               selectedItems={selectedItems} // Added for selection
               onItemSelect={handleItemSelect} // Added for selection
               deleteOpId={deleteOpId} // Pass deleteOpId
+              // Props for select all
+              onSelectAll={handleSelectAll}
+              onClearSelection={handleClearSelection}
+              areAllItemsSelected={areAllItemsSelected}
             />
             {isLoadingMore && (
               <div className="flex justify-center py-4">

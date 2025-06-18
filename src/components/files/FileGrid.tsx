@@ -44,6 +44,10 @@ interface FileGridProps {
   selectedItems: Set<string>; // Added for selection
   onItemSelect: (itemId: string) => void; // Added for selection
   deleteOpId?: number | null; // Added for delete operation tracking
+  // Props for select all functionality
+  onSelectAll: () => void;
+  onClearSelection: () => void;
+  areAllItemsSelected: boolean;
 }
 
 const FileGrid: React.FC<FileGridProps> = ({
@@ -62,6 +66,10 @@ const FileGrid: React.FC<FileGridProps> = ({
   selectedItems, // Added for selection
   onItemSelect, // Added for selection
   deleteOpId, // Added
+  // Destructure new props for select all
+  onSelectAll,
+  onClearSelection,
+  areAllItemsSelected,
 }) => {
   const listRef = useRef<VariableSizeList | null>(null);
   const currentScrollOffsetRef = useRef<number>(0);
@@ -132,6 +140,28 @@ const FileGrid: React.FC<FileGridProps> = ({
     }
     // listRef, topVisibleItemIdRef, currentScrollOffsetRef are stable refs
   }, [viewMode, deleteOpId, files, folders]); // Added files and folders to dependencies
+
+  // Effect for handling CTRL+A or CMD+A for select all
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check for Ctrl+A (Windows/Linux) or Cmd+A (Mac)
+      if (event.key.toLowerCase() === 'a' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault(); // Prevent default browser action (e.g., selecting all text on page)
+        if (areAllItemsSelected) {
+          onClearSelection();
+        } else {
+          onSelectAll();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onSelectAll, onClearSelection, areAllItemsSelected]); // Dependencies for the effect
 
   if (viewMode === "list") {
     const listItems: ListItemType[] = [];
