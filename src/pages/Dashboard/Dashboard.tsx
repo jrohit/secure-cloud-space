@@ -717,14 +717,7 @@ const Dashboard = () => {
 
       // loadFilesAndFolders(); // Replaced by new logic below
 
-      // Clear local state immediately for responsiveness before new data loads
-      if (currentPage === 1) {
-        setFiles([]);
-        setFolders([]);
-        loadFilesAndFolders({ bustCache: true, pageToLoad: currentPage ?? 1 });
-      } else {
-        setCurrentPage(1);
-      }
+      // Upload logic finished
 
       toast({
         title: "Success",
@@ -738,6 +731,21 @@ const Dashboard = () => {
           await refreshUserStorageInfo();
         }
       }
+
+      // After successful file upload, call fetchFilesAndFolders (loadFilesAndFolders)
+      // with cacheBuster for page 1.
+      // Clear local data for better UX before new data is loaded.
+      setFiles([]);
+      setFolders([]);
+
+      // If not already on page 1, set it. The useEffect for currentPage will also trigger a load,
+      // but this explicit call ensures the cacheBuster is used for the load triggered by upload success.
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      }
+      // Explicitly call loadFilesAndFolders with cache busting for page 1.
+      loadFilesAndFolders({ bustCache: true, pageToLoad: 1 });
+
     } catch (error) {
       console.error("Error uploading files:", error);
 

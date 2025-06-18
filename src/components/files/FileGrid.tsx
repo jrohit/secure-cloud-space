@@ -68,10 +68,32 @@ const FileGrid: React.FC<FileGridProps> = ({
   const prevDeleteOpIdRef = useRef<number | null | undefined>(deleteOpId);
   const topVisibleItemIdRef = useRef<string | null>(null); // Ref for top visible item ID
 
-  if (viewMode === "list") {
-    const listItems: ListItemType[] = [];
+  // Moved useEffect outside the conditional rendering block
+  useEffect(() => {
+    if (viewMode === "list") { // Added condition to run logic only for list view
+      // Reconstruct listItems here since it's needed for findIndex
+      const listItemsEffect: ListItemType[] = [];
+      if (folders.length > 0) {
+        listItemsEffect.push({
+          id: "header-folders",
+          type: "header",
+          data: { title: "Folders" },
+        });
+        folders.forEach((folder) =>
+          listItemsEffect.push({ id: folder._id, type: "folder", data: folder })
+        );
+      }
+      if (files.length > 0) {
+        listItemsEffect.push({
+          id: "header-files",
+          type: "header",
+          data: { title: "Files" },
+        });
+        files.forEach((file) =>
+          listItemsEffect.push({ id: file._id, type: "file", data: file })
+        );
+      }
 
-    useEffect(() => {
       let timeoutId: NodeJS.Timeout | null = null;
 
       if (listRef.current && deleteOpId !== null && deleteOpId !== prevDeleteOpIdRef.current) {
@@ -80,7 +102,8 @@ const FileGrid: React.FC<FileGridProps> = ({
         timeoutId = setTimeout(() => {
           if (topVisibleItemIdRef.current) {
             const targetItemId = topVisibleItemIdRef.current;
-            const newIndex = listItems.findIndex(item => item.id === targetItemId);
+            // Use the locally reconstructed listItemsEffect
+            const newIndex = listItemsEffect.findIndex(item => item.id === targetItemId);
 
             if (newIndex !== -1) {
               listInstance.scrollToItem(newIndex, 'start');
@@ -106,7 +129,12 @@ const FileGrid: React.FC<FileGridProps> = ({
           clearTimeout(timeoutId);
         }
       };
-    }, [listItems, deleteOpId]); // listRef, topVisibleItemIdRef, currentScrollOffsetRef are stable refs
+    }
+    // listRef, topVisibleItemIdRef, currentScrollOffsetRef are stable refs
+  }, [viewMode, deleteOpId, files, folders]); // Added files and folders to dependencies
+
+  if (viewMode === "list") {
+    const listItems: ListItemType[] = [];
 
     if (folders.length > 0) {
       listItems.push({
